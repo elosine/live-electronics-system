@@ -231,7 +231,9 @@
 			row = (id: "smp_" ++ self.nowIso.select(_.isDecDigit), name: name, player: who.asString, lane: (d[\lane] ? -1).asInteger,
 				category: (d[\category] ? "").asString, scoreTime: (d[\t] ? 0).asFloat.round(0.001), lengthMs: lenMs,
 				peakDb: self.db(c[\peak]), file: rel, raw: rawRel, openingId: id, windowMs: winMs, attackMs: atMs, captured: self.nowIso);
-			self[\indexRows] = self[\indexRows].reject({ |r| r[\name].asString == name });
+			// §84: a FIRST take lost its row every time, a re-take never did — reject() hands back a collection of exactly the size left,
+			// and add() on a full Array returns a NEW array that was being thrown away. A List adds in place: made one, every time.
+			self[\indexRows] = self[\indexRows].reject({ |r| r[\name].asString == name }).asList;
 			self[\indexRows].add(row);
 			if(self.indexWrite.not) { self.say("LE_INFO", "the index was NOT written — the sample is saved as " ++ rel) };
 			Buffer.read(s, dir +/+ rel, action: { |b|
