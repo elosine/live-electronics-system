@@ -285,3 +285,17 @@ clock and playhead — WHICH page sends a message, and how a duplicate from a se
 message's `id` is there so the engine can tell.
 
 `docs/SEAMS.md` has the message half and the first rows of "the lines a stack file must change"; `docs/TAKE.md` step 2 names them.
+
+## §12. 4.2 DONE — the lead measured on the composer's Chrome: 114.2 ms (2026-10-04, Opus, in the Decibel piece's chat)
+
+The one box left open in §11. The composer played a bass clarinet note from his composer page (his Chrome, Web MIDI; his score server
+restarted so that it had the route; his own engine window). The engine's two lines, and the pairing kept by the piece's tool: the
+message left **92.8 ms** ahead of the note's own start; the note's sound reached the engine **114.2 ms** after the message — so **21.4 ms**
+from the note's start to its sound at the engine's input (the sampler, the DAW's block, the probe). One note; the piece's
+`probes/elec_message_log.jsonl`. A message is at the engine about a tenth of a second before the sound it announces, with no clock shared.
+
+**A note on method** (the piece's §61): the measure cost the composer four hand steps for one number, after the route had been proven
+without him. A check that needs the composer's hands is offered, not assumed.
+
+**Next here:** 4.3 the capture · 4.3b the crop · 4.4 the playback · the index — proposed to him in the piece as ONE build, the first
+object end to end (the piece's §61). Not decided.

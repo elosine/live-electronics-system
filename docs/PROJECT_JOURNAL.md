@@ -39,8 +39,8 @@ reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, 
   the same road in concert and in simulation (the piece's D10). New here: `sc/boot.scd` the ear (`openEar` · `hear`) and the onset
   probe (`onsetOn`) · `sc/session.scd` shows `/le/onset` and times the player's sound against it · `tools/osc.js` · `tools/relay.js` ·
   `score/le_msg.js` (the first file of the composer-score seam). A message is `/le/<kind>` + NAME, VALUE pairs. `selftest.scd` passes
-  with two new cases (D · E). `docs/SEAMS.md` lists the five lines a piece's stack changes. **PROVEN to the edge of Web MIDI; NOT
-  MEASURED: the score's lead over its own sound (the composer's Chrome).** **► NEXT: 4.3 the capture to a bank and 4.3b the crop —
+  with two new cases (D · E). `docs/SEAMS.md` lists the five lines a piece's stack changes. **PROVEN, and the lead MEASURED on his Chrome: 114.2 ms
+  (RUNNING_LOG §12) — 4.2 is DONE.** **► NEXT: 4.3 the capture to a bank and 4.3b the crop —
   a talk first, in the Decibel piece (its 6.3 · 6.3b).**
 - **UPDATE 5 · 2026-10-04 (RUNNING_LOG §8, Opus) — 4.1 DONE: THE CROSSING PROVEN** in the Decibel piece (ReaRoute installed, Reaper on
   ASIO): unity through the engine; the round trip two DAW blocks (23.22 ms at 512); ReaRoute's channels sit at hardware index 512 …

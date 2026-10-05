@@ -120,7 +120,8 @@ under "The lines a stack file must change", below.
 **Proven** (the Decibel piece's 6.2, 2026-10-04 — RUNNING_LOG §11): `/le/hello` answered through the score server in 0.71 ms and
 from the page in 0.5 ms · the composer page's OWN playback, through its hook, shown by the engine as
 `onset · bcl · lane 1 · brick wc-2 · at 5.0 s · due in 99.0 ms` · a real note on the engine's ReaRoute input paired with its
-message. **NOT YET MEASURED: the score's lead over its own sound** — that needs Web MIDI, which only the composer's own browser has.
+message. **The score's lead over its own sound, measured on the composer's Chrome the same day: 114.2 ms** — the message left 92.8 ms ahead
+of the note's own start, and the sound reached the engine 21.4 ms after that start (one note; RUNNING_LOG §12).
 
 ## The lines a stack file must change, per piece
 
