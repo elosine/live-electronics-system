@@ -36,6 +36,7 @@
     // Grown 2026-10-05 by audition (the Decibel piece's DEC-17 · §106): `override`, and after `drive` the pedals and the shredders — the
     // dials PROVISIONAL until he has heard each on a brick; the knobs are shaped after.
     const EFFECTS = [
+        { key: 'none', label: 'none — the source as it is: clears the dials; a render is the source under the envelope', dials: [] },   // §107: his reset
         { key: 'tape', label: 'tape — speed and direction', dials: [D('rate', 'speed ×', 0.05, 8, 0.01, 0.5), O('rev', 'direction', [[0, 'forward'], [1, 'reversed']], 0)] },
         { key: 'noise', label: 'noise bed — follows the sample\'s envelope', dials: [D('noise', 'amount', 0, 1, 0.05, 0.5), D('noiseCut', 'cutoff', 200, 16000, 100, 8000, 'Hz')] },
         { key: 'override', label: 'buffer override — a mini-buffer repeated: a stutter, or a pitch (divisor ÷ forced buffer)', dials: [D('ovrMix', 'mix', 0, 1, 0.05, 1), D('ovrBuf', 'forced buffer', 10, 4000, 1, 250, 'ms'), D('ovrDiv', 'divisor', 1, 256, 1, 8), D('ovrSmooth', 'smoothing', 0, 0.5, 0.01, 0.1)] },
