@@ -425,3 +425,17 @@ capture's index write carried every row in memory — so the row never got in, a
 lost. **Done:** the row-making sits in a `try`; on an error the engine says `LE_ERROR the row of <name> was NOT made — the sample is
 saved as <file> · <error>` and sends a `captured` result with `rowError`, `file`, `raw` — the page sees it. The cause is still to be
 read from the window the next time it happens. No change to the capture, the crop or the index format. Not tested (the piece's D13).
+
+## §17. THE FIRST BEHAVIOUR OF A RETURN — `ar`, anticipation-reaction, rolled live; a player's several ports (2026-10-05, Fable; from the Decibel piece's step 9 — its RUNNING_LOG §75 … §78 and DEC-9 … 9c have his words)
+
+The engine is now ONE MORE PERFORMER with a bank and behaviours (the piece's D14). The first behaviour, `ar`: a `/le/play` with
+`behaviour ar` points at the brick's CENTRE (`t`, `dueMs` — the live note); the engine rolls a stance — just-before · just-after ·
+lazily-after · near-unison — and an offset inside that stance's range, drawn skewed to the fast edge (`u^skew`); a just-before
+can MISS (late, or far too early). Rolled HERE at every playback, never in the page (the piece's D15): the score stays still,
+the simulation runs the same dice. `arDefaults` in `sc/bank.scd`; a piece overrides them with `LE_AR` (session.scd), flat names
+`before · after · lazy · unison · afterLo/Hi · beforeLo/Hi · lazyLo/Hi · unisonLo/Hi · skew · missRate · missLateShare ·
+missLateLo/Hi · missEarlyLo/Hi`. Each roll is one line in the window and in the result (`stance`, `offsetMs`). The page
+(`score/le_objects.js`): `elec.behaviour` on a return — the panel's Behaviour select, the region ±`arRegionMs`, the message at
+the region's start. A player may own several MIDI ports (`players[].ports`; `le_msg.js` `playerOf`, `tools/relay.js`): one
+microphone, two lanes. Not tested (the piece's D13); the roll's arithmetic is five lines. Taken from the piece's #2 lineage:
+the bands' floors (80 / 100 ms), a separation, three-body's accuracy as the tight share and its air shot as the miss.

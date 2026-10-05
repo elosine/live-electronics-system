@@ -37,7 +37,7 @@ module.exports = function relay({ configFile }) {
         try { c = JSON.parse(fs.readFileSync(configFile, 'utf8')); } catch (e) { /* no table: the defaults */ }
         const m = c.message || {};
         return { host: m.host || '127.0.0.1', port: +m.port || osc.PORT, testOnsets: !!m.testOnsets,
-            players: (c.players || []).map((p) => ({ name: p.name, port: p.port })) };
+            players: (c.players || []).map((p) => ({ name: p.name, port: p.port, ports: p.ports || [p.port] })) };   // ports: one player, several lanes (§78)
     };
     const answer = (res, code, obj) => {
         try { res.statusCode = code; res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(obj)); } catch (e) { /* the client left */ }

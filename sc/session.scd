@@ -14,6 +14,7 @@
 //   LE_MODE      sim (default) | live | quiet (no hardware, nothing sounds — a tool's test of the messages alone)
 //   LE_BANK      the bank's folder (the piece's; made if it is not there). Without it nothing is recorded or played.
 //   LE_CROP      the crop's rule, where a piece overrides the defaults:  attackDb=-30,endDb=-45,holdMs=50  (bank.scd)
+//   LE_AR        the return behaviour 'ar', where a piece overrides the defaults:  before=0.35,afterLo=100,…  (bank.scd arDefaults)
 //   LE_ECHO      A ROUTE CHECK: seconds each player is returned BEHIND the note — the route heard as a second sound.
 //   LE_PASS      A ROUTE CHECK: 1 = each player straight to the master (two DAW blocks behind: not heard as a second sound).
 //   LE_SOURCE    the folder the buffers are FILLED from at start (the bank itself when absent) — the backup bank in rehearsal and concert (§71)
@@ -29,6 +30,7 @@ var pass = ("LE_PASS".getenv ? "0").asFloat > 0;
 var secs = ("LE_SECONDS".getenv ? "0").asFloat;
 var bank = "LE_BANK".getenv;
 var cropSpec = "LE_CROP".getenv;
+var arSpec = "LE_AR".getenv;
 var source = "LE_SOURCE".getenv;
 var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 (dir +/+ "boot.scd").load;
@@ -46,6 +48,10 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 	if(cropSpec.notNil and: { cropSpec.size > 0 }) {
 		crop = ();
 		cropSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { crop[b[0].asSymbol] = b[1].asFloat } });
+	};
+	if(arSpec.notNil and: { arSpec.size > 0 }) {
+		le[\arOpts] = ();
+		arSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { le[\arOpts][b[0].asSymbol] = b[1].asFloat } });
 	};
 	if(bank.notNil and: { bank.size > 0 }) { nSamples = le.bankOn(bank, crop, source, record) };
 	s.sync;

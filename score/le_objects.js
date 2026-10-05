@@ -15,7 +15,10 @@
 //       `openMs` (500) long, the crop finds the attack — or, with no note selected, at the playhead on the active lane.
 //       Its name: the player's name and the next free letter (bcl-A, bcl-B …), the composer's to rename in the panel.
 //
-//   midiModel 'elecPlay'   THE RETURN.   elec: { name }
+//   midiModel 'elecPlay'   THE RETURN.   elec: { name, behaviour? }
+//       behaviour 'ar' (2026-10-05, step 9): the brick is a REGION around its CENTRE, the live note; the message points at the
+//       centre and names the behaviour; the ENGINE rolls where the sample lands (before, after, lazily after, near unison, a
+//       miss) — never the page: the score stays still, the simulation runs the same dice. Its panel chooses the behaviour.
 //       Played through, it sends   /le/play   name · id · lane · t · dueMs   and the engine plays the banked sample WHERE THE
 //       BRICK IS. Its length is the sample's, read from the bank's index; its lane says whose staff it is drawn on.
 //       KEY (`r` in the first): at the playhead — the sample of the selected opening, else of the nearest opening before
@@ -45,7 +48,7 @@
     const LEObjects = {
         MODELS, host: null, index: [], _pass: null, _prev: null,
         opts: { keys: { open: 'm', play: 'r' }, portOf: () => null, laneLabel: (l) => 'lane ' + l, lanes: 99,
-            indexUrl: '/bank/samples/index.json', lookAheadS: 0.1, openMs: 500, preMs: 100 },
+            indexUrl: '/bank/samples/index.json', lookAheadS: 0.1, openMs: 500, preMs: 100, arRegionMs: 400 },
 
         is(o) { return !!(o && o.type === 'zone' && MODELS[o.midiModel]); },
         zones(model) { return (this.host ? this.host.objects : []).filter((o) => this.is(o) && (!model || o.midiModel === model)); },
@@ -97,7 +100,7 @@
         redraw() {
             const h = this.host; if (!h) return;
             for (const z of this.zones()) {
-                if (z.midiModel === 'elecPlay' && z.elec) {
+                if (z.midiModel === 'elecPlay' && z.elec && !z.elec.behaviour) {   // a behaviour's brick keeps its region
                     const row = this.row(z.elec.name);
                     if (row && row.lengthMs > 0) z.endTime = r3(z.startTime + row.lengthMs / 1000);
                 }
@@ -114,7 +117,10 @@
             if (zone.midiModel === 'elecOpen') {
                 const p = this.playerOf(zone.layer);
                 if (p !== undefined) { e.player = p || ''; if (!p) text += ' — no microphone on this lane'; }
-            } else if (!this.row(e.name)) text += ' — not captured yet';
+            } else {
+                if (e.behaviour) text += ' ~ ' + String(e.behaviour).toUpperCase();
+                if (!this.row(e.name)) text += ' — not captured yet';
+            }
             if (label) label.textContent = text;
         },
 
@@ -222,6 +228,20 @@
                     commit(() => { e.name = pick.value; const x = this.row(e.name); if (x && x.lengthMs > 0) zone.endTime = r3(zone.startTime + x.lengthMs / 1000); });
                 });
                 sec.appendChild(rowEl('Sample', pick));
+                // the behaviour (step 9): plain = the sample where the brick is · ar = rolled by the engine around the brick's centre
+                const beh = el('select');
+                beh.appendChild(el('option', { value: '', textContent: 'where the brick is', selected: !e.behaviour }));
+                beh.appendChild(el('option', { value: 'ar', textContent: 'anticipation-reaction around the centre', selected: e.behaviour === 'ar' }));
+                beh.addEventListener('change', () => {
+                    beh.blur();
+                    commit(() => {
+                        const R = this.opts.arRegionMs / 1000, x = this.row(e.name);
+                        if (beh.value === 'ar') { const c = zone.startTime; e.behaviour = 'ar'; zone.startTime = r3(Math.max(0, c - R)); zone.endTime = r3(c + R); }
+                        else { const c = r3((zone.startTime + zone.endTime) / 2); delete e.behaviour; zone.startTime = c; zone.endTime = r3(c + ((x && x.lengthMs > 0 ? x.lengthMs : this.opts.openMs) / 1000)); }
+                    });
+                });
+                sec.appendChild(rowEl('Behaviour', beh));
+                if (e.behaviour === 'ar') sec.appendChild(note('rolled by the engine at every playback — just before · just after · lazily after · near unison · a miss; the dials are the piece\'s route table, return.ar (A … F); the engine window shows each roll'));
                 const row = this.row(e.name);
                 sec.appendChild(note(row ? 'from ' + row.player + (row.category ? ' · ' + row.category : '') + ' · ' + Math.round(row.lengthMs) + ' ms · peak ' + row.peakDb + ' dB · taken ' + String(row.captured || '').replace('T', ' ')
                     : 'its length becomes the sample\'s once it is captured'));
@@ -254,6 +274,10 @@
                 const lengthMs = Math.round((z.endTime - at) * 1000);
                 LE.send('open', { player, lane: z.layer, id: String(z.id), name: safe(e.name), category: String(e.category || ''), t: r3(at), lengthMs, dueMs });
                 setTimeout(() => this.loadIndex(), dueMs + lengthMs + 1200);   // the engine has cropped and indexed it by then
+            } else if (e.behaviour) {   // the message points at the CENTRE (the live note) and names the behaviour; the engine rolls
+                const c = r3((z.startTime + z.endTime) / 2), perfC = host.playStartTime + (c - host.playStartOffset / host.pixelsPerSecond) * 1000;
+                const dueC = Math.max(0, Math.round(((Number.isFinite(perfC) ? perfC : performance.now()) - performance.now()) * 10) / 10);
+                LE.send('play', { name: safe(e.name), id: String(z.id), lane: z.layer, t: c, dueMs: dueC, behaviour: String(e.behaviour) });
             } else {
                 LE.send('play', { name: safe(e.name), id: String(z.id), lane: z.layer, t: r3(at), dueMs });
             }

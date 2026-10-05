@@ -35,7 +35,7 @@
         },
         playerOf(port) {
             const k = String(port || '').toLowerCase(), ps = (this.cfg && this.cfg.players) || [];
-            const p = ps.find((x) => String(x.port || '').toLowerCase() === k);
+            const p = ps.find((x) => (x.ports || [x.port]).some((q) => String(q || '').toLowerCase() === k));   // a player may own several ports — the percussionist's two lanes
             return p ? p.name : null;
         },
         hello() { return this.send('hello', {}); },

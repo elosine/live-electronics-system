@@ -250,20 +250,57 @@
 	self
 };
 
+// ---- the behaviours of a return (the Decibel piece's step 9, 2026-10-05; the engine plan's part 11) --------------------
+// 'ar' — ANTICIPATION-REACTION: the sample lands BEFORE or AFTER the brick's centre (the live note), as a LISTENING player
+// would who does not know when the other will play: just before (a guess) · just after (a reaction) · lazily after · near
+// unison; a guess can MISS (late, or far too early). Rolled HERE at every playback, never in the page — the composer score
+// stays still and the simulation runs the same dice (the piece's D15). Each value is a DEFAULT, overridden by the piece
+// (LE_AR, session.scd; the piece letters them A the shares · B the ranges, ms, drawn skewed to the fast edge by `skew` ·
+// C the miss). No leanings per player: fresh dice at every note (his word).
+~le[\arDefaults] = (before: 0.35, after: 0.35, lazy: 0.15, unison: 0.15,
+	afterLo: 100, afterHi: 180, beforeLo: 60, beforeHi: 150, lazyLo: 180, lazyHi: 400, unisonLo: 10, unisonHi: 40, skew: 2,
+	missRate: 0.10, missLateShare: 0.67, missLateLo: 0, missLateHi: 80, missEarlyLo: 150, missEarlyHi: 300);
+~le[\arRoll] = { |self|
+	var o = self[\arDefaults].copy, u = 1.0.rand, stance, off, draw;
+	if(self[\arOpts].notNil) { o.putAll(self[\arOpts]) };
+	draw = { |lo, hi| lo + ((hi - lo) * (1.0.rand ** o[\skew])) };   // most rolls near lo, a tail to hi
+	stance = case { u < o[\before] } { \before }
+		{ u < (o[\before] + o[\after]) } { \after }
+		{ u < (o[\before] + o[\after] + o[\lazy]) } { \lazy }
+		{ true } { \unison };
+	off = switch(stance,
+		\before, { draw.(o[\beforeLo], o[\beforeHi]).neg },
+		\after,  { draw.(o[\afterLo], o[\afterHi]) },
+		\lazy,   { draw.(o[\lazyLo], o[\lazyHi]) },
+		\unison, { draw.(o[\unisonLo], o[\unisonHi]) * [1, -1].choose });
+	if((stance == \before) and: { 1.0.rand < o[\missRate] }) {
+		if(1.0.rand < o[\missLateShare]) { stance = \missLate; off = draw.(o[\missLateLo], o[\missLateHi]) }
+		{ stance = \missEarly; off = draw.(o[\missEarlyLo], o[\missEarlyHi]).neg };
+	};
+	(stance: stance, offsetMs: off.round(0.1))
+};
+
 // ---- the return: /le/play ---------------------------------------------------------------------------------------------
+//   /le/play … behaviour ar   the brick's centre is the live note (t · dueMs point at it); the roll above moves the sample
 ~le[\samplePlay] = { |self, d|
 	var s = self[\server], name = self.safeName(d[\name]), due = ((d[\dueMs] ? 0).asFloat / 1000).clip(0, 5);
 	var smp = if(self[\samples].notNil) { self[\samples][name.asSymbol] };
+	var beh = (d[\behaviour] ? "").asString, roll, at = due, clipped = false;
 	if(smp.isNil) {
 		self.say("LE_INFO", "play · " ++ name ++ " — no such sample in the bank");
 	} {
-		s.makeBundle(if(due > 0.005) { due }, {
+		if(beh == "ar") {   // the roll: the sample moves from the centre by the offset; a "before" the message came too late for lands now
+			roll = self.arRoll; at = due + (roll[\offsetMs] / 1000); clipped = at < 0; at = at.max(0);
+		};
+		s.makeBundle(if(at > 0.005) { at }, {
 			Synth(\leSample, [\out, self[\busMaster].index, \buf, smp[\buf].bufnum], self[\grpFx], \addToTail);
 		});
-		self.say("LE_INFO", "play · " ++ name ++ " · in " ++ (due * 1000).round(1).asInteger ++ " ms · "
-			++ smp[\row][\lengthMs].round(1).asInteger ++ " ms long");
-		self.say("LE_RESULT", self.json((msg: "play", name: name, id: (d[\id] ? "").asString, dueMs: (due * 1000).round(0.1),
-			lengthMs: smp[\row][\lengthMs], peakDb: smp[\row][\peakDb])));
+		self.say("LE_INFO", "play · " ++ name ++ " · in " ++ (at * 1000).round(1).asInteger ++ " ms · "
+			++ smp[\row][\lengthMs].round(1).asInteger ++ " ms long"
+			++ if(roll.notNil) { " · AR " ++ roll[\stance] ++ " " ++ roll[\offsetMs].round(1).asInteger ++ " ms" ++ if(clipped) { " (too late to be early: now)" } { "" } } { "" });
+		self.say("LE_RESULT", self.json((msg: "play", name: name, id: (d[\id] ? "").asString, dueMs: (at * 1000).round(0.1),
+			lengthMs: smp[\row][\lengthMs], peakDb: smp[\row][\peakDb], behaviour: beh,
+			stance: if(roll.notNil) { roll[\stance].asString } { "" }, offsetMs: if(roll.notNil) { roll[\offsetMs] } { 0 })));
 	};
 	self
 };
