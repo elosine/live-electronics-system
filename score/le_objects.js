@@ -38,6 +38,11 @@
 //       KEY (`r` in the first): at the playhead — the sample of the selected opening, else of the nearest opening before
 //       the playhead; the panel's picker lists every sample in the index.
 //
+//   midiModel 'elecProcess'   A STAGE OF A CHAIN (2026-10-05) — the THIRD object: a banked sample through one configuration of
+//       the engine's chain, banked again under a name of its own (<root>~1, ~2 …). Its catalogue, its panel and its render are
+//       le_process.js — a mixin on this object, one more tag; this file only knows that it IS one of its bricks and hands it
+//       the label, the panel, the redraw, the key and the tick. Rendered, it is played exactly as a plain return.
+//
 // A MESSAGE LEAVES AHEAD of its brick by the look-ahead (0.1 s), as a note does, and says by how much (dueMs): the engine
 // schedules a return on ITS OWN clock dueMs later, and starts a capture at once (early is right — the crop finds the attack).
 // An opening the playhead STARTS INSIDE still opens, for what is left of its window. A brick on a silenced part sends nothing.
@@ -55,9 +60,10 @@
     const MODELS = {
         elecOpen: { kind: 'open', sign: '◉', color: '#00897B', yOffset: 0, title: 'Mic opening' },
         elecPlay: { kind: 'play', sign: '▶', color: '#8E24AA', yOffset: 1, title: 'Sample — the return' },
+        elecProcess: { kind: 'process', sign: '⟳', color: '#EF6C00', yOffset: 2, title: 'Process — a stage of the chain' },   // le_process.js
     };
     const r3 = (x) => Math.round(x * 1000) / 1000;
-    const safe = (s) => (s === '*' ? '*' : String(s == null ? '' : s).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64));   // a name is a file name (sc/bank.scd); '*' = every sample
+    const safe = (s) => (s === '*' ? '*' : String(s == null ? '' : s).replace(/[^A-Za-z0-9_~-]/g, '').slice(0, 64));   // a name is a file name (sc/bank.scd); '*' = every sample; ~ = a processed sample, <root>~<n>
     // a seeded random (mulberry32): the same seed, the same rhythm — a save reproduces what he heard
     const mulberry32 = (a) => () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
     const byName = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true });   // impulse-2 before impulse-10
@@ -76,7 +82,7 @@
 
     const LEObjects = {
         MODELS, host: null, index: [], _pass: null, _prev: null, _info: {},   // _info: a pattern brick's readout by zone id (never saved)
-        opts: { keys: { open: 'm', play: 'r' }, portOf: () => null, laneLabel: (l) => 'lane ' + l, lanes: 99,
+        opts: { keys: { open: 'm', play: 'r', process: 'e' }, portOf: () => null, laneLabel: (l) => 'lane ' + l, lanes: 99,
             indexUrl: '/bank/samples/index.json', lookAheadS: 0.1, openMs: 500, preMs: 100, arRegionMs: 400, chainLinkS: 0.5 },
 
         is(o) { return !!(o && o.type === 'zone' && MODELS[o.midiModel]); },
@@ -112,6 +118,7 @@
                 const k = String(e.key || '').toLowerCase(), keys = this.opts.keys || {};
                 if (k === keys.open) { e.preventDefault(); this.addOpening(); }
                 else if (k === keys.play) { e.preventDefault(); this.addReturn(); }
+                else if (keys.process && k === keys.process && this.addProcess) { e.preventDefault(); this.addProcess(); }   // le_process.js
             });
             if (window.LE && LE.ready) LE.ready.then(() => this.redraw());
             this.loadIndex();
@@ -133,6 +140,7 @@
                     const row = this.row(z.elec.name);
                     if (row && row.lengthMs > 0) z.endTime = r3(z.startTime + row.lengthMs / 1000);
                 }
+                if (z.midiModel === 'elecProcess' && this.processRedraw) this.processRedraw(z);   // as long as its render (le_process.js)
                 if (z._els) h.renderZone(z);
             }
         },
@@ -142,6 +150,7 @@
             const g = zone._els && zone._els.group, e = zone.elec;
             if (!g || !e) return;
             const M = MODELS[zone.midiModel], label = g.querySelector('text');
+            if (zone.midiModel === 'elecProcess') { if (label && this.processLabel) label.textContent = this.processLabel(zone); return; }   // le_process.js
             let text = M.sign + ' ' + (e.name || '?');
             if (zone.midiModel === 'elecOpen') {
                 const p = this.playerOf(zone.layer);
@@ -244,6 +253,9 @@
                 const row = this.row(e.name);
                 sec.appendChild(note(row ? 'in the bank: ' + Math.round(row.lengthMs) + ' ms, peak ' + row.peakDb + ' dB, taken ' + String(row.captured || '').replace('T', ' ')
                     : 'not in the bank yet — play through it with the engine up; the engine crops the window to the attack'));
+            } else if (zone.midiModel === 'elecProcess') {
+                if (this.processPanel) this.processPanel(zone, sec, { el, rowEl, note, commit });   // le_process.js
+                else sec.appendChild(note('this brick\'s panel is le_process.js — not loaded on this page'));
             } else {
                 const rows = this.index.slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
                 const pick = el('select');
@@ -312,7 +324,7 @@
         // the samples a brick picks: no pick = every sample the bank holds today; a pick = the players ticked × the tags ticked
         picked(e) {
             const P = e.pick && Array.isArray(e.pick.players) ? e.pick.players : null, T = e.pick && Array.isArray(e.pick.impulses) ? e.pick.impulses : null;
-            return this.index.filter((r) => (!P || P.includes(String(r.player))) && (!T || T.includes(this.tagOf(r))));
+            return this.index.filter((r) => (!P || P.includes(String(r.player))) && (T ? T.includes(this.tagOf(r)) : r.kind !== 'processed'));   // a PROCESSED sample only by its own box: a render does not change what "every sample" is
         },
         // the simple shapes: n onsets in ms over a span — the first at 0 (the live note), the last at the span; seeded
         rhythm(n, cfg) {
@@ -438,7 +450,7 @@
             // THE SAMPLES — two rows of boxes: the players × the tags after them
             const players = [...new Set(this.index.map((r) => String(r.player)))].sort(byName);
             const tags = [...new Set(this.index.map((r) => this.tagOf(r)))].sort(byName);
-            const P = e.pick && Array.isArray(e.pick.players) ? e.pick.players : players, T = e.pick && Array.isArray(e.pick.impulses) ? e.pick.impulses : tags;
+            const P = e.pick && Array.isArray(e.pick.players) ? e.pick.players : players, T = e.pick && Array.isArray(e.pick.impulses) ? e.pick.impulses : tags.filter((t) => !this.index.some((r) => r.kind === 'processed' && this.tagOf(r) === t));
             const boxes = (all, on, label, write) => {
                 const wrap = el('span', { style: 'display:inline-flex;flex-wrap:wrap;gap:2px 8px;' + small });
                 for (const v of all) {
@@ -514,6 +526,7 @@
         fire(host, z, at) {
             const e = z.elec, perf = host.playStartTime + (at - host.playStartOffset / host.pixelsPerSecond) * 1000;
             const dueMs = Math.max(0, Math.round(((Number.isFinite(perf) ? perf : performance.now()) - performance.now()) * 10) / 10);
+            if (z.midiModel === 'elecProcess') { if (this.processFire) this.processFire(host, z, at, dueMs); return; }   // le_process.js: a rendered stage is played as a return
             if (z.midiModel === 'elecOpen') {
                 const player = this.playerOf(z.layer);
                 if (!player) { this.say('mic opening ' + e.name + ': no microphone on ' + this.opts.laneLabel(z.layer) + ' — nothing is recorded'); return; }

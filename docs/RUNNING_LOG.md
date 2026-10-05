@@ -513,3 +513,74 @@ U13 dealing for samples (round robin by laps under a re-attack rule PER SAMPLE, 
 `sc/bank.scd`: a message onset is `name:atMs` or `name:atMs:db` — `patternOnsets` reads the third field (clipped at +12 dB),
 `samplePlay` gives `\leSample` its `amp`. Proven headless both sides (`sc/roll_test.scd`; the module under a stub window with
 the two calculators required as node modules — eleven generates). The sound is the composer's to hear.
+
+## §26. THE PROCESSING — the sandbox's chain ported, rendered OFFLINE, and a third object, the process brick (2026-10-05, Opus; the Decibel piece's §103, its PLAN 1.3 · 10.1; parts 2 · 6 · 11)
+
+**What prompted it:** the Decibel piece's step 10 — the composer's notes there (its DEC-16 · 16b · 16c): each banked sample
+transformed through a CHAIN of processes, "I am sitting in a room" style, each stage kept, a brick per stage; an ENVELOPE at
+the render's end so a processed timbre can keep a struck shape; the effects to start from: the sandbox's, already built.
+
+**What is the engine's (this log) and what the piece's (its §103):** the chain, the render, the brick's machinery and the
+catalogue of effects are here; which effect at which stage, the dials, the workshop score and the rendered samples are the piece's.
+
+**The port (part 2).** `sc/process.scd` — the sandbox's `\processChain` (`live-electronics-engine/synths/process-chain.scd`)
+whole, as `\leProcess`: every stage, its order, its control names. Five changes, each because the result is a BANKED SAMPLE
+and not a running layer: (1) MONO — the `space` stage (width · swirl) is out, the stereo reverbs are summed: the bank is mono;
+(2) EVERY stage has a mix — the filter got one (`filtMix`) and the reverb's default is 0: in the sandbox both were always in
+the path, right for a layer, wrong when a brick is ONE stage; (3) the spectral block is BYPASSED when smear · gate · freeze are
+off — an FFT in the path delays the sound a frame and softens every attack; (4) FREEZE engages at `freezeAtMs` and its phases
+are re-drawn at every frame (`PV_Diffuser`, hop 0.25): a short sample is followed by silence, and frozen magnitudes on
+silence's phases are a buzz at the frame rate, not a held spectrum; (5) no tanh and no limiter at the end — the render is
+floating point and the language sets the level — a DC blocker instead. Added: `rate` (the synth's own — a tape's speed) and
+`rev` (read backwards). The sc3-plugins stages are looked up BY NAME as the synth is built: one not installed is left out and
+named once; the file still loads.
+
+**The render is OFFLINE (NRT) — decided at the build, against the lay-out's "real time on the running server".** Why: it is the
+sandbox's own road for this chain on this machine (`build/audition/*.scd` — `Score.recordNRT`); a second scsynth with no device
+and no port cannot glitch a performance or disturb ReaRoute; it is faster than real time (four renders in under 2 s); and it
+is provable with no hardware beside a living engine — a real-time render could not have been tested while the composer's
+engine was up. What it costs: the source is read from its FILE, not its buffer — every sample of the bank is a file already.
+The language then finds the result's START (the first sample `floorDb` under the peak — a comb's or an FFT's delay is not kept
+as silence at the head), ENDS it, sets its level, writes it with the bank's own writer, adds its row and loads its buffer.
+
+**How a render ends (the composer's addition):** `shape` — an envelope AFTER the effect: attack · the level held · a release
+on a curve (an `Env`'s formula; −4 = a struck sound's), the whole exactly `durMs` long; a release as long as the rest is a
+pure struck shape. The processed TIMBRE and the ATTACK's shape are decoupled. `tail` — the effect rings out: the sample ends
+at the last sample `floorDb` (−60) under its own peak, or is faded at `capMs` past the source when it never falls (a freeze,
+a long feedback). LEVEL: `match` 1 sets the result's peak to the source's — a chain neither fades away nor runs hot — then
+`gainDb`; held under full scale.
+
+**A NAME MAY CARRY `~`:** a processed sample is `<root>~<n>` (`safeName` here, `safe` in the page). And `*` — "every sample
+the bank holds" (§21) — now means every CAPTURED sample: a processed one is played by its own brick or by name; a render does
+not change what a piece's "everything" plays (`chainNames`; the page's `picked()` the same for a pattern with no pick).
+
+**The object (part 11.3).** `score/le_process.js` — a MIXIN on `LEObjects`, one more tag: `midiModel` `elecProcess`, a zone
+like the other two. `elec: { source, out, label, effect, args, end, …, rendered }`; its panel — Source · Name · Label · Effect ·
+the effect's dials · Ends by · Level · Render · ▶ hear it · ▶ its source · the whole setting as a JSON box; the CATALOGUE
+(`EFFECTS`): eighteen entries, each the few dials that matter under the chain's own control names — a brick's `args` are
+`{ controlName: value }`, which is what the message carries, so the engine needs no menu and the box can set ANY control.
+Render sends `/le/process` with an id; the engine's row carries it back as `openingId`; the page reads the index until it is
+there (no new return road — the bank's index is the answer, as for a capture). A rendered brick is played exactly as a plain
+return. The label says when a brick is `not rendered`, `changed` since its render, or older than its source.
+`le_objects.js` gained only the hooks: the model's row, the key, the label, the panel, the redraw, the tick, `~` in a name.
+
+**What was tried, and what the proof found.** `sc/process_test.scd` — bare sclang, no server, a scratch bank in the temp
+folder, a made-up 300 ms burst, four renders through the real chain. Two faults, both found by it:
+- every render was made and none could be banked: `_SFWrite` "wrong type" — a whole-array multiply (`take * g`) hands back
+  something the file writer refuses; the level is now set in place, sample by sample, and the array stays a `FloatArray`;
+- a reverb's TAIL never ended: measured on the raw render — a steady −66.6 dBFS from 2 s on, a DC of −4.7e−4. `PlayBuf` at its
+  buffer's end HOLDS the last value; the test's source ends off zero (a real capture ends on a fade, so this would have shown
+  only on a `shape` with no release). The player is now shut at its end (`Done`), and a `LeakDC` at about 8 Hz closes the chain.
+  With both, the reverb's tail is 1649 ms; Greyhole at feedback 0.8 is still above −60 dB at its cap, and is faded — correct.
+
+Then: PASS — the envelope exact (600.0 ms asked and made), the peaks matched to 0.0 dB, a render of a render, an sc3-plugins
+stage, the freeze still −10.7 dB under its peak a second after its source had ended, `*` leaving the processed out; the
+messages given as Symbols, as OSC delivers a string. The page module under a stub window with the piece's workshop score and
+its real index: the message of each stage, the panel built, a dial and the effect changed through their own handlers, a
+render known by its id, the label's states, the tick, the key. A living engine beside both was untouched (its hello answered
+before and after).
+
+**Not claimed:** the composer's ear on any of it; the round trip through a living engine (his first Render — the engine must
+be started after this build); the default dials, which are the sandbox's or the AI's guess. **Open by design:** the two
+granular voices and his pedals of resonance (parts 2 · 6, by need) · a stereo bank and the `space` stage · a cascade (a stage
+re-rendered re-rendering those made from it — the label already says which are stale).

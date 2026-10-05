@@ -32,6 +32,16 @@
 play back, then **STOP and ask**. No edits, no builds, no tool calls beyond the resume
 reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, then work.)*
 
+### 2026-10-05 — THE PROCESSING IS BUILT, in the Decibel piece (Opus; RUNNING_LOG §26; parts 2 · 6.1 · 11.3)
+
+- **What exists:** `sc/process.scd` — the sandbox's chain as `\leProcess`, rendered OFFLINE from a banked sample's file into a new
+  banked sample (`/le/process`; `end` = `shape` | `tail`; `match` · `gainDb`) · `score/le_process.js` — the process brick, a mixin on
+  `LEObjects`, with the catalogue of eighteen effects · `sc/process_test.scd` — the headless proof. `docs/SEAMS.md` has the kind,
+  the object and the page's one new tag.
+- **Not claimed:** the composer's ear; a render through a living engine (an engine started before this build does not hear `/le/process`).
+- **Next, by the piece's need:** the granular voices (`\roadsCloudBuf` · `\grainArticulate`) · the pedals of resonance (a port to a
+  buffer input) · a cascade · a stereo bank. The cold-start block for work on them is the Decibel piece's journal §2.
+
 ### THE REPO OPENS ON THIS (2026-10-03, Fable) — PART 1 DONE; the next part is HIS to name
 
 - **UPDATE 8 · 2026-10-04 (RUNNING_LOG §14, Opus) — 4.3 · 4.3b · 4.4 · THE INDEX · PART 11's FIRST TWO OBJECTS: BUILT AND PROVEN**, in

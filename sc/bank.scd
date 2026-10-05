@@ -36,13 +36,13 @@
 //   file · raw are relative to the bank's folder, with forward slashes. attackMs is where in the raw recording the attack
 //   was found — how early the window opened before the sound.
 //
-// A NAME IS A FILE NAME: ~le.safeName keeps letters, digits, - and _ and drops the rest, so nothing a message carries
-// can write outside the bank's folder.
+// A NAME IS A FILE NAME: ~le.safeName keeps letters, digits, - _ and ~ and drops the rest, so nothing a message carries
+// can write outside the bank's folder. (~ since 2026-10-05: a PROCESSED sample is <root>~<n> — process.scd.)
 (
 ~le[\cropDefaults] = (attackDb: -30, floorDb: -50, preMs: 5, endDb: -45, holdMs: 50, fadeInMs: 2, fadeOutMs: 10);
 
 ~le[\safeName] = { |self, name|
-	(name ? "").asString.select({ |c| c.isAlphaNum or: { "-_".includes(c) } }).keep(64)
+	(name ? "").asString.select({ |c| c.isAlphaNum or: { "-_~".includes(c) } }).keep(64)
 };
 
 ~le[\nowIso] = { |self|
@@ -174,6 +174,7 @@
 ~le[\bankHear] = { |self|
 	self.hear(\open, { |le, d| le.captureOpen(d) });
 	self.hear(\play, { |le, d| le.samplePlay(d) });
+	if(self[\processRender].notNil) { self.hear(\process, { |le, d| le.processRender(d) }) };   // process.scd: a sample through the chain, banked again
 	self
 };
 
@@ -317,11 +318,17 @@
 };
 
 // the names a chain plays, from the message's "a,b,c": each scrubbed to a file name — except "*", which is EVERY sample the bank
-// holds at this moment (§89 · §94: the scrub turned "*" into "" before the check saw it, and the chain was empty).
+// holds at this moment — every CAPTURED one: a PROCESSED sample (process.scd, its row's kind) is played by its own brick or by its
+// name, and a render does not change what "everything" plays; (§89 · §94: the scrub turned "*" into "" before the check saw it, and the chain was empty).
 ~le[\chainNames] = { |self, names|
 	var raw = (names ? "").asString.split($,).collect({ |x| x.asString.stripWhiteSpace });
 	if(raw.any({ |x| x == "*" })) {   // by content: an Array's includes() is identity, and no two Strings are identical
-		if(self[\samples].notNil) { self[\samples].keys.asArray.collect(_.asString).sort } { [] }
+		if(self[\samples].notNil) {
+			self[\samples].keys.asArray.select({ |k|
+				var e = self[\samples][k], r = if(e.notNil) { e[\row] };
+				r.isNil or: { (r[\kind] ? "").asString != "processed" }
+			}).collect(_.asString).sort
+		} { [] }
 	} {
 		raw.collect({ |x| self.safeName(x) }).reject({ |x| x.size == 0 })
 	}

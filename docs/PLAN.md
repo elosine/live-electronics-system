@@ -66,7 +66,7 @@ state line, the twelve parts and the rule. No code yet.
   in its `LOG.md`. The planning repo's lists: only at his word — not touched.
 - **1.5 Two files that parts 3 and 8 fill** ☑ — `docs/SEAMS.md` · `docs/TAKE.md`, each saying what it will hold.
 
-## 2. The port from the sandbox — `todo`
+## 2. The port from the sandbox — `doing` (the processing chain ported 2026-10-05 — RUNNING_LOG §26)
 
 ***Why:*** the engine's first contents are the experimental work that already exists.
 `live-electronics-engine` surveyed; the BASIC MACHINERY taken into the engine (the signal chain · the mastering chain with its
@@ -74,7 +74,7 @@ limiters and master bus · the analysis · whatever else is machinery, not exper
 *To be laid out when we discuss it.* **One line from the first run (2026-10-04, RUNNING_LOG §5):** the sandbox has NO live-input
 path — it processes recordings; so for the FIRST OBJECT (the Decibel piece's 6.1 … 6.6) only the SC boot and the mastering chain
 (`synths/process-chain.scd`, if it is one) port; the clouds, the freeze, the labs and his pedals of resonance come with the processing
-phase.
+phase. **2026-10-05 (RUNNING_LOG §26): THE PROCESSING CHAIN IS PORTED** — the sandbox's `\processChain` whole, as `sc/process.scd` `\leProcess` (6.1 below; what changed in the port, and why, is in the log). Still in the sandbox, to come by need: the two granular voices (`\roadsCloudBuf` · `\grainArticulate`), the labs, his pedals of resonance.
 
 ## 3. The seams — `todo`
 
@@ -156,12 +156,20 @@ live instrument's note, in the first piece's composer score. *To be laid out whe
 MIC OPENING and RETURNED beside the live note (11's first two members: the mic opening · the return); the filter — the pedals of
 resonance, 6's first — comes third. Laid out in the Decibel piece's running order, steps 8 … 10.
 
-## 6. The effects of his brief — `todo`, open-ended
+## 6. The effects of his brief — `doing`, open-ended (6.1 the chain, offline, BUILT 2026-10-05 in the Decibel piece — RUNNING_LOG §26)
 
 ***Why:*** the engine is his whole live-electronics setup, growing (LG-351).
 The momentary gate that opens the mic for an instant; delay · loop + granular · freeze · Greyhole (LG-340); the saved impulses
 replayed by piece #2's cells (LG-341); the mechanism of coordinating split-second input. New effects, shapes and analysis are
 added here as sub-parts by compositional need. *To be laid out when we discuss it.*
+
+- **6.1 THE CHAIN, OFFLINE — `done but for the composer's ear` 2026-10-05 (RUNNING_LOG §26; the Decibel piece's PLAN 1.3 · 10.1).**
+  `sc/process.scd`: a banked sample through `\leProcess` — resonator bank · complex resonator · drive (six shapers) · ring
+  modulation · diode ring · frequency shift · comb · filter (four models) · string resonator · diffusion · smear · spectral gate ·
+  freeze · reverb · Greyhole · JPverb · a noise bed · tape (speed, direction) — rendered OFFLINE (NRT) into a NEW banked sample.
+  `/le/process` source · out · effect · args · end (`shape`: an envelope after the effect | `tail`: it rings out) · gainDb · match · id.
+  Proven by `sc/process_test.scd`. NOT YET: the granular voices · the pedals of resonance · the freeze and the delay as LIVE
+  effects on a player's bus (this chain is a sample's; the momentary gate of the brief is the mic opening).
 
 ## 7. The notation kinds — `todo`
 
@@ -216,6 +224,9 @@ first member; the rest by compositional need, one at a time, each through the pl
   `elecPlay`, `zoneFunction: 'elec'`) — a label, a panel section, a key each, and a message when the score plays through them; the
   file's own tick (a tablet in concert has no MIDI). A piece gives it two tags and two lines (`docs/SEAMS.md`). NOT YET: their drawn
   kinds in the notation (part 7 — a device sheet each); the extractor skips them.
+- **11.3 THE PROCESS BRICK — `done but for the composer's ear` 2026-10-05 (RUNNING_LOG §26).** `score/le_process.js`, a MIXIN on
+  `LEObjects` (one more tag): `midiModel` `elecProcess` — a stage of a chain: a source, an effect from the catalogue, its dials, how
+  it ends, a Render button; rendered, it is played as a plain return. `docs/SEAMS.md` § the third object.
 
 ## 12. The live graphics — `todo`
 

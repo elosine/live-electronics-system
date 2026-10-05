@@ -10,8 +10,8 @@
 
 | Seam | What the engine adds | What the piece's stack must provide | Where it was proven |
 |---|---|---|---|
-| **The composer score** | a mixin file per object family (part 11): **`score/le_msg.js`** the page's voice · **`score/le_objects.js`** the mic opening and the return | two `<script>` tags in `composer.html`; two lines — `LEObjects.attach(…)` and `LEObjects.tick(…)` | the voice: the Decibel piece's 6.2, 2026-10-04 (RUNNING_LOG §11) · **the first two objects: its 6.3 … 6.5, the same day (RUNNING_LOG §14)** |
-| **The sound path** | the engine itself — SuperCollider, real-time: `sc/` · `tools/sc.js` · the message: `tools/osc.js` · `tools/relay.js` (part 4) · **the bank: `sc/bank.scd`** | **audio:** one send per player to an engine input; ONE FLAT RETURN TRACK — below · **message:** three lines in its score server; a `message` block in its route table — below · **the bank:** a folder, given at the engine's start — below | the engine's half: `selftest.scd`, 2026-10-04 · **the crossing: the Decibel piece's 6.1, 2026-10-04 — unity; two DAW blocks** (RUNNING_LOG §8) · **the message: its 6.2, the same day — to the edge of Web MIDI** (RUNNING_LOG §11) · **the bank: its 6.3 … 6.5 — a rack note captured, cropped, indexed, returned at unity** (RUNNING_LOG §14) |
+| **The composer score** | a mixin file per object family (part 11): **`score/le_msg.js`** the page's voice · **`score/le_objects.js`** the mic opening and the return · **`score/le_process.js`** the process brick and its catalogue of effects | three `<script>` tags in `composer.html`; two lines — `LEObjects.attach(…)` and `LEObjects.tick(…)` | the voice: the Decibel piece's 6.2, 2026-10-04 (RUNNING_LOG §11) · **the first two objects: its 6.3 … 6.5, the same day (RUNNING_LOG §14)** |
+| **The sound path** | the engine itself — SuperCollider, real-time: `sc/` · `tools/sc.js` · the message: `tools/osc.js` · `tools/relay.js` (part 4) · **the bank: `sc/bank.scd`** · **the processing: `sc/process.scd`**, offline (part 6) | **audio:** one send per player to an engine input; ONE FLAT RETURN TRACK — below · **message:** three lines in its score server; a `message` block in its route table — below · **the bank:** a folder, given at the engine's start — below | the engine's half: `selftest.scd`, 2026-10-04 · **the crossing: the Decibel piece's 6.1, 2026-10-04 — unity; two DAW blocks** (RUNNING_LOG §8) · **the message: its 6.2, the same day — to the edge of Web MIDI** (RUNNING_LOG §11) · **the bank: its 6.3 … 6.5 — a rack note captured, cropped, indexed, returned at unity** (RUNNING_LOG §14) |
 | **The notation** | a rules row + a drawn or animated kind + its edge class per glyph (parts 7 · 12) | `notation/registry/rules.json` · `page_rules.json` · the render's kind table · the extractor's event emit | ‹part 7› |
 
 ## The sound path — the audio half (4.1)
@@ -109,6 +109,7 @@ starting or stopping anything.
 | `hello` | anything | answers `/le/hello.reply` to the sender, with its mode and players |
 | `open` | player · lane · id · name · category · `t` the score's seconds · `lengthMs` the window · `dueMs` how far ahead of the window's start the message left | THE MIC OPENING — the bank, below |
 | `play` | name · id · lane · t · `dueMs` | THE RETURN — the bank, below |
+| `process` | source · out · effect · `args` "name:value,…" (the chain's own controls) · `end` shape or tail · atkMs · durMs · relMs · curve (shape) · floorDb · capMs (tail) · gainDb · match · id | THE PROCESSING — a banked sample through the chain, OFFLINE, banked again as `out`; its row carries the id back as `openingId` (`sc/process.scd`) |
 | `onset` | player · lane · id · t · dueMs | A ROUTE CHECK (4.2's proof): shown as one line; when that player's sound then arrives, a second line with the ms between them. No page sends it any more |
 
 **Why the timing need not be exact.** A message is sent AHEAD of what it announces (a composer page schedules about 100 ms
@@ -220,9 +221,32 @@ saves, undoes and has a panel, and its MODEL is tested in a handful of places. T
 undo; a save's round trip; the page's own playback — `open` 89.3 ms and `play` 85.9 ms ahead — shown by the engine and returned
 through the rack; the notation's extractor unmoved by the two models.
 
+## The composer score — the third object: the process brick (parts 6 · 11.3)
+
+**The shape.** `score/le_process.js` — a MIXIN on `LEObjects` (it adds methods to that object and is loaded after it), so a
+page without it still opens a score that has these bricks. A zone like the other two:
+
+| | `midiModel` | carries | the key (the piece's) | played through |
+|---|---|---|---|---|
+| **the process brick** | `elecProcess` | `elec: { source, out, label, effect, args, end, atkMs, durMs, relMs, curve, floorDb, capMs, gainDb, match, rendered }` | at the playhead: its source the selected brick's sample, else the nearest return or stage before it | `/le/play` of `out`, once rendered |
+
+- **A stage of a chain:** `source` is a banked sample, `out` the name the result is banked under — `<root>~<n>`, the root being the
+  sample the chain began from. The next brick's source is this brick's out.
+- **The catalogue** (`LEObjects.EFFECTS`) is the chain's stages by name, each with its few dials under the engine's OWN control
+  names: `args` is `{ controlName: value }` and is what the message carries. The engine has no menu; the panel's JSON box may set
+  any control of `\leProcess`, so two stages at once is a brick too.
+- **Render** (the panel) sends `/le/process` with an id and reads the bank's index until a row of that name carries the id
+  (`openingId`); then the brick is as long as its sample. Nothing else comes back — the index is the answer, as for a capture.
+- **The label** says what it is and what is missing: `⟳ a pitch · bfl-impulse-1~1 = comb ← bfl-impulse-1` · `— not rendered` ·
+  `— changed: render again` · `— its source is newer: render again`.
+- **`*` and a pattern's "every sample" leave processed samples out** — a render must not change what a piece already plays.
+
+**Proven** (the Decibel piece's 10.1, RUNNING_LOG §26): the engine's half by `sc/process_test.scd` (four offline renders, no
+hardware); the page's half under a stub window with the piece's workshop score. NOT yet by a browser's real input or a living engine.
+
 ## The lines a stack file must change, per piece
 
-*(The message route, 4.2 — the Decibel piece's 6.2 commit of 2026-10-04. The objects, part 11 — its 6.3 … 6.6 commit, the same day.)*
+*(The message route, 4.2 — the Decibel piece's 6.2 commit of 2026-10-04. The objects, part 11 — its 6.3 … 6.6 commit, the same day.)* *(The process brick — the Decibel piece's 10.1 commit of 2026-10-05: one more tag, one more key.)*
 
 **The piece's score server (`score/server.js`) — three lines:**
 
@@ -232,13 +256,14 @@ through the rack; the notation's extractor unmoved by the two models.
 | 2 | `if (url === '/api/elec') return elecRelay(req, res);` | the first of the API routes |
 | 3 | `if (url.startsWith('/electronics/')) { base = path.join(__dirname, '..', 'electronics', 'score'); rel = url.slice('/electronics'.length); }` | in the static block, beside `/bank/` |
 
-**The piece's composer page (`score/public/composer.html`) — four lines:**
+**The piece's composer page (`score/public/composer.html`) — five lines:**
 
 | # | the line | where |
 |---|---|---|
 | 1 | `<script src="/electronics/le_msg.js"></script>` | after the last panel's script tag |
 | 2 | `<script src="/electronics/le_objects.js"></script>` | after it |
-| 3 | `if (window.LEObjects) LEObjects.attach(Composer, { keys: { open: 'm', play: 'r' }, lanes: META_LAYER, indexUrl: '/bank/samples/index.json', accel: window.AccelCalc, containers: window.TimeContainers, portOf: (l) => (Composer.trackInstrument(l) \|\| {}).port, laneLabel: (l) => (TRACKS[l] \|\| {}).short \|\| ('lane ' + l) });` | just BEFORE `Composer.init()` is called — so a loaded score's first drawing has the bricks' labels. The keys, the lanes and the index's address are the PIECE's |
+| 2b | `<script src="/electronics/le_process.js"></script>` | after it — the process brick (2026-10-05); its key is `process` in line 3's `keys` |
+| 3 | `if (window.LEObjects) LEObjects.attach(Composer, { keys: { open: 'm', play: 'r', process: 'e' }, lanes: META_LAYER, indexUrl: '/bank/samples/index.json', accel: window.AccelCalc, containers: window.TimeContainers, portOf: (l) => (Composer.trackInstrument(l) \|\| {}).port, laneLabel: (l) => (TRACKS[l] \|\| {}).short \|\| ('lane ' + l) });` | just BEFORE `Composer.init()` is called — so a loaded score's first drawing has the bricks' labels. The keys, the lanes and the index's address are the PIECE's |
 | 4 | `if (window.LEObjects) LEObjects.tick(this, timeSec);` | in `applyScroll`, the last of the playback ticks |
 
 *(4.2's test hook — `LE.noteOn(…)` in `tickCurvePlayback` — is OUT: the mic opening is the message.)*
