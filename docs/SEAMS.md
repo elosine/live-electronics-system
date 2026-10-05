@@ -25,6 +25,8 @@
 
 **What the machine must have (once per machine, his hand):** ReaRoute — an option of Reaper's installer ("ReaRoute ASIO driver") — and
 Reaper's audio system on ASIO. `node electronics/tools/sc.js devices` says whether SuperCollider sees it.
+**ASIO is the studio setting.** A remote-desktop session that needs Reaper on WASAPI (so the remote side hears it) has no ReaRoute
+channels: there the rack plays and the engine cannot be fed. MIDI is untouched by the choice.
 
 **What a piece's rack must provide — the whole list:**
 
