@@ -627,3 +627,8 @@ re-rendered re-rendering those made from it — the label already says which are
 ## §33. The process brick: ⚄ all · ⚄ usual — every dial of an effect rolled at once (2026-10-05, Fable; the Decibel piece's §112)
 
 - **What:** `score/le_process.js` `rollDial(d, usual)` — a dial drawn across its range or within its hint's usual range, log-uniform where the slider is log, an option dial picking an option, rounded to the step; the panel's two buttons roll every dial but the `…Mix` ones and any range dial. Page only; the engine untouched.
+
+## §34. The process brick: a Shelf menu and a keep button over a host route; a dial row that no longer wraps (2026-10-05, Fable; the Decibel piece's §113)
+
+- **What:** `score/le_process.js` — `loadShelf()` (GET `opts.shelfUrl`, '/api/candidates' by default; falling back to the static `opts.shelfFile`, '/bank/candidates.json') and `keep(zone, remark)` (POST the brick's setting · heardOn · out · label · effect · render · remark); the panel's Shelf menu (a kept setting applied whole by `processApply`) and the "keep → shelf" button. The data and the route are the HOST's (the Decibel piece: `bank/candidates.json` · `tools/candidates.js` · `score/server.js` `/api/candidates`); SEAMS.md row 2c names the route. The slider shrinks (`flex: 1 1 60px`) and a dial's row is `nowrap`, so the ⚄ button stays on its line.
+- **Proven:** parses. Not seen in a browser.

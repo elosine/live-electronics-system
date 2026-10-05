@@ -184,6 +184,31 @@
         // §111 (his randomizer): a dial may be a RANGE [lo, hi] — the brick keeps the range; at every Render a value is DRAWN from it
         // (uniform, rounded to the dial's step) and the message carries the number; the engine's row records what was drawn.
         isRange(v) { return Array.isArray(v) && v.length === 2 && Number.isFinite(+v[0]) && Number.isFinite(+v[1]); },
+        // §113: THE SHELF — the settings the composer has kept (the piece's; the server's route `opts.shelfUrl`, '/api/candidates' by default:
+        // GET the rows · POST one more). Picked from the panel, a row's setting is applied whole; the "keep → shelf" button posts this brick's.
+        loadShelf() {
+            const url = (this.opts && this.opts.shelfUrl) || '/api/candidates', file = (this.opts && this.opts.shelfFile) || '/bank/candidates.json';
+            const rows = (j) => (Array.isArray(j) ? j : (j && Array.isArray(j.rows) ? j.rows : null));
+            return fetch(url, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : Promise.reject(new Error('no route')))).then((j) => rows(j) || Promise.reject(new Error('no rows')))
+                .catch(() => fetch(file, { cache: 'no-store' }).then((r) => r.json()).then((j) => rows(j) || []))   // a server started before the route: the file itself (static) — the menu works, "keep" waits for the restart
+                .then((list) => { this._shelf = list; return list; })
+                .catch(() => { this._shelf = []; return this._shelf; });
+        },
+        keep(zone, remark) {
+            const e = zone.elec, s = this.processSettings(e), row = this.row(e.out), setting = {};
+            for (const k of ['effect', 'args', 'end', 'atkMs', 'durMs', 'relMs', 'curve', 'floorDb', 'capMs', 'gainDb', 'match', 'label']) if (s[k] !== undefined) setting[k] = s[k];
+            const body = { setting, heardOn: e.source, out: e.out, label: e.label || '', effect: e.effect, render: row ? Math.round(row.lengthMs) + ' ms · peak ' + row.peakDb + ' dB' : 'not rendered', remark: remark || '' };
+            const url = (this.opts && this.opts.shelfUrl) || '/api/candidates';
+            return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json())
+                .then((j) => {
+                    if (!j || !j.success || !j.row) throw new Error((j && j.error) || 'the server said no');
+                    this._shelf = Array.isArray(j.rows) ? j.rows : this._shelf;
+                    this.say('kept as candidate ' + j.row.n + ' · ' + j.row.effect + ' on ' + j.row.heardOn);
+                    if (this.host.selectedObject === zone) this.host.showPropertyPanel();
+                    return j.row;
+                })
+                .catch((err) => { this.say('NOT kept: ' + err.message + ' — a score server started before this build has no shelf route: restart it'); return null; });
+        },
         // §112 (his global randomizer): one dial drawn at random — across its whole range, or within its USUAL range (the hint's);
         // log-uniform where the slider is log; an option dial picks one of its options; rounded to the step
         rollDial(d, usual) {
@@ -339,7 +364,7 @@
                 const toT = (v) => Math.round(logish ? 1000 * Math.log(v / d.min) / Math.log(d.max / d.min) : 1000 * (v - d.min) / (d.max - d.min));
                 const fromT = (t) => { const v = logish ? d.min * Math.pow(d.max / d.min, t / 1000) : d.min + (d.max - d.min) * t / 1000; return +Math.min(d.max, Math.max(d.min, Math.round(v / d.step) * d.step)).toFixed(dec); };
                 const now = Math.min(d.max, Math.max(d.min, Number.isFinite(+obj[key]) ? +obj[key] : d.def));
-                const s = el('input', { type: 'range', min: '0', max: '1000', step: '1', value: String(toT(now)), style: 'width:110px;vertical-align:middle;margin:0', title: hintOf(d) });
+                const s = el('input', { type: 'range', min: '0', max: '1000', step: '1', value: String(toT(now)), style: 'flex:1 1 60px;min-width:50px;max-width:110px;vertical-align:middle;margin:0', title: hintOf(d) });   // it shrinks before the row wraps (§113)
                 const before = obj[key];
                 s.addEventListener('input', () => { const v = fromT(+s.value); obj[key] = v; box.value = String(v); });
                 s.addEventListener('change', () => { const v = fromT(+s.value); obj[key] = before; commit(() => { obj[key] = v; }); });
@@ -371,6 +396,14 @@
                 ps.title = 'a preset sets every dial of this effect at once; turn them after as you like';
                 sec.appendChild(rowEl('Preset', ps));
             }
+            // §113: THE SHELF — the settings he has kept; picking one applies it whole (effect · dials · ending); the source stays
+            if (this._shelf === undefined) { this._shelf = null; this.loadShelf().then(() => { if (this.host.selectedObject === zone) this.host.showPropertyPanel(); }); }
+            if (this._shelf && this._shelf.length) {
+                const sh = pick('', [['', '— the shelf: ' + this._shelf.length + ' kept —']].concat(this._shelf.map((r) => [String(r.n), r.n + ' · ' + r.effect + (r.remark ? ' — ' + r.remark : '') + ' · on ' + r.heardOn])),
+                    (v) => { const r = this._shelf.find((x) => String(x.n) === v); if (r && r.setting) this.processApply(zone, r.setting); });
+                sh.title = 'a setting you kept (docs/CANDIDATES.md) — its effect, dials and ending applied whole to this brick; the source stays';
+                sec.appendChild(rowEl('Shelf', sh));
+            }
             if (fx) {
                 for (const d of fx.dials) {
                     if (e.args[d.key] === undefined) e.args[d.key] = d.def;
@@ -387,6 +420,7 @@
                         control = pair(slider(e.args, d.key, d, box), box, tiny(d.unit),
                             btn('⚄', () => commit(() => { e.args[d.key] = [Math.max(d.min, +lo.toFixed(4)), Math.min(d.max, +hi.toFixed(4))]; }), 'make it a RANGE: a value is drawn between two ends at every Render'));
                     }
+                    control.style.flexWrap = 'nowrap';   // §113: the ⚄ button stays on the dial's line (it wrapped under the slider on rows with a unit)
                     const row = rowEl(d.label, control);
                     if (row.firstChild) row.firstChild.title = hint;   // the label too: hover anywhere on the row
                     sec.appendChild(row);
@@ -427,7 +461,8 @@
             sec.appendChild(rowEl('', pair(
                 btn('Render', () => this.render(zone), 'the engine puts the source through the effect, offline, and banks the result under the name'),
                 btn('▶ hear it', () => this.audition(e.out), 'the rendered sample, now'),
-                btn('▶ its source', () => this.audition(e.source), 'the sample it is made from, now'))));
+                btn('▶ its source', () => this.audition(e.source), 'the sample it is made from, now'),
+                btn('keep → shelf', () => { const r = window.prompt('a remark for the shelf (optional)', ''); if (r !== null) this.keep(zone, r); }, 'adds this brick\'s setting to the shelf — the Shelf menu and docs/CANDIDATES.md (§113)'))));
             const st = this.processState(zone), row = this.row(e.out), info = this._info['p' + zone.id];
             if (info) sec.appendChild(note(info));
             sec.appendChild(note(row ? 'in the bank: ' + Math.round(row.lengthMs) + ' ms · peak ' + row.peakDb + ' dB · made ' + String(row.captured || '').replace('T', ' ')

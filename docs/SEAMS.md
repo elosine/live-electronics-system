@@ -255,6 +255,7 @@ hardware); the page's half under a stub window with the piece's workshop score. 
 | 1 | `const elecRelay = require('../electronics/tools/relay.js')({ configFile: path.join(__dirname, '..', 'bank', 'elec_route.json') });` | with the requires |
 | 2 | `if (url === '/api/elec') return elecRelay(req, res);` | the first of the API routes |
 | 3 | `if (url.startsWith('/electronics/')) { base = path.join(__dirname, '..', 'electronics', 'score'); rel = url.slice('/electronics'.length); }` | in the static block, beside `/bank/` |
+| 2c | `if (url === '/api/candidates') { … }` — GET the kept settings · POST one more (the piece's `tools/candidates.js` writes `bank/candidates.json` and renders `docs/CANDIDATES.md`) | after row 2 — THE SHELF (2026-10-05, the Decibel piece's §113); the panel's Shelf menu and "keep → shelf" button are the module's (`opts.shelfUrl`, '/api/candidates' by default) |
 
 **The piece's composer page (`score/public/composer.html`) — five lines:**
 
