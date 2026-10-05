@@ -184,6 +184,19 @@
         // §111 (his randomizer): a dial may be a RANGE [lo, hi] — the brick keeps the range; at every Render a value is DRAWN from it
         // (uniform, rounded to the dial's step) and the message carries the number; the engine's row records what was drawn.
         isRange(v) { return Array.isArray(v) && v.length === 2 && Number.isFinite(+v[0]) && Number.isFinite(+v[1]); },
+        // §112 (his global randomizer): one dial drawn at random — across its whole range, or within its USUAL range (the hint's);
+        // log-uniform where the slider is log; an option dial picks one of its options; rounded to the step
+        rollDial(d, usual) {
+            if (d.options) return +d.options[Math.floor(Math.random() * d.options.length)][0];
+            let lo = d.min, hi = d.max;
+            const h = HINTS[d.key];
+            if (usual && h && h[1]) { const m = String(h[1]).replace(/−/g, '-').match(/(-?\d+(?:\.\d+)?)\s*…\s*(-?\d+(?:\.\d+)?)/); if (m) { lo = Math.max(d.min, +m[1]); hi = Math.min(d.max, +m[2]); } }
+            if (!(hi > lo)) { lo = d.min; hi = d.max; }
+            const logish = lo > 0 && hi / lo >= 50;
+            let v = logish ? lo * Math.pow(hi / lo, Math.random()) : lo + Math.random() * (hi - lo);
+            if (d.step > 0) v = +(Math.round(v / d.step) * d.step).toFixed(Math.max(0, -Math.floor(Math.log10(d.step) + 1e-9)));
+            return Math.min(hi, Math.max(lo, v));
+        },
         drawArgs(e, a) {
             const f = this.effect(e.effect), drawn = [];
             for (const k of Object.keys(a)) {
@@ -377,6 +390,12 @@
                     const row = rowEl(d.label, control);
                     if (row.firstChild) row.firstChild.title = hint;   // the label too: hover anywhere on the row
                     sec.appendChild(row);
+                }
+                if (fx.dials.some((d) => !/Mix$/.test(d.key))) {   // §112: the global randomizer — every dial but the mix (and the ranges, which draw themselves)
+                    const roll = (usual) => commit(() => { for (const d of fx.dials) { if (/Mix$/.test(d.key) || this.isRange(e.args[d.key])) continue; e.args[d.key] = this.rollDial(d, usual); } });
+                    sec.appendChild(rowEl('', pair(
+                        btn('⚄ all', () => roll(false), 'every dial of this effect drawn at random across its WHOLE range — the mix and any range dial left alone'),
+                        btn('⚄ usual', () => roll(true), 'every dial drawn at random within its USUAL range (the one the hover hint names) — the mix and any range dial left alone'))));
                 }
                 const more = Object.keys(e.args).filter((k) => !fx.dials.some((d) => d.key === k));
                 if (more.length) sec.appendChild(note('also set, from the box below: ' + more.map((k) => k + ' ' + e.args[k]).join(' · ')));

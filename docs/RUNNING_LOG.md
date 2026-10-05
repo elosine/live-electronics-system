@@ -623,3 +623,7 @@ re-rendered re-rendering those made from it — the label already says which are
 - **A range (`score/le_process.js`):** a dial's value may be `[lo, hi]`; `drawArgs` draws it at every render (uniform, to the dial's step) and the message carries the number; the panel offers ⚄ (to a range) and = (back to one value); the JSON box reads and writes it. The engine sees numbers only.
 - **The page's `ENDS` table** carries each ending's label and standard length; the engine's list must match it (two lists, kept equal by hand — as the dial ranges are).
 - **Proven:** `process_test.scd`, an eighth case — `none` under `perc` 700 ms: 700.0 ms, the last tenth at −inf dB; PASS. The page module parses.
+
+## §33. The process brick: ⚄ all · ⚄ usual — every dial of an effect rolled at once (2026-10-05, Fable; the Decibel piece's §112)
+
+- **What:** `score/le_process.js` `rollDial(d, usual)` — a dial drawn across its range or within its hint's usual range, log-uniform where the slider is log, an option dial picking an option, rounded to the step; the panel's two buttons roll every dial but the `…Mix` ones and any range dial. Page only; the engine untouched.
