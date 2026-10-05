@@ -103,8 +103,23 @@ The simulation and the concert differ in ONE place: the input device. The sandbo
   the piece's own tooling (the Decibel piece: its bridge) · (d) the pass-through patch + the mastering chain · (e) verified in the
   piece's running app; the latency the number · (f) `docs/SEAMS.md`'s sound-path row filled from what was proven. The code lives
   in the piece's `electronics/` (its journal D7) and comes here by `git subtree push`.
-- **4.2 The trigger's message · 4.3 the capture to a bank · 4.4 the playback from the bank · the sample index** — their first runs
-  are the Decibel piece's 6.2 … 6.5; *each to be laid out when we discuss it.* Where the index sits (here, or part 11) is open.
+- **4.2 The trigger's message — a piece's score → the engine, OSC over UDP through the piece's score server — `todo` (LAID OUT
+  2026-10-04 in the Decibel piece, its 6.2 — `decibel_TENOR_2026/docs/PLAN.md` 1.1; its RUNNING_LOG §57 · §58 · §59).** *Result when
+  done:* a brick's onset in a piece's composer score is seen in the engine as one line, with its data, before its sound arrives; the
+  lead measured. *The shape (the piece's D10 — concert and simulation on ONE road):* the browser (an iPad in concert; the composer's
+  in simulation) → the piece's score server (an HTTP POST) → OSC over UDP → the engine's LANGUAGE port, pinned (57211) beside the
+  server's 57210. The one difference between concert and simulation is the engine's address. Not a MIDI port (no concert
+  counterpart) · not a WebSocket (a dependency the pieces' stacks refuse) · no shared clock (the capture is cropped to the attack, so
+  the message need only be early). The generic sub-steps: (a) the engine's ear — `sc/`: the pinned port and one `OSCdef` for
+  `/le/hello` · `/le/onset` (lane · id · score time · send time), each printed as `LE_INFO`, stamped with SC's clock · (b) the OSC
+  encoder — `tools/osc.js`, dependency-free Node, sent by `dgram` · (c) the piece's server: one route in, one sender out to the address
+  in its route table · (d) the first composer-score mixin — `score/le_msg.js`: `LE.send(kind, data)`; the piece adds one `<script>` tag
+  and one hook line where its playback emits a note · (e) verified in the piece's running app; the lead over the note's own sound
+  (which the engine hears through 4.1) the number · (f) `docs/SEAMS.md`: the message half of the sound-path row, the composer-score
+  row's first entry, and the first rows of "the lines a stack file must change"; `docs/TAKE.md`.
+- **4.3 the capture to a bank · 4.3b the crop (the recording trimmed to the attack, reliably — the composer's word, DEC-8) · 4.4 the
+  playback from the bank · the sample index** — their first runs are the Decibel piece's 6.3 · 6.3b · 6.4 · 6.5; *each to be laid
+  out when we discuss it.* Where the index sits (here, or part 11) is open.
 
 ## 5. The first sound — `todo`
 
