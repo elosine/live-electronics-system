@@ -448,3 +448,10 @@ before) and a distance from ar's B draw; the error accumulates down the chain. E
 (the live note), said in one window line, and listed in the result. Defaults `chainDefaults`; a piece overrides with `LE_CHAIN`
 (`after · lazy · unison · before · follow · shuffle`). The page: `elec.names` on a return brick, the brick from the live note
 forward 0.5 s per sample, a "Samples, in order" field. Not tested (the piece's D13).
+
+## §19. THE INDEX LOST EVERY FIRST TAKE'S ROW — `reject` then `add` on a full Array (2026-10-05, Fable; the piece's RUNNING_LOG §84)
+
+In the piece a first take of any name wrote its file and never its row; a re-take always did. `captureDone` rejected the old row
+by name and then called `add` without taking the result: after `reject` the collection is exactly full unless a row was removed,
+and `add` on a full Array returns a new one. Fixed by making the rows a List (`.asList`) before the add. The `try` of §16 stays —
+it names a real exception when one comes.
