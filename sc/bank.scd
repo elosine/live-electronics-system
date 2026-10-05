@@ -327,10 +327,11 @@
 	var beh = (d[\behaviour] ? "").asString, roll, at = due, clipped = false;
 	if((beh == "chain") or: { beh == "arChain" }) {   // §82 · §87: the samples named, rolled as a chain from the live note (arChain: the first by the ar roll)
 		var list = (d[\names] ? name).asString.split($,).collect({ |x| self.safeName(x) }).reject({ |x| x.size == 0 });
+		var links;   // §90: every var before the first statement — the language refused the file when one came after the if below
 		if(list.includes("*")) {   // §89 (DEC-12): "*" = EVERY sample the bank holds now — all players, all impulses so far; the order is I's
 			list = if(self[\samples].notNil) { self[\samples].keys.asArray.collect(_.asString).sort } { [] };
 		};
-		var links = self.chainRoll(list, beh == "arChain");
+		links = self.chainRoll(list, beh == "arChain");
 		links.do({ |k|
 			var sk = if(self[\samples].notNil) { self[\samples][k[\name].asSymbol] }, when = (due + (k[\atMs] / 1000)).max(0);
 			if(sk.isNil) { self.say("LE_INFO", "chain · " ++ k[\name] ++ " — no such sample in the bank") } {
