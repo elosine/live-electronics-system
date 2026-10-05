@@ -178,7 +178,7 @@
                     const id = safe(name) + '~' + v, t = r3(z.startTime), was = out.get(id), cls = (P.classes || {})[p.class] || {};
                     if (was) { if (t < was.t) was.t = t; continue; }
                     out.set(id, { base: safe(name), suffix: v, effect: String(p.effect || '').replace(/[^A-Za-z0-9 _+-]/g, '').slice(0, 40), end: env === 'tail' ? 'tail' : env,
-                        atkMs: +E.atkMs || 0, durX: +(p.durX || cls.durX || 1), match: p.match === 0 ? 0 : 1, t, capMs: env === 'tail' ? +(p.capMs || E.capMs || 4000) : 0, args: p.args || {} });
+                        atkMs: +E.atkMs || 0, durX: +(p.durX || cls.durX || 1), match: p.match === 0 ? 0 : 1, t, capMs: env === 'tail' ? (p.capMs || E.capMs || 4000) : 0, args: p.args || {} });   // capMs may be a range [lo, hi]: drawn at the send
                 }
             }
             return [...out.values()].sort((a, b) => a.t - b.t);
@@ -195,7 +195,8 @@
                     const v = r.args[k], x = Array.isArray(v) && v.length === 2 ? Math.round((Math.min(+v[0], +v[1]) + Math.random() * Math.abs(+v[1] - +v[0])) * 100) / 100 : +v;
                     return Number.isFinite(x) ? k + ':' + x : null;
                 }).filter(Boolean).join(',');
-                return [r.base, r.suffix, r.effect, r.end, r.atkMs, r.durX, r.match, r.t, r.capMs, args].join(';');
+                const cap = Array.isArray(r.capMs) && r.capMs.length === 2 ? Math.round(Math.min(+r.capMs[0], +r.capMs[1]) + Math.random() * Math.abs(+r.capMs[1] - +r.capMs[0])) : (+r.capMs || 0);   // a ring time drawn fresh (the tail's [950, 1350])
+                return [r.base, r.suffix, r.effect, r.end, r.atkMs, r.durX, r.match, r.t, cap, args].join(';');
             });
             const per = 6, n = Math.max(1, Math.ceil(lines.length / per)), stamp = 'p' + Date.now().toString(36);
             for (let i = 0; i < n; i++) LE.send('plan', { stamp, part: i + 1, of: n, rows: lines.slice(i * per, (i + 1) * per).join('|'), render: render ? 1 : 0 });
