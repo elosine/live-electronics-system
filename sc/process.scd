@@ -59,6 +59,8 @@
 //   `override` (after Destroy FX's Buffer Override — from how it works, not its code) right after the noise bed; after `drive` the
 //   pedals `overdrive` · `fuzz` · `octave` and a speaker `cab`, then `crush` (a true bit depth) · `cheby` · `squiz` · `waveloss`.
 //   ADDED the same day (DEC-18 · DEC-19 · §110): `feedback` after `cab` — the slap held to the amp, six strings in a loop (LocalIn/Out).
+//   ADDED the same day (§120): the GRANULAR FREEZE after the spectral block — the cloud: long overlapping grains from one moment (GrainBuf
+//   on a buffer the chain writes), the first of the granular voices (the engine plan's 10.2; after the sandbox's \roadsCloudBuf).
 // The sc3-plugins stages are looked up BY NAME when the synth is built: one that is not installed is left out of the graph and
 // named once (~le[\processMissing]) — the file still loads.
 (
@@ -94,8 +96,10 @@
 			wlMix = 0, wlDrop = 20, wlOf = 40, wlMode = 2,
 			fbMix = 0, fbS1 = 82.41, fbS2 = 110, fbS3 = 146.83, fbS4 = 196, fbS5 = 246.94, fbS6 = 329.63,
 			fbBloom = 1, fbHold = 2, fbDrive = 6, fbTone = 2500, fbPath = 8, fbClimb = 0, fbWobble = 0,
+			gfMix = 0, gfAtMs = 80, gfDur = 200, gfDens = 40, gfSpread = 20, gfPitch = 0,
 			amp = 1, lag = 0.04|
 			var sig, play, dry, pre, soft, bank, shaped, filtered, chainA, chainF, specA, specF, frz, wet, back;
+			var gfBufL, gfW, gfOn, gfD, gfTrig, gfOv, gfPos, gfRate, gfCloud;
 			var ovrBufL, ovrFrames, wr, ovrTrig, startPos, miniSamps, fadeSamps, period, ph, firstRep, gA, rdA, rdB, ovr;
 			var od, fz, oc, cabSig, cr, chx, chx2, ch;
 			var fbRt, fbProg, fbGain, fbIn, fbExc, fbStr, fbNone, fbAmp, fbToneNow, fbCol, fbPathNow;
@@ -233,6 +237,23 @@
 			specF = IFFT(chainF) * 0.5;
 			sig = Select.ar((smear + gate) > 0, [sig, specA]);
 			sig = XFade2.ar(sig, specF, (Lag.kr(frz, 0.02) * 2 - 1).clip(-1, 1));
+			// --- granular freeze — THE CLOUD (the first granular voice, 10.2; the Decibel piece's §120, 2026-10-05): the signal so far is
+			//     written into a buffer while the source plays (then the writing stops — the moment is never overwritten); from gfAtMs on,
+			//     long overlapping Hann grains (gfDur ms, gfDens a second, asynchronous — Dust) begin at that moment ± gfSpread ms, each at
+			//     a random pitch within ± gfPitch semitones. The sound is HELD by many offset readings of one place, not by a held
+			//     snapshot re-synthesised — so nothing repeats at a frame rate. After the sandbox's \roadsCloudBuf (roads-cloud.scd):
+			//     the level compensated by 1/sqrt(overlap), so density is texture, not loudness. Until the first grains, the dry sound.
+			gfBufL = LocalBuf(SampleRate.ir * 4).clear;
+			gfW = Phasor.ar(0, 1 - Done.kr(play), 0, BufFrames.ir(gfBufL));
+			BufWr.ar(sig, gfBufL, gfW, 0);
+			gfD = gfDur.clip(20, 2000) / 1000;
+			gfOn = (gfMix > 0) * (Sweep.kr(0, 1) >= ((gfAtMs.clip(0, 3000) / 1000) + (gfD * 0.5)));   // the first grains need written material
+			gfTrig = Dust.ar(gfDens.clip(1, 400)) * gfOn;
+			gfOv = (gfDens.clip(1, 400) * gfD).max(1);
+			gfPos = (((gfAtMs.clip(0, 3000) + TRand.ar(gfSpread.clip(0, 500).neg, gfSpread.clip(0, 500), gfTrig)) / 1000 * SampleRate.ir) / BufFrames.ir(gfBufL)).clip(0, 1);
+			gfRate = 2 ** (TRand.ar(gfPitch.clip(0, 24).neg, gfPitch.clip(0, 24), gfTrig) / 12);
+			gfCloud = GrainBuf.ar(1, gfTrig, gfD, gfBufL, gfRate, gfPos, 2, 0, -1, 512) * gfOv.sqrt.reciprocal;
+			sig = mix.(sig, gfCloud, gfMix * Lag.kr(gfOn, 0.05));
 			// --- the reverbs, last: they hear the result ----------------------------------------------------------------
 			wet = GVerb.ar(sig, revRoom.clip(1, 90), revTime.lag(lag).clip(0.1, 20), revDamp.lag(lag).clip(0, 1), 0.5, 15, 0, 0.7, 0.5).sum * 0.4;
 			sig = mix.(sig, wet, revMix);

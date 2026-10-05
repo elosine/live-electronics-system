@@ -643,3 +643,11 @@ re-rendered re-rendering those made from it — the label already says which are
 - **Proven, once each side:** `sc/process_test.scd` — PROCESS_TEST PASS with the plan's cases (three variants in two parts, the second first · a queue two wide · lengths 350.0 · 612.5 · 700.0 ms for durX 1.0 · 1.75 · 1.0 at half speed · the row · the fallback) · the page module under a stub window with the piece's score, 20 checks.
 - **Not claimed:** a plan through a living engine · the composer's ear · how many renders a machine carries beside a performance (the width is the dial) · a browser's eye on the panel.
 - **For a piece that takes this:** nothing to add to a stack file. A presets file where the page can fetch it; the rest is the score's.
+
+## §36. The granular freeze — the cloud, the first granular voice of part 6 (2026-10-05, Fable; the Decibel piece's §120)
+
+- **What prompted it:** the composer heard the spectral freeze REPEAT (a flutter) and asked for *"longer windows … more overlap … a sustained freeze rather than a repeated type of effect"*; of A (tune the spectral freeze) and B (a granular freeze after the sandbox's `\roadsCloudBuf`) he chose B.
+- **What:** `sc/process.scd` — the stage `cloud` after the spectral block: the chain's signal written into a 4 s LocalBuf while the source plays (a Phasor whose rate is `1 - Done.kr(play)`: the writing stops with the source, so the moment is never overwritten); from `gfAtMs` on, `GrainBuf` grains of `gfDur` ms at `gfDens`/s on `Dust` (asynchronous — no period to hear), beginning at the moment ± `gfSpread` ms, each at `2 ** (±gfPitch / 12)`; the level × 1/√(density × length) — the sandbox's measured compensation (roads-cloud.scd), density a texture control. The dry sound until the first grains (half a grain after the moment). `score/le_process.js`: the row `cloud`, six dials, hints.
+- **Why a buffer the chain writes, not the source buffer:** the grains are of whatever the stages before it made — a chain is a chain.
+- **Proven:** `sc/process_test.scd` PASS — the cloud holds a second past its 350 ms source (−12.6 dB under its peak at 0.6 … 1.1 s) and is cut at the tail's cap. Not heard.
+- **Not yet:** the cloud's envelopes across its length (the sandbox's density/length curves) · the spectral freeze's own tuning (window · hop · the re-draw rate) · stereo.

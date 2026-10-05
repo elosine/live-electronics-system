@@ -33,6 +33,7 @@ check = { |what, ok, detail| ("  " ++ if(ok) { "ok   " } { "FAIL " } ++ what ++ 
 fork {
 	var r1, r2, r3, r4, r5, r6, r7, r8, f4, d4, held, f7, d7, fbHeld, f8, d8, late8, srcDb = ~le.db(src.abs.maxItem), t0 = Main.elapsedTime;
 	var p1, p2, p3, fb, lenOf = { |r| if(r.notNil) { r[\lengthMs] } { -1 } };
+	var r9, f9, d9, gfHeld;
 	waitFor = { |name, secs = 30|
 		var t = 0;
 		while { rowOf.(name).isNil and: { t < secs } } { 0.25.wait; t = t + 0.25 };
@@ -106,7 +107,19 @@ fork {
 		check.("~8 is its length and falls on the perc curve", ((r8[\lengthMs] - 700).abs < 0.5) and: { late8 < -25 } and: { r8[\end].asString == "perc" },
 			r8[\lengthMs].asString ++ " ms · the last tenth " ++ late8 ++ " dB under the peak · end " ++ r8[\end]);
 	};
-	check.("the index on disk holds the eight", ~le.indexRowsOf(tmp).size == 8, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
+	// §120: the GRANULAR FREEZE — the cloud from 80 ms, grains of 200 ms at 40/s, under a tail capped 1.5 s past the source: it must be
+	// SOUNDING a second in (the source is over at 0.35 s), and it never falls — so it is cut at the cap
+	~le.processRender((source: 't-src', out: 't-src~9', effect: 'cloud', args: 'gfMix:1,gfAtMs:80,gfDur:200,gfDens:40,gfSpread:20,gfPitch:0', end: 'tail', capMs: 1500, id: 'test-9'));
+	r9 = waitFor.("t-src~9");
+	check.("~9 granular freeze · tail", r9.notNil and: { File.exists(tmp +/+ "t-src~9.wav") }, if(r9.notNil) { r9[\lengthMs].asString ++ " ms · peak " ++ r9[\peakDb] ++ " dB" } { "no row" });
+	if(r9.notNil) {
+		f9 = SoundFile.new;
+		if(f9.openRead(tmp +/+ "t-src~9.wav")) { d9 = FloatArray.newClear(f9.numFrames); f9.readData(d9); f9.close };
+		gfHeld = if(d9.notNil and: { d9.size > (1.1 * sr) }) { (d9.copyRange((0.6 * sr).asInteger, (1.1 * sr).asInteger).abs.maxItem / d9.abs.maxItem).ampdb.round(0.1) } { -999 };
+		check.("~9 the cloud holds and is cut at the cap", (gfHeld > -20) and: { r9[\lengthMs] > 1500 } and: { r9[\lengthMs] < 1900 },
+			"0.6 … 1.1 s into it, " ++ gfHeld ++ " dB under its peak (the source ended at 0.35 s) · " ++ r9[\lengthMs] ++ " ms long, the cap 1500 past the source");
+	};
+	check.("the index on disk holds the nine", ~le.indexRowsOf(tmp).size == 9, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
 	// what a chain's "*" plays: every CAPTURED sample — a render does not join it (bank.scd chainNames)
 	~le[\samples].put('t-src', (row: (name: "t-src")));
 	if(r1.notNil) { ~le[\samples].put('t-src~1', (row: r1)) };
