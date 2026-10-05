@@ -34,6 +34,10 @@ reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, 
 
 ### THE REPO OPENS ON THIS (2026-10-03, Fable) — PART 1 DONE; the next part is HIS to name
 
+- **UPDATE 5 · 2026-10-04 (RUNNING_LOG §8, Opus) — 4.1 DONE: THE CROSSING PROVEN** in the Decibel piece (ReaRoute installed, Reaper on
+  ASIO): unity through the engine; the round trip two DAW blocks (23.22 ms at 512); ReaRoute's channels sit at hardware index 512 …
+  527 in Reaper (`docs/SEAMS.md` has the three facts a piece's job needs). His ear not claimed. **► NEXT: 4.2, the message — a talk
+  first, in the Decibel piece (its 6.2).**
 - **UPDATE 4 · 2026-10-04 (RUNNING_LOG §7, Opus) — THE SEAT MADE, 4.1 BUILT, THE CROSSING UNPROVEN.** **Where you are reading this:**
   if the path is `…/decibel_TENOR_2026/electronics/docs/`, you are in the place of work — edit HERE; if it is the stand-alone clone,
   it is a MIRROR (`docs/TAKE.md`: pull before reading, never edit while a piece is at work). The code: `sc/` (boot · synths ·
@@ -84,8 +88,8 @@ reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, 
 
 | # | Step | Model | Clear first? |
 |---|---|---|---|
-| **►** | **4.1 (e) — the crossing proven and the latency measured**, in the Decibel piece, once ReaRoute is on his machine and his Reaper is on ASIO (his two steps). The engine's half is built and passes its self-test (RUNNING_LOG §7) | Opus (the piece's `tools/elec.js`) | — |
-| — | 4.2 the message (a talk: a loopMIDI port or OSC) → 4.3 the capture → 4.4 the playback — as the Decibel piece reaches 6.2 … 6.5 | Fable (the talk) · Opus (the builds) | — |
+| **►** | **4.2 — the message: a talk** (a loopMIDI port read by `MIDIIn`, or OSC through the piece's score server to UDP 57210), in the Decibel piece at its 6.2. 4.1 is done (RUNNING_LOG §8) | Fable (the talk) · Opus (the build) | — |
+| — | 4.3 the capture → 4.4 the playback → the sample index — as the Decibel piece reaches 6.3 … 6.5 | Fable (each talk) · Opus (the builds) | — |
 | 9.1 | part 9's first run — the Decibel piece: its repo `decibel_TENOR_2026` MADE 2026-10-04 (container 2). Next there: container 3, the copy-forward (in ITS repo and chat) | Opus | — |
 
 **Open questions:** Q1 — ANSWERED 2026-10-04 (RUNNING_LOG §5): SuperCollider + a Web Audio lab layer, no live-input path; the seam = SC real-time fed over ReaRoute. **Q3 — where the SAMPLE INDEX sits in the twelve parts** (part 4, part 11, or its own). **Q4 — the message route: a loopMIDI port or OSC** (decided at the Decibel piece's 6.2). Q2 — whether the pieces take the

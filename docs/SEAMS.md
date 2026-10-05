@@ -11,7 +11,7 @@
 | Seam | What the engine adds | What the piece's stack must provide | Where it was proven |
 |---|---|---|---|
 | **The composer score** | a mixin file per object family (part 11) | one `<script>` tag in `composer.html`; the hook the mixin attaches to | ‹part 3› |
-| **The sound path** | the engine itself — SuperCollider, real-time: `sc/` · `tools/sc.js` (part 4) | **audio:** one send per player to an engine input; ONE FLAT RETURN TRACK — below · **message:** ‹4.2› | the engine's half: `selftest.scd`, 2026-10-04 · the crossing: ‹the Decibel piece's 6.1, when ReaRoute is on the machine› |
+| **The sound path** | the engine itself — SuperCollider, real-time: `sc/` · `tools/sc.js` (part 4) | **audio:** one send per player to an engine input; ONE FLAT RETURN TRACK — below · **message:** ‹4.2› | the engine's half: `selftest.scd`, 2026-10-04 · **the crossing: the Decibel piece's 6.1, 2026-10-04 — unity; two DAW blocks** (RUNNING_LOG §8) |
 | **The notation** | a rules row + a drawn or animated kind + its edge class per glyph (parts 7 · 12) | `notation/registry/rules.json` · `page_rules.json` · the render's kind table · the extractor's event emit | ‹part 7› |
 
 ## The sound path — the audio half (4.1)
@@ -39,6 +39,13 @@ channels: there the rack plays and the engine cannot be fed. MIDI is untouched b
    processes it.
 3. **For the latency measure only, and only while it runs:** a send from the return track to one more ReaRoute channel (3), taken
    down afterwards.
+
+**Three facts a piece's DAW job needs (proven 2026-10-04, RUNNING_LOG §8):**
+- **Reaper lists ReaRoute's channels at hardware index 512 … 527**, not among the device's own — a job that scans 0 … n−1 never
+  finds them. A send's `I_DSTCHAN` and a track's `I_RECINPUT` take 512 + the channel directly.
+- **The round trip costs two of the DAW's blocks** — one per crossing (23.22 ms at 512 samples, 44100 Hz). It is the simulation's
+  number, not the concert's.
+- **A track's own meter may read before its fader.** A check compares against the DAW's master with the engine off.
 
 **What a piece's stack files change: NOTHING.** The route is data in the rack plus three files of the piece's own: a table of
 which track is which player, a job for its DAW control, a tool that runs the checks. The Decibel piece's are the model:

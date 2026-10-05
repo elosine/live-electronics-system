@@ -178,3 +178,23 @@ processing — a rule for `docs/SEAMS.md` at part 3.
 **A trap in sclang, kept for the next builder:** an Event calls a function stored under a key when the key is used as a method name — but only if no real method has that name. `~le.halt(2)` would have run `Object:halt`. The namespace's functions are named clear of real methods (`leave`, not `halt`; no `free` · `add` · `play` · `stop`) and its data is read with brackets. Written at the top of `boot.scd`.
 
 **NOT PROVEN — each needs ReaRoute on the machine:** the `\sim` boot · `check_route.scd` and `latency.scd` against a rack · whether Reaper lists ReaRoute's channels among `GetOutputChannelName` / `GetInputChannelName` (the piece's job finds them by name and refuses if it cannot).
+
+## §8. 4.1 DONE — the crossing proven in the Decibel piece: unity, and two DAW blocks of latency (2026-10-04, Opus, in the Decibel piece's chat)
+
+**What prompted it:** his two hand steps done there (Reaper 7.82 · ASIO · ReaRoute). The piece's side and every number: its RUNNING_LOG §54.
+
+**For the engine:**
+- **The `\sim` boot holds:** device `ASIO : ReaRoute ASIO (x64)`, 44100 Hz (Reaper's), the engine's block 64, sixteen in and out.
+- **Where a DAW job finds ReaRoute — the one thing §7 could not know:** Reaper lists its sixteen channels at HARDWARE INDEX 512 … 527
+  (ReWire's place), not among the device's own 0 … n−1. `GetNumAudioOutputs` does not count them; `GetOutputChannelName(512)` is
+  "ReaRoute 1". A send's `I_DSTCHAN` and a track's `I_RECINPUT` take 512 directly (their low ten bits). Written into `docs/SEAMS.md`.
+- **Unity, exactly:** one player passed through — heard −42.6 dB, sent −42.6 dB, back on the piece's return track −42.63 dB.
+  **Reaper's mono fold of a stereo track is the half-sum**, so `lePass`'s dual mono at unity returns a note at the level it is heard at.
+- **THE LATENCY: 23.22 ms = 1024 samples = two of Reaper's blocks of 512** (`latency.scd`, nine clicks, the median). One block per
+  ReaRoute crossing; the engine's own 64 adds nothing measurable beside it. A property of the simulation, set by the DAW's block.
+- **A warning for every piece's check:** a Reaper track's own meter (`Track_GetPeakInfo`) read BEFORE the fader on that rack — the
+  first verdict compared against it and reported a 15 dB loss that did not exist. The reference is the DAW's master with the engine
+  off, and the engine's own meters.
+- `session.scd` run as the launcher runs it: booted, heard a note, reported it, stopped; no process left.
+
+**4.1's sub-steps (a) … (f) are done.** Not claimed: the composer's ear. Next: 4.2, the message — a talk first.
