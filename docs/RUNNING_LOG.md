@@ -462,3 +462,10 @@ it names a real exception when one comes.
 a miss), the rest follow the previous link as the chain does. `/le/play … behaviour arChain names a,b,c`, `t` · `dueMs` at the
 live note; the page sends it from the region's start, 400 ms ahead. The bands are the piece's dials (LE_AR), not the engine's
 defaults: this piece widened its after band ×1.5 and pushed the rest out — the defaults stay for the next piece's ear.
+
+## §21. `*` IN A CHAIN — every sample the bank holds at playback (2026-10-05, Fable; the Decibel piece's §89, DEC-12)
+
+A name `*` in `/le/play … names` is replaced, at the moment of the roll, by every sample in the bank (sorted, then shuffled by
+I when I says so): the composer's "every live input triggers all the samples from all the instruments recorded so far" — the
+bank grows while the piece is composed, so the list is resolved by the engine, never written into the score. The page labels
+the brick `ALL n samples` by its index; the length drawn is the index's count × a link.

@@ -47,7 +47,7 @@
         elecPlay: { kind: 'play', sign: '▶', color: '#8E24AA', yOffset: 1, title: 'Sample — the return' },
     };
     const r3 = (x) => Math.round(x * 1000) / 1000;
-    const safe = (s) => String(s == null ? '' : s).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);   // a name is a file name (sc/bank.scd)
+    const safe = (s) => (s === '*' ? '*' : String(s == null ? '' : s).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64));   // a name is a file name (sc/bank.scd); '*' = every sample
 
     const LEObjects = {
         MODELS, host: null, index: [], _pass: null, _prev: null,
@@ -122,7 +122,7 @@
                 const p = this.playerOf(zone.layer);
                 if (p !== undefined) { e.player = p || ''; if (!p) text += ' — no microphone on this lane'; }
             } else {
-                if ((e.behaviour === 'chain' || e.behaviour === 'arChain') && Array.isArray(e.names) && e.names.length) text = M.sign + ' ' + e.names.join(' + ');
+                if ((e.behaviour === 'chain' || e.behaviour === 'arChain') && Array.isArray(e.names) && e.names.length) text = M.sign + ' ' + (e.names.includes('*') ? 'ALL ' + this.index.length + ' samples' : e.names.join(' + '));
                 if (e.behaviour) text += ' ~ ' + String(e.behaviour).toUpperCase();
                 if (!this.row(e.name)) text += ' — not captured yet';
             }
@@ -257,9 +257,11 @@
                     names.addEventListener('change', () => commit(() => {
                         e.names = String(names.value || '').split(',').map((s) => safe(s.trim())).filter(Boolean);
                         if (!e.names.length) e.names = [e.name]; e.name = e.names[0];
-                        zone.endTime = e.behaviour === 'arChain' ? r3(zone.startTime + 2 * this.opts.arRegionMs / 1000 + this.opts.chainLinkS * (e.names.length - 1)) : r3(zone.startTime + this.opts.chainLinkS * e.names.length);
+                        const n = e.names.includes('*') ? Math.max(1, this.index.length) : e.names.length;   // '*': as many as the bank holds today
+                        zone.endTime = e.behaviour === 'arChain' ? r3(zone.startTime + 2 * this.opts.arRegionMs / 1000 + this.opts.chainLinkS * (n - 1)) : r3(zone.startTime + this.opts.chainLinkS * n);
                     }));
                     sec.appendChild(rowEl('Samples, in order', names));
+                    if ((e.names || []).includes('*')) sec.appendChild(note('* = every sample the bank holds at playback — all players, all impulses so far; the engine shuffles them (I)'));
                     sec.appendChild(note(e.behaviour === 'arChain'
                         ? 'rolled by the engine: one sample anticipates or reacts to the live note (the brick\'s start + the region), the rest follow the one before — the dials return.ar (A … C) and return.chain (G · H · I)'
                         : 'rolled by the engine: which sample follows the live note (the brick\'s start) and the rest follow the one before — just after · lazily after · near unison; the dials return.chain (G · H · I), the ranges ar\'s B'));

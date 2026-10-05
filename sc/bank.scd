@@ -319,6 +319,7 @@
 // ---- the return: /le/play ---------------------------------------------------------------------------------------------
 //   /le/play … behaviour chain names a,b   the brick's start is the live note; the links roll above, each scheduled from it
 //   /le/play … behaviour arChain names a,b,c   t · dueMs point at the live note; the first link is an ar roll, the rest a chain
+//   names *   every sample the bank holds at that moment (all players, all impulses so far), shuffled by I
 //   /le/play … behaviour ar   the brick's centre is the live note (t · dueMs point at it); the roll above moves the sample
 ~le[\samplePlay] = { |self, d|
 	var s = self[\server], name = self.safeName(d[\name]), due = ((d[\dueMs] ? 0).asFloat / 1000).clip(0, 5);
@@ -326,6 +327,9 @@
 	var beh = (d[\behaviour] ? "").asString, roll, at = due, clipped = false;
 	if((beh == "chain") or: { beh == "arChain" }) {   // §82 · §87: the samples named, rolled as a chain from the live note (arChain: the first by the ar roll)
 		var list = (d[\names] ? name).asString.split($,).collect({ |x| self.safeName(x) }).reject({ |x| x.size == 0 });
+		if(list.includes("*")) {   // §89 (DEC-12): "*" = EVERY sample the bank holds now — all players, all impulses so far; the order is I's
+			list = if(self[\samples].notNil) { self[\samples].keys.asArray.collect(_.asString).sort } { [] };
+		};
 		var links = self.chainRoll(list, beh == "arChain");
 		links.do({ |k|
 			var sk = if(self[\samples].notNil) { self[\samples][k[\name].asSymbol] }, when = (due + (k[\atMs] / 1000)).max(0);
