@@ -86,6 +86,8 @@ one SEND from a player's DAW track to the engine's input and ONE FLAT RETURN TRA
 route is decided in the Decibel piece's 6.2 (a loopMIDI port read by `MIDIIn`, or OSC through the piece's score server).
 
 ## 4. The sound path — `doing` (the shape decided 2026-10-04 in the Decibel piece — RUNNING_LOG §5 · §6; his words in that piece's RUNNING_LOG §47 · §48)
+- **2026-10-05, in the Decibel piece (its RUNNING_LOG §71; this journal §15): THE MODES and THE SAFETY NET built** — bankOn(dir, crop, source, record), LE_SOURCE · LE_RECORD, a backup bank with the same names pre-loading the buffers in concert; a graceful /le/leave; tools/crop_report.js. The 4.3b crop measured on seven kinds: the impulses keep ~0.7 … 1.0 s of room (the piece's ear sets endDb).
+
 
 ***Why:*** he must hear the sampled note processed as it would be live — *"should actually use the actual pipeline."*
 

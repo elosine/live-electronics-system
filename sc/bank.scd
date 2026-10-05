@@ -13,6 +13,10 @@
 //         <bank>/<name>.wav      THE SAMPLE — cropped to the attack, mono, the engine's sample rate
 //         <bank>/index.json      a row for it; a name taken twice REPLACES its row and its file — the latest take wins
 //       and the sample is in a buffer, ready to be played.
+//       THE MODES (§71, 2026-10-05): bankOn(dir, crop, source, record) — the buffers are FILLED at start from `source` (the bank itself,
+//       or the BACKUP bank the players recorded in rehearsal); captures are WRITTEN to `dir`; with record = false an opening changes
+//       nothing. THE SAFETY NET: a capture with no attack above the floor leaves the buffer as it was (the backup, or the earlier take)
+//       and says so — the analysis that decides this must be made foolproof before the concert (the piece's NITS).
 //   /le/play  name · id · lane · t · dueMs
 //       THE RETURN. The sample is played to the master at UNITY, dueMs from now ON THE ENGINE'S CLOCK — it lands where
 //       the score's brick is, with no clock shared between the score and the engine.
@@ -119,6 +123,22 @@
 	rows
 };
 
+// the rows of ANY folder's index, read without touching the write bank's state — the source the buffers are filled from (§71)
+~le[\indexRowsOf] = { |self, dir|
+	var path = dir.asString +/+ "index.json", doc, rows = List.new, numbers = [\scoreTime, \lengthMs, \peakDb, \windowMs, \attackMs];
+	if(File.exists(path)) {
+		try { doc = path.parseJSONFile } { doc = nil };
+		if(doc.notNil and: { doc["samples"].notNil }) {
+			doc["samples"].do({ |d|
+				var row = ();
+				d.keysValuesDo({ |k, v| var key = k.asSymbol; row[key] = case { key == \lane } { v.asInteger } { numbers.includes(key) } { v.asFloat } { true } { v } });
+				rows.add(row);
+			});
+		};
+	};
+	rows
+};
+
 ~le[\indexWrite] = { |self|
 	var path = self[\bankDir] +/+ "index.json", f, ok = false;
 	if(self[\indexBroken] != true) {
@@ -134,15 +154,19 @@
 };
 
 // ---- the bank ---------------------------------------------------------------------------------------------------------
-~le[\bankOn] = { |self, dir, cropOpts|
+~le[\bankOn] = { |self, dir, cropOpts, source, record|
 	var s = self[\server];
-	self[\bankDir] = dir.asString;
+	self[\bankDir] = dir.asString;                      // where captures are WRITTEN — files and index
+	self[\sourceDir] = (source ? dir).asString;         // where the buffers are FILLED FROM at start — the bank itself, or the backup (§71)
+	self[\record] = (record ? true);                    // false: an opening records nothing; the buffers keep what the files gave them
+	File.mkdir(self[\bankDir]);
 	File.mkdir(self[\bankDir] +/+ "raw");
 	self[\cropOpts] = cropOpts;
 	self[\samples] = IdentityDictionary.new;
-	self.indexRead.do({ |row|
-		var p = self[\bankDir] +/+ row[\file].asString;
-		if(File.exists(p)) { self[\samples][row[\name].asSymbol] = (row: row, buf: Buffer.read(s, p)) };
+	self.indexRead;                                      // the WRITE bank's rows — a capture's row joins them
+	self.indexRowsOf(self[\sourceDir]).do({ |row|
+		var p = self[\sourceDir] +/+ row[\file].asString;
+		if(File.exists(p)) { self[\samples][row[\name].asSymbol] = (row: row, buf: Buffer.read(s, p), from: \loaded) };
 	});
 	self[\samples].size
 };
@@ -163,6 +187,7 @@
 	{ self[\bankDir].isNil } { self.say("LE_INFO", "open · " ++ who ++ " — the engine was started with no bank folder: nothing is recorded") }
 	{ p.isNil } { self.say("LE_INFO", "open · " ++ who ++ " — the engine has no such player: nothing is recorded") }
 	{ name.size == 0 } { self.say("LE_INFO", "open · " ++ who ++ " — the opening has no name: nothing is recorded") }
+	{ self[\record] == false } { self.say("LE_INFO", "open · " ++ who ++ " · " ++ name ++ " — recording is OFF: the buffer keeps what it holds" ++ if(self[\samples][name.asSymbol].notNil) { "" } { " (nothing yet)" }) }
 	{ true } {
 		if(id.size == 0) { id = name };
 		self.say("LE_INFO", "open · " ++ who ++ " · " ++ name ++ " · " ++ winMs.round(1).asInteger ++ " ms");
@@ -189,9 +214,11 @@
 	self.say("LE_INFO", "captured · " ++ name ++ " · raw · " ++ rawMs ++ " ms · peak " ++ self.db(rawPeak) ++ " dB");
 	c = self.cropFind(data, sr, self[\cropOpts]);
 	if(c.isNil) {
-		self.say("LE_INFO", "nothing to crop · " ++ name ++ " — no attack in the window; the sample was not saved");
+		old = self[\samples][name.asSymbol];
+		self.say("LE_INFO", "nothing to crop · " ++ name ++ " — no attack in the window; the sample was not saved"
+			++ if(old.notNil) { " · THE BUFFER KEEPS ITS " ++ if(old[\from] == \loaded) { "LOADED" } { "EARLIER" } ++ " TAKE (the safety net, §71)" } { " · the buffer is empty" });
 		self.say("LE_RESULT", self.json((msg: "captured", name: name, player: who, openingId: id, cropped: false,
-			rawMs: rawMs, rawPeakDb: self.db(rawPeak), raw: rawRel)));
+			rawMs: rawMs, rawPeakDb: self.db(rawPeak), raw: rawRel, kept: old.notNil)));
 	} {
 		out = self.cropTake(data, sr, c, self[\cropOpts]);
 		self.wavWrite(dir +/+ rel, out, sr);
@@ -205,7 +232,7 @@
 		self[\indexRows].add(row);
 		if(self.indexWrite.not) { self.say("LE_INFO", "the index was NOT written — the sample is saved as " ++ rel) };
 		Buffer.read(s, dir +/+ rel, action: { |b|
-			self[\samples][name.asSymbol] = (row: row, buf: b);
+			self[\samples][name.asSymbol] = (row: row, buf: b, from: \captured);
 			if(old.notNil) { SystemClock.sched(10, { old[\buf].free; nil }) };
 		});
 		self.say("LE_INFO", "cropped · " ++ name ++ " · " ++ lenMs.round(1).asInteger ++ " ms of " ++ rawMs

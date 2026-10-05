@@ -16,6 +16,8 @@
 //   LE_CROP      the crop's rule, where a piece overrides the defaults:  attackDb=-30,endDb=-45,holdMs=50  (bank.scd)
 //   LE_ECHO      A ROUTE CHECK: seconds each player is returned BEHIND the note — the route heard as a second sound.
 //   LE_PASS      A ROUTE CHECK: 1 = each player straight to the master (two DAW blocks behind: not heard as a second sound).
+//   LE_SOURCE    the folder the buffers are FILLED from at start (the bank itself when absent) — the backup bank in rehearsal and concert (§71)
+//   LE_RECORD    1: an opening records, buffer and file replaced (the default) · 0: an opening changes nothing — the buffers keep what the files gave them
 //   LE_SECONDS   leave by itself after this many seconds (0 = never: his window). A tool's bounded run.
 // While it runs it posts the loudest input and output of the last two seconds, when there was any.
 (
@@ -27,6 +29,8 @@ var pass = ("LE_PASS".getenv ? "0").asFloat > 0;
 var secs = ("LE_SECONDS".getenv ? "0").asFloat;
 var bank = "LE_BANK".getenv;
 var cropSpec = "LE_CROP".getenv;
+var source = "LE_SOURCE".getenv;
+var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 (dir +/+ "boot.scd").load;
 ~le.bootEngine(mode, { |le|
 	var s = le[\server], names = List.new, pending = IdentityDictionary.new, t0 = Main.elapsedTime, crop, nSamples = 0;
@@ -43,11 +47,14 @@ var cropSpec = "LE_CROP".getenv;
 		crop = ();
 		cropSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { crop[b[0].asSymbol] = b[1].asFloat } });
 	};
-	if(bank.notNil and: { bank.size > 0 }) { nSamples = le.bankOn(bank, crop) };
+	if(bank.notNil and: { bank.size > 0 }) { nSamples = le.bankOn(bank, crop, source, record) };
 	s.sync;
 	// ---- the messages ----
 	if(le.openEar) {
 		if(le[\bankDir].notNil) { le.bankHear };
+		// a tool's run ends on a message, gracefully — the server quits its device before the process goes (§71: an engine killed from
+		// outside left ReaRoute wedged, and no engine could boot until Reaper was restarted). His own window still closes as before.
+		le.hear(\leave, { |le, d| le.say("LE_INFO", "leaving on request"); le.leave(0) });
 		// an onset is shown; the player's own sound, when it comes, is timed against it (a route check)
 		le.hear(\onset, { |le, d, time|
 			var name = (d[\player] ? '?').asSymbol;
@@ -69,7 +76,9 @@ var cropSpec = "LE_CROP".getenv;
 	le.say("LE_READY", le.json((device: le[\device], sr: s.sampleRate, players: names.asArray.collect(_.asString),
 		msgPort: le[\earPort], samples: nSamples)));
 	le.say("LE_INFO", "the engine is listening — close this window to stop it. "
-		++ if(le[\bankDir].notNil) { "The bank holds " ++ nSamples ++ " sample" ++ if(nSamples == 1) { "" } { "s" } ++ ". " }
+		++ if(le[\bankDir].notNil) { "The bank holds " ++ nSamples ++ " sample" ++ if(nSamples == 1) { "" } { "s" } ++ ". "
+			++ if(le[\sourceDir] != le[\bankDir]) { "Loaded from " ++ le[\sourceDir] ++ "; captures go to " ++ le[\bankDir] ++ ". " } { "" }
+			++ if(le[\record] == false) { "RECORDING IS OFF: an opening leaves its buffer as it is. " } { "" } }
 			{ "NO BANK: nothing will be recorded or played. " }
 		++ case { echo > 0 } { "ROUTE CHECK: each note comes back " ++ echo ++ " s later." }
 			{ pass } { "ROUTE CHECK: each note is passed straight through." } { true } { "" });

@@ -399,3 +399,19 @@ one player at once. The concert's device (`\live`).
 WHEN and WHO (a brick on a player's staff), the ENGINE knows WHAT (the sound it heard, reduced to its attack), and the only thing
 that passes between them is a name and a lead time — no audio, no clock. The same two messages serve the concert unchanged; what
 the simulation replaces is the microphone and the loudspeaker, nothing else.
+
+## §15. THE MODES, THE SAFETY NET, A GRACEFUL LEAVE — from the Decibel piece's step 8 (2026-10-05, Fable; the piece's RUNNING_LOG §71 has his words and the measurements)
+
+**What is the engine's here:** `bankOn(dir, crop, source, record)` — the buffers FILLED from `source` at start (the bank itself, or a backup bank with the same
+names), captures WRITTEN to `dir`, `record = false` makes an opening change nothing (`LE_SOURCE` · `LE_RECORD`; `indexRowsOf` reads any folder's index).
+THE SAFETY NET: a capture with no attack above the floor leaves the buffer as it was — loaded or earlier — and says so (`kept` in its result); its analysis is
+to be made foolproof before a concert (the piece's NITS). `/le/leave`: the language quits its server (the device closed properly) and exits — a tool's
+run ends on it, the kill a fallback. `tools/crop_report.js`: a page per crop — the raw envelope, the kept region, the attack, the sample, both playable.
+**What the piece's is:** the mode word and the folders (`bank/elec_route.json`), the kinds tested, the impulses' names.
+
+**Measured in the piece (seven kinds through its rack, the defaults):** the impulses keep 0.7 … 1.0 s — the end rule (−45 dB of peak, 50 ms) runs into the
+instrument's room; a swelling multiphonic's "attack" is found at the swell (1.3 s in); a 2 s flute tone keeps 2989 ms (the release).
+
+**A rule, learned the hard way:** an engine on ReaRoute ended with `taskkill` left ReaRoute's client side wedged — every later boot came up and hung at its
+first `s.sync`; Reaper's `Audio_Quit/Init` did not free it; only a Reaper restart does. Hence `/le/leave`. And a note sender killed mid-note leaves a stuck
+note in the sampler — a sender finishes on its own now.
