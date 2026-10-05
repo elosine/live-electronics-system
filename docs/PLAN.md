@@ -95,7 +95,7 @@ sampled players in the piece's Reaper rack → ReaRoute → SC's input buses —
 FLAT RETURN TRACK in Reaper (the loudspeaker; 0 dB, no effects), so the players and the electronics meet at one pair of monitors.
 The simulation and the concert differ in ONE place: the input device. The sandbox's Web Audio layer is NOT the live path.
 
-- **4.1 The audio route DAW → SC → DAW — `doing`** (first run: the Decibel piece's 6.1, `decibel_TENOR_2026/docs/PLAN.md` 1.1).
+- **4.1 The audio route DAW → SC → DAW — `doing`: BUILT 2026-10-04 (RUNNING_LOG §7), the crossing UNPROVEN — ReaRoute is not on his machine.** (a) ☐ HIS: ReaRoute installed, Reaper on ASIO · (b) ☑ `sc/boot.scd` · (c) ☐ the piece's job written and parse-checked, not run · (d) ☑ `sc/synths.scd`; the master = the sandbox's browser chain translated, its colouring stages off · (e) ☐ the engine's half ☑ (`selftest.scd`: sample-exact pass-through, the safety, the probe to the sample); the crossing and the latency ☐ · (f) ☑ `docs/SEAMS.md` the audio half; `docs/TAKE.md` step 1. (First run: the Decibel piece's 6.1, `decibel_TENOR_2026/docs/PLAN.md` 1.1).
   *Result when done:* one note from a piece's composer score heard direct and again after passing through SC untouched, on the flat
   return; the round-trip latency measured. The generic sub-steps: (a) the bridge driver present — ReaRoute ASIO on Windows (Reaper's
   installer option); a virtual cable the fallback · (b) SC's boot file — device, the DAW's sample rate, 16 in / 16 out; the boot

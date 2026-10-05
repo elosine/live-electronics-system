@@ -34,6 +34,16 @@ reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, 
 
 ### THE REPO OPENS ON THIS (2026-10-03, Fable) — PART 1 DONE; the next part is HIS to name
 
+- **UPDATE 4 · 2026-10-04 (RUNNING_LOG §7, Opus) — THE SEAT MADE, 4.1 BUILT, THE CROSSING UNPROVEN.** **Where you are reading this:**
+  if the path is `…/decibel_TENOR_2026/electronics/docs/`, you are in the place of work — edit HERE; if it is the stand-alone clone,
+  it is a MIRROR (`docs/TAKE.md`: pull before reading, never edit while a piece is at work). The code: `sc/` (boot · synths ·
+  selftest · check_route · latency · session · devices) and `tools/sc.js`; the server on UDP 57210. `selftest.scd` passes — the
+  pass-through sample-exact, the safety under full scale, the latency probe to the sample. **ReaRoute is NOT on his machine and his
+  Reaper is on WASAPI** — two hand steps of his; until then the `\sim` boot refuses (exit 2) and 4.1 (e) is open. The master is the
+  sandbox's BROWSER chain translated (high-pass and glue OFF until he has heard them). **► NEXT: when ReaRoute is there, the Decibel
+  piece runs `node tools/elec.js probe → route → check → latency`; a fault in the crossing is fixed here. Then 4.2, the message
+  (a talk first: a loopMIDI port or OSC).**
+
 - **UPDATE 3 · 2026-10-04 (RUNNING_LOG §5 · §6) — Q1 ANSWERED; PART 4 IN HAND.** The sandbox read: SuperCollider 3.14.1 (offline
   renders) + a Web Audio layer (labs); NO live-input path anywhere; his pedals of resonance is an SC SynthDef on `SoundIn`. His word:
   the sound process is SC REAL-TIME, fed by a piece's Reaper over ReaRoute; SC's master IS the output live; in simulation the DAW is only
@@ -74,7 +84,8 @@ reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, 
 
 | # | Step | Model | Clear first? |
 |---|---|---|---|
-| **►** | **part 4 — the sound path: 4.1 the audio route DAW → SC → DAW**, its first run the Decibel piece's 6.1 (built THERE, in `electronics/`; comes here by subtree). Then 4.2 the message, 4.3 the capture, 4.4 the playback — as that piece reaches 6.2 … 6.5 | Opus (the build, in the piece's repo) · Fable (6.2's talk) | — |
+| **►** | **4.1 (e) — the crossing proven and the latency measured**, in the Decibel piece, once ReaRoute is on his machine and his Reaper is on ASIO (his two steps). The engine's half is built and passes its self-test (RUNNING_LOG §7) | Opus (the piece's `tools/elec.js`) | — |
+| — | 4.2 the message (a talk: a loopMIDI port or OSC) → 4.3 the capture → 4.4 the playback — as the Decibel piece reaches 6.2 … 6.5 | Fable (the talk) · Opus (the builds) | — |
 | 9.1 | part 9's first run — the Decibel piece: its repo `decibel_TENOR_2026` MADE 2026-10-04 (container 2). Next there: container 3, the copy-forward (in ITS repo and chat) | Opus | — |
 
 **Open questions:** Q1 — ANSWERED 2026-10-04 (RUNNING_LOG §5): SuperCollider + a Web Audio lab layer, no live-input path; the seam = SC real-time fed over ReaRoute. **Q3 — where the SAMPLE INDEX sits in the twelve parts** (part 4, part 11, or its own). **Q4 — the message route: a loopMIDI port or OSC** (decided at the Decibel piece's 6.2). Q2 — whether the pieces take the
@@ -85,7 +96,7 @@ engine as a git submodule exactly, or by a copy at a tag with the commit recorde
 **Standing warnings for this repo:** PUBLIC — nothing personal · never edit the sandbox or the pieces · the engine never binds a
 piece's loopMIDI ports · verify in a piece on its throwaway server, never his port.
 
-**Checks this repo owns:** none yet.
+**Checks this repo owns:** `node tools/sc.js run sc/selftest.scd` — the engine's three tests, no hardware, no sound (exit 0).
 
 ---
 
