@@ -483,3 +483,18 @@ samples played?" without his hands: yes; what he heard as one was a near-unison 
 `safeName` scrubs a message's name to a file name, and `"*"` is not one: §21's check for it came after the scrub and never saw
 it — an empty chain. The names a chain plays are resolved in one function now, `chainNames(names)`: the star is looked for in the
 raw list and becomes every sample the bank holds; the rest is scrubbed as before. Found by CONTENT: an Array's includes() is identity in SuperCollider and never matches a String. `roll_test.scd` proves the four cases headless.
+
+## §24. BEHAVIOUR `pattern` — a composed rhythm on a return brick, no dice (2026-10-05, Fable; the Decibel piece's §97, DEC-15)
+
+The fourth behaviour of the return, and the first that is NOT rolled: the page composes, the engine obeys. `sc/bank.scd`:
+`patternOnsets(pattern)` turns the message's `pattern "name:atMs,…"` into onsets (names through `safeName`, times clipped at 0,
+nameless pairs dropped); `samplePlay`'s `behaviour pattern` branch schedules each from `dueMs` in a bundle, one window line per
+onset, the result carrying the count and the pattern. `score/le_objects.js`: the fifth Behaviour option; the samples picked by two
+rows of boxes derived from the bank's index (the players × the tags after their prefix; no pick = the whole bank at playback);
+the dials `elec.rhythm` (shape even · front · back · centre · edges · accel · rit · random · span · gap · jitter · order · seed);
+Generate → `elec.pattern = [{ name, atMs }]` from the brick's start; `fire` sends ONE `/le/play` with the pattern.
+
+**The generator is this module's own** (`rhythm(n, cfg)`, ~20 lines, mulberry32-seeded): the Decibel stack's Strikes drawer has a
+richer one, and it was NOT lifted — the engine's page module may lean on no file of a piece's stack (the boundary, objective 6);
+what it needs, it carries. Proven headless both sides: `sc/roll_test.scd` (the parse, four cases) and the module under a stub
+window (six generates, one reproducible). The sound in the running app is the composer's, as he composes.

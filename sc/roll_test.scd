@@ -31,6 +31,10 @@ var dir = thisProcess.nowExecutingPath.dirname;
 ("  \"*\" -> " ++ ~le.chainNames("*")).postln;
 ("  \"a, *\" -> " ++ ~le.chainNames("a,*")).postln;
 ("  \"\" -> " ++ ~le.chainNames("")).postln;
+"ROLL_TEST patternOnsets — a composed rhythm parsed (behaviour pattern):".postln;
+~le.patternOnsets("a:0,b:250.5").collect({ |k| k[\name] ++ " at " ++ k[\atMs] ++ " ms" }).join(" · ").postln;
+~le.patternOnsets("vc-impulse-1: 10, x/y:-5, :3,").collect({ |k| k[\name] ++ " at " ++ k[\atMs] ++ " ms" }).join(" · ").postln;
+("  \"\" -> " ++ ~le.patternOnsets("").size ++ " onsets").postln;
 "ROLL_TEST done".postln;
 0.exit;
 )

@@ -23,6 +23,12 @@
 //       sample; the engine rolls which follows the live note and the rest follow the one before (the piece's DEC-10).
 //       behaviour 'arChain' (DEC-11): the region runs from arRegionMs BEFORE the live note to arRegionMs after it plus a link per
 //       further sample; one sample anticipates or reacts to the live note, the rest chain after it.
+//       behaviour 'pattern' (DEC-15, the same day): a COMPOSED rhythm — no dice. elec.pick names the samples by two rows of
+//       boxes (the players · the tags after them, bcl-impulse-1 → bcl · impulse-1; no pick = every sample the bank holds);
+//       elec.rhythm is the dials (shape · span · gap · jitter · order · seed); Generate writes elec.pattern = [{ name, atMs }]
+//       from the brick's START (the live note), its length the span. ONE message carries the onsets and the engine plays each
+//       on time — the same in concert and in simulation. The generator is this file's own, small (rhythm()): the module may
+//       lean on no drawer of a piece's stack.
 //       Played through, it sends   /le/play   name · id · lane · t · dueMs   and the engine plays the banked sample WHERE THE
 //       BRICK IS. Its length is the sample's, read from the bank's index; its lane says whose staff it is drawn on.
 //       KEY (`r` in the first): at the playhead — the sample of the selected opening, else of the nearest opening before
@@ -48,6 +54,10 @@
     };
     const r3 = (x) => Math.round(x * 1000) / 1000;
     const safe = (s) => (s === '*' ? '*' : String(s == null ? '' : s).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64));   // a name is a file name (sc/bank.scd); '*' = every sample
+    // a seeded random (mulberry32): the same seed, the same rhythm — a save reproduces what he heard
+    const mulberry32 = (a) => () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const byName = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true });   // impulse-2 before impulse-10
+    const DEFAULT_RHYTHM = { shape: 'even', spanMs: 2000, gapMs: 0, jitterMs: 0, order: 'named', seed: 1 };
 
     const LEObjects = {
         MODELS, host: null, index: [], _pass: null, _prev: null,
@@ -123,8 +133,9 @@
                 if (p !== undefined) { e.player = p || ''; if (!p) text += ' — no microphone on this lane'; }
             } else {
                 if ((e.behaviour === 'chain' || e.behaviour === 'arChain') && Array.isArray(e.names) && e.names.length) text = M.sign + ' ' + (e.names.includes('*') ? 'ALL ' + this.index.length + ' samples' : e.names.join(' + '));
+                if (e.behaviour === 'pattern') { const n = Array.isArray(e.pattern) ? e.pattern.length : 0; text = M.sign + ' ' + (n ? n + ' samples · ' + Math.round((zone.endTime - zone.startTime) * 1000) + ' ms' : 'no sample picked'); }
                 if (e.behaviour) text += ' ~ ' + String(e.behaviour).toUpperCase();
-                if (!this.row(e.name)) text += ' — not captured yet';
+                if (e.behaviour !== 'pattern' && !this.row(e.name)) text += ' — not captured yet';
             }
             if (label) label.textContent = text;
         },
@@ -232,13 +243,14 @@
                     pick.blur();
                     commit(() => { e.name = pick.value; const x = this.row(e.name); if (x && x.lengthMs > 0) zone.endTime = r3(zone.startTime + x.lengthMs / 1000); });
                 });
-                sec.appendChild(rowEl('Sample', pick));
+                if (e.behaviour !== 'pattern') sec.appendChild(rowEl('Sample', pick));   // a pattern picks its samples by the rows below
                 // the behaviour (step 9): plain = the sample where the brick is · ar = rolled by the engine around the brick's centre
                 const beh = el('select');
                 beh.appendChild(el('option', { value: '', textContent: 'where the brick is', selected: !e.behaviour }));
                 beh.appendChild(el('option', { value: 'ar', textContent: 'anticipation-reaction around the centre', selected: e.behaviour === 'ar' }));
                 beh.appendChild(el('option', { value: 'chain', textContent: 'chain — the samples follow the live note, one after another', selected: e.behaviour === 'chain' }));
                 beh.appendChild(el('option', { value: 'arChain', textContent: 'ar + chain — one sample around the live note, the rest after it', selected: e.behaviour === 'arChain' }));
+                beh.appendChild(el('option', { value: 'pattern', textContent: 'pattern — a composed rhythm for the samples picked', selected: e.behaviour === 'pattern' }));
                 beh.addEventListener('change', () => {
                     beh.blur();
                     commit(() => {
@@ -247,10 +259,12 @@
                         if (beh.value === 'ar') { e.behaviour = 'ar'; zone.startTime = r3(Math.max(0, ref - R)); zone.endTime = r3(ref + R); }
                         else if (beh.value === 'chain') { e.behaviour = 'chain'; if (!Array.isArray(e.names) || !e.names.length) e.names = [e.name]; zone.startTime = ref; zone.endTime = r3(ref + this.opts.chainLinkS * e.names.length); }
                         else if (beh.value === 'arChain') { e.behaviour = 'arChain'; if (!Array.isArray(e.names) || !e.names.length) e.names = [e.name]; zone.startTime = r3(Math.max(0, ref - R)); zone.endTime = r3(ref + R + this.opts.chainLinkS * (e.names.length - 1)); }
+                        else if (beh.value === 'pattern') { e.behaviour = 'pattern'; zone.startTime = ref; if (!e.rhythm) e.rhythm = Object.assign({}, DEFAULT_RHYTHM); this.generate(zone); }
                         else { delete e.behaviour; zone.startTime = ref; zone.endTime = r3(ref + ((x && x.lengthMs > 0 ? x.lengthMs : this.opts.openMs) / 1000)); }
                     });
                 });
                 sec.appendChild(rowEl('Behaviour', beh));
+                if (e.behaviour === 'pattern') this.patternPanel(zone, sec, { el, rowEl, note, commit });
                 if (e.behaviour === 'ar') sec.appendChild(note('rolled by the engine at every playback — just before · just after · lazily after · near unison · a miss; the dials are the piece\'s route table, return.ar (A … F); the engine window shows each roll'));
                 if (e.behaviour === 'chain' || e.behaviour === 'arChain') {
                     const names = el('input', { type: 'text', value: (e.names || [e.name]).join(', '), title: 'the samples, in order, comma-separated' });
@@ -267,10 +281,93 @@
                         : 'rolled by the engine: which sample follows the live note (the brick\'s start) and the rest follow the one before — just after · lazily after · near unison; the dials return.chain (G · H · I), the ranges ar\'s B'));
                 }
                 const row = this.row(e.name);
-                sec.appendChild(note(row ? 'from ' + row.player + (row.category ? ' · ' + row.category : '') + ' · ' + Math.round(row.lengthMs) + ' ms · peak ' + row.peakDb + ' dB · taken ' + String(row.captured || '').replace('T', ' ')
+                if (e.behaviour !== 'pattern') sec.appendChild(note(row ? 'from ' + row.player + (row.category ? ' · ' + row.category : '') + ' · ' + Math.round(row.lengthMs) + ' ms · peak ' + row.peakDb + ' dB · taken ' + String(row.captured || '').replace('T', ' ')
                     : 'its length becomes the sample\'s once it is captured'));
             }
             panelEl.appendChild(sec);
+        },
+
+        // ---- behaviour 'pattern': the samples by two rows of boxes, the rhythm's dials, Generate ----------------------------
+        tagOf(row) { const n = String(row.name || ''), p = String(row.player || ''); return p && n.startsWith(p + '-') ? n.slice(p.length + 1) : n; },
+        // the samples a brick picks: no pick = every sample the bank holds today; a pick = the players ticked × the tags ticked
+        picked(e) {
+            const P = e.pick && Array.isArray(e.pick.players) ? e.pick.players : null, T = e.pick && Array.isArray(e.pick.impulses) ? e.pick.impulses : null;
+            return this.index.filter((r) => (!P || P.includes(String(r.player))) && (!T || T.includes(this.tagOf(r))));
+        },
+        // n onsets in ms over a span, by a shape — the first at 0 (the live note), the last at the span; seeded
+        rhythm(n, cfg) {
+            if (!(n > 0)) return [];
+            const S = Math.max(0, +cfg.spanMs || 0), u = (i) => (n > 1 ? i / (n - 1) : 0), seed = +cfg.seed || 0;
+            const rnd = mulberry32(seed * 48611 + 5), ix = [...Array(n)].map((_, i) => i);
+            const run = (ratio) => { const g = ix.slice(1).map((i) => Math.pow(ratio, i - 1)), tot = g.reduce((a, b) => a + b, 0) || 1; const out = [0]; g.forEach((x) => out.push(out[out.length - 1] + (S * x) / tot)); return out; };
+            let out;
+            switch (cfg.shape) {
+                case 'front': out = ix.map((i) => S * u(i) * u(i)); break;                                   // dense at the start
+                case 'back': out = ix.map((i) => S * Math.sqrt(u(i))); break;                                  // dense at the end
+                case 'centre': out = ix.map((i) => S * (Math.asin(2 * u(i) - 1) / Math.PI + 0.5)); break;      // dense in the middle
+                case 'edges': out = ix.map((i) => { const x = u(i); return S * (x * x * (3 - 2 * x)); }); break;   // dense at both ends
+                case 'accel': out = run(0.75); break;                                                          // each gap three quarters of the one before
+                case 'rit': out = run(1 / 0.75); break;                                                        // each gap a third longer than the one before
+                case 'random': out = [0].concat(ix.slice(1).map(() => rnd() * S)).sort((a, b) => a - b); break;
+                default: out = ix.map((i) => S * u(i));                                                       // even
+            }
+            if (+cfg.jitterMs > 0) { const jr = mulberry32(seed * 31 + 9); out = out.map((t, i) => (i ? Math.max(0, t + (jr() * 2 - 1) * +cfg.jitterMs) : t)); }   // the first stays at the live note
+            return out.map((t) => Math.round(t * 10) / 10);
+        },
+        // Generate: the samples picked, in the order asked, on the rhythm's onsets → elec.pattern; the brick runs to the last onset
+        generate(zone) {
+            const e = zone.elec, cfg = e.rhythm || (e.rhythm = Object.assign({}, DEFAULT_RHYTHM));
+            let rows = this.picked(e).slice().sort((a, b) => byName(a.name, b.name));
+            if (cfg.order === 'byImpulse') rows.sort((a, b) => byName(this.tagOf(a), this.tagOf(b)) || byName(a.name, b.name));
+            if (cfg.order === 'shuffled') { const rnd = mulberry32((+cfg.seed || 0) * 7877 + 11); for (let i = rows.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [rows[i], rows[j]] = [rows[j], rows[i]]; } }
+            const span = +cfg.gapMs > 0 ? +cfg.gapMs * Math.max(0, rows.length - 1) : Math.max(0, +cfg.spanMs || 0);
+            const on = this.rhythm(rows.length, Object.assign({}, cfg, { spanMs: span }));
+            e.pattern = rows.map((r, i) => ({ name: r.name, atMs: on[i] }));
+            if (e.pattern.length) e.name = e.pattern[0].name;
+            const last = e.pattern.reduce((m, p) => Math.max(m, p.atMs), 0);
+            zone.endTime = r3(zone.startTime + Math.max(span, last, 100) / 1000);
+            return e.pattern;
+        },
+        patternPanel(zone, sec, ui) {
+            const e = zone.elec, cfg = e.rhythm || (e.rhythm = Object.assign({}, DEFAULT_RHYTHM)), { el, rowEl, note, commit } = ui;
+            const regen = (fn) => commit(() => { fn(); this.generate(zone); });
+            const players = [...new Set(this.index.map((r) => String(r.player)))].sort(byName);
+            const tags = [...new Set(this.index.map((r) => this.tagOf(r)))].sort(byName);
+            const P = e.pick && Array.isArray(e.pick.players) ? e.pick.players : players, T = e.pick && Array.isArray(e.pick.impulses) ? e.pick.impulses : tags;
+            const boxes = (all, on, label, write) => {
+                const wrap = el('span', { style: 'display:inline-flex;flex-wrap:wrap;gap:2px 8px;font-size:11px' });
+                for (const v of all) {
+                    const cb = el('input', { type: 'checkbox', checked: on.includes(v), style: 'margin:0 2px 0 0;vertical-align:middle' });
+                    cb.addEventListener('change', () => regen(() => { const now = all.filter((x) => (x === v ? cb.checked : on.includes(x))); write(now); }));
+                    wrap.appendChild(el('label', { style: 'white-space:nowrap' }, [cb, el('span', { textContent: label(v) })]));
+                }
+                return wrap;
+            };
+            const pickSet = (k) => (now) => { if (!e.pick) e.pick = {}; e.pick[k] = now; };
+            sec.appendChild(rowEl('Players', boxes(players, P, (v) => v, pickSet('players'))));
+            sec.appendChild(rowEl('Impulses', boxes(tags, T, (v) => v.replace(/^impulse-/, ''), pickSet('impulses'))));
+            const shape = el('select');
+            for (const [v, t] of [['even', 'even'], ['front', 'front — dense at the start'], ['back', 'back — dense at the end'], ['centre', 'centre'], ['edges', 'edges'], ['accel', 'accel — gaps shrink'], ['rit', 'rit — gaps grow'], ['random', 'random (seed)']])
+                shape.appendChild(el('option', { value: v, textContent: t, selected: cfg.shape === v }));
+            shape.addEventListener('change', () => { shape.blur(); regen(() => { cfg.shape = shape.value; }); });
+            sec.appendChild(rowEl('Shape', shape));
+            const num = (key, min, max, step) => { const n = el('input', { type: 'number', value: String(cfg[key] == null ? 0 : cfg[key]), min: String(min), max: String(max), step: String(step) }); n.addEventListener('change', () => regen(() => { cfg[key] = Math.max(min, Math.min(max, +n.value || 0)); })); return n; };
+            sec.appendChild(rowEl('Span (ms)', num('spanMs', 0, 120000, 10)));
+            sec.appendChild(rowEl('Gap (ms)', num('gapMs', 0, 60000, 10)));
+            sec.appendChild(rowEl('Jitter (ms)', num('jitterMs', 0, 5000, 5)));
+            const order = el('select');
+            for (const [v, t] of [['named', 'as named'], ['byImpulse', 'by impulse, then by name'], ['shuffled', 'shuffled (seed)']]) order.appendChild(el('option', { value: v, textContent: t, selected: cfg.order === v }));
+            order.addEventListener('change', () => { order.blur(); regen(() => { cfg.order = order.value; }); });
+            sec.appendChild(rowEl('Order', order));
+            sec.appendChild(rowEl('Seed', num('seed', 0, 999999, 1)));
+            const gen = el('button', { type: 'button', textContent: 'Generate', style: 'font-size:11px' }), re = el('button', { type: 'button', textContent: 'Reshuffle', style: 'font-size:11px;margin-left:6px' });
+            gen.addEventListener('click', () => regen(() => {}));
+            re.addEventListener('click', () => regen(() => { cfg.seed = (+cfg.seed || 0) + 1; }));
+            sec.appendChild(rowEl('', el('span', {}, [gen, re])));
+            const pat = Array.isArray(e.pattern) ? e.pattern : [];
+            sec.appendChild(note(pat.length ? pat.length + ' onsets over ' + Math.round((zone.endTime - zone.startTime) * 1000) + ' ms from the brick\'s start (the live note) · a gap above 0 sets the span as gap × (n − 1) · one message carries them all; the engine plays each on time, no dice'
+                : 'no sample picked — tick a player and an impulse, or play through the openings with the engine up'));
+            if (pat.length) sec.appendChild(note(pat.slice(0, 12).map((p) => p.name + ' ' + Math.round(p.atMs)).join(' · ') + (pat.length > 12 ? ' · … (' + pat.length + ')' : '')));
         },
 
         // ---- the transport: each brick's message, once, ahead of its start ------------------------------------------------
@@ -306,6 +403,10 @@
             } else if (e.behaviour === 'chain') {   // the live note is the brick's START; the samples, in order, go with the message
                 const names = (Array.isArray(e.names) && e.names.length ? e.names : [e.name]).map(safe);
                 LE.send('play', { name: names[0], names: names.join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'chain' });
+            } else if (e.behaviour === 'pattern') {   // the composed rhythm: ONE message, every onset from the brick's START; the engine plays each on time, no dice
+                const pat = Array.isArray(e.pattern) ? e.pattern.filter((p) => p && safe(p.name)) : [];
+                if (!pat.length) { this.say('pattern on ' + this.opts.laneLabel(z.layer) + ': no sample picked — nothing is played'); return; }
+                LE.send('play', { name: safe(pat[0].name), pattern: pat.map((p) => safe(p.name) + ':' + (Math.round((+p.atMs || 0) * 10) / 10)).join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'pattern' });
             } else if (e.behaviour) {   // the message points at the CENTRE (the live note) and names the behaviour; the engine rolls
                 const c = r3((z.startTime + z.endTime) / 2), perfC = host.playStartTime + (c - host.playStartOffset / host.pixelsPerSecond) * 1000;
                 const dueC = Math.max(0, Math.round(((Number.isFinite(perfC) ? perfC : performance.now()) - performance.now()) * 10) / 10);

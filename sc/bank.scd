@@ -327,15 +327,42 @@
 	}
 };
 
+// the onsets of a COMPOSED rhythm, from the message's "name:atMs,name:atMs,…" (behaviour pattern, 2026-10-05): each name scrubbed
+// to a file name, each atMs a number of milliseconds from the live note (never below 0); a pair without a time lands AT the note.
+// No dice here — the composer arranged it in the page, and it plays the same in concert and in simulation (the piece's D10).
+~le[\patternOnsets] = { |self, pattern|
+	(pattern ? "").asString.split($,).collect({ |x|
+		var b = x.asString.stripWhiteSpace.split($:), nm = self.safeName(b[0]);
+		(name: nm, atMs: if(b.size > 1) { b[1].asString.asFloat.max(0) } { 0 })
+	}).reject({ |k| k[\name].size == 0 })
+};
+
 // ---- the return: /le/play ---------------------------------------------------------------------------------------------
 //   /le/play … behaviour chain names a,b   the brick's start is the live note; the links roll above, each scheduled from it
 //   /le/play … behaviour arChain names a,b,c   t · dueMs point at the live note; the first link is an ar roll, the rest a chain
 //   names *   every sample the bank holds at that moment (all players, all impulses so far), shuffled by I
 //   /le/play … behaviour ar   the brick's centre is the live note (t · dueMs point at it); the roll above moves the sample
+//   /le/play … behaviour pattern pattern a:0,b:250,c:610   the brick's start is the live note; each sample atMs after it, as composed
 ~le[\samplePlay] = { |self, d|
 	var s = self[\server], name = self.safeName(d[\name]), due = ((d[\dueMs] ? 0).asFloat / 1000).clip(0, 5);
 	var smp = if(self[\samples].notNil) { self[\samples][name.asSymbol] };
 	var beh = (d[\behaviour] ? "").asString, roll, at = due, clipped = false;
+	if(beh == "pattern") {   // §97 (the piece's): a COMPOSED rhythm — the page's onsets, each from the live note; no roll
+		var onsets = self.patternOnsets(d[\pattern]);
+		onsets.do({ |k|
+			var sk = if(self[\samples].notNil) { self[\samples][k[\name].asSymbol] }, when = (due + (k[\atMs] / 1000)).max(0);
+			if(sk.isNil) { self.say("LE_INFO", "pattern · " ++ k[\name] ++ " — no such sample in the bank") } {
+				s.makeBundle(if(when > 0.005) { when }, {
+					Synth(\leSample, [\out, self[\busMaster].index, \buf, sk[\buf].bufnum], self[\grpFx], \addToTail);
+				});
+				self.say("LE_INFO", "pattern · " ++ k[\name] ++ " · in " ++ (when * 1000).round(1).asInteger ++ " ms · "
+					++ k[\atMs].round(1).asInteger ++ " ms after the live note");
+			};
+		});
+		if(onsets.size == 0) { self.say("LE_INFO", "pattern · nothing to play — the message carried no onsets") };
+		self.say("LE_RESULT", self.json((msg: "play", behaviour: beh, id: (d[\id] ? "").asString, dueMs: (due * 1000).round(0.1),
+			onsets: onsets.size, pattern: onsets.collect({ |k| k[\name].asString ++ ":" ++ k[\atMs] }).join(","))));
+	} {
 	if((beh == "chain") or: { beh == "arChain" }) {   // §82 · §87: the samples named, rolled as a chain from the live note (arChain: the first by the ar roll)
 		var list = self.chainNames(d[\names] ? name), links;   // §94: the names resolved in one place — "*" before the scrub, see chainNames
 		links = self.chainRoll(list, beh == "arChain");
@@ -368,6 +395,7 @@
 				lengthMs: smp[\row][\lengthMs], peakDb: smp[\row][\peakDb], behaviour: beh,
 				stance: if(roll.notNil) { roll[\stance].asString } { "" }, offsetMs: if(roll.notNil) { roll[\offsetMs] } { 0 })));
 		};
+	};
 	};
 	self
 };
