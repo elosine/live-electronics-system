@@ -46,17 +46,27 @@ function sclang() {
     throw new Error('sclang not found — install SuperCollider, or set SCLANG to the full path of sclang');
 }
 
-// a scsynth of the ENGINE's (its port, 57210) left behind by a run that was cut short
-function sweep() {
-    if (process.platform !== 'win32') return;
-    cp.spawnSync('powershell', ['-NoProfile', '-Command',
-        "Get-CimInstance Win32_Process -Filter \"name='scsynth.exe'\" | Where-Object { $_.CommandLine -match '-u " + PORT + "' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
-        { stdio: 'ignore' });
+// every scsynth on the ENGINE's port (57210): [{ pid, parent }]
+function engineProcs() {
+    if (process.platform !== 'win32') return [];
+    const r = cp.spawnSync('powershell', ['-NoProfile', '-Command',
+        "Get-CimInstance Win32_Process -Filter \"name='scsynth.exe'\" | Where-Object { $_.CommandLine -match '-u " + PORT + "' } | ForEach-Object { '' + $_.ProcessId + ' ' + $_.ParentProcessId }"],
+        { encoding: 'utf8' });
+    return (r.stdout || '').split(/\r?\n/).map((l) => l.trim().split(/\s+/).map(Number)).filter((a) => a.length === 2 && a[0] > 0).map(([pid, parent]) => ({ pid, parent }));
+}
+// is an engine up — in his own window, or another run's?
+function engineUp() { return engineProcs().length > 0; }
+// a scsynth left behind by THIS run's own sclang, and no other. (It swept every scsynth on the port until 2026-10-04:
+// a look-only probe then took down the engine he had started in his own window — the piece's RUNNING_LOG §55.)
+function sweep(sclangPid) {
+    for (const p of engineProcs()) if (p.parent === sclangPid) cp.spawnSync('taskkill', ['/PID', String(p.pid), '/F'], { stdio: 'ignore' });
 }
 
+// opts.boots === false: the file boots no server (devices.scd) and may run beside a live engine
 function start(file, opts = {}) {
     const abs = path.resolve(file);
     if (!fs.existsSync(abs)) throw new Error('no such file: ' + abs);
+    if (opts.boots !== false && engineUp()) throw new Error('the engine is already running (a scsynth on UDP ' + PORT + ', in another window) — close that window first');
     const child = cp.spawn(sclang(), [abs], { cwd: path.dirname(abs), env: { ...process.env, ...(opts.env || {}) }, windowsHide: true });
     const lines = [], results = [], errors = [], waiters = [];
     let buf = '', ended = false;
@@ -81,7 +91,7 @@ function start(file, opts = {}) {
         child.on('exit', (code) => {
             ended = true; clearTimeout(timer); if (buf) onLine(buf);
             for (const w of waiters.splice(0)) { clearTimeout(w.timer); w.reject(new Error('sclang ended before ' + w.re)); }
-            sweep();
+            sweep(child.pid);
             resolve({ code: timedOut ? 4 : code, timedOut, results, errors, lines });
         });
     });
@@ -94,7 +104,7 @@ function start(file, opts = {}) {
     return { child, lines, results, errors, waitFor, done, kill };
 }
 
-module.exports = { sclang, start, sweep, PORT, SC_DIR };
+module.exports = { sclang, start, sweep, engineUp, engineProcs, PORT, SC_DIR };
 
 if (require.main === module) (async () => {
     const args = process.argv.slice(2), cmd = args[0];
@@ -109,7 +119,7 @@ if (require.main === module) (async () => {
         else if (args[i] === '--verbose') verbose = true;
         else if (/^[A-Z_][A-Z0-9_]*=/.test(args[i])) { const k = args[i].indexOf('='); env[args[i].slice(0, k)] = args[i].slice(k + 1); }
     }
-    const p = start(file, { env, timeoutS, onLine: (l) => { if (verbose || /^LE_/.test(l)) console.log(l); } });
+    const p = start(file, { env, timeoutS, boots: cmd !== 'devices', onLine: (l) => { if (verbose || /^LE_/.test(l)) console.log(l); } });
     const r = await p.done;
     if (r.timedOut) console.error('LE_ERROR timed out after ' + timeoutS + ' s');
     process.exit(r.code == null ? 1 : r.code);

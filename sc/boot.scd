@@ -124,10 +124,14 @@
 	self[\players][name]
 };
 
-// the player's bus to the master, untouched
-~le[\passThrough] = { |self, name, amp = 1|
+// the player's bus to the master, untouched — at once (delay 0), or `delay` seconds later (leEcho, a listening aid)
+~le[\passThrough] = { |self, name, amp = 1, delay = 0|
 	var p = self[\players][name];
-	p[\pass] = Synth(\lePass, [\in, p[\bus].index, \out, self[\busMaster].index, \amp, amp], self[\grpFx]);
+	p[\pass] = if(delay > 0) {
+		Synth(\leEcho, [\in, p[\bus].index, \out, self[\busMaster].index, \amp, amp, \time, delay], self[\grpFx])
+	} {
+		Synth(\lePass, [\in, p[\bus].index, \out, self[\busMaster].index, \amp, amp], self[\grpFx])
+	};
 	p
 };
 

@@ -59,7 +59,10 @@ which track is which player, a job for its DAW control, a tool that runs the che
 | `… sc.js run electronics/sc/selftest.scd` | the engine's own test — no hardware, no sound; exit 0 = all pass |
 | `… sc.js run electronics/sc/check_route.scd LE_IN=0 LE_SECONDS=10` | one player passed through; reports the loudest in and out |
 | `… sc.js run electronics/sc/latency.scd LE_OUT=0 LE_IN=2` | the round trip, in ms |
-| `… sc.js run electronics/sc/session.scd LE_PLAYERS=name:0,…` | the engine up and listening |
+| `… sc.js run electronics/sc/session.scd LE_PLAYERS=name:0,… [LE_ECHO=1]` | the engine up and listening; `LE_ECHO` returns each player that many seconds LATER — a listening aid (a straight pass-through is two DAW blocks behind and is not heard as a second sound) |
+
+**While an engine is up** (his own window): a file that boots a server is REFUSED by `tools/sc.js`, and a piece must not list the
+audio devices (it loads ReaRoute beside the live client). The runner removes only the server its own run started (RUNNING_LOG §9).
 
 The line protocol every script speaks is at the top of `tools/sc.js`; the namespace and its one trap at the top of `sc/boot.scd`.
 

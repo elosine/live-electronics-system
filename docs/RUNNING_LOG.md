@@ -198,3 +198,25 @@ processing — a rule for `docs/SEAMS.md` at part 3.
 - `session.scd` run as the launcher runs it: booted, heard a note, reported it, stopped; no process left.
 
 **4.1's sub-steps (a) … (f) are done.** Not claimed: the composer's ear. Next: 4.2, the message — a talk first.
+
+## §9. A FAULT OF THE RUNNER, found by its damage — it swept every server on the port; and the first listening aid, `leEcho` (2026-10-04, Opus, in the Decibel piece's chat)
+
+**What prompted it:** the composer, of the pass-through: *"I just don't hear the return. And plus I want it to be explicit anyways."* The
+piece's RUNNING_LOG §55 has the order of the readings.
+
+**The fault:** `tools/sc.js` ended every run with `sweep()` — *remove any scsynth on UDP 57210* — meant for a server orphaned by a run
+cut short. But a run that boots NO server (`devices.scd`, behind the piece's look-only probe) swept too, and took down the engine he had
+started in his own window. The meter reading taken next (the return track at −154 dB) measured that, not his complaint.
+
+**The fix — three rules of the runner now:**
+- **`sweep(pid)` removes only a scsynth whose PARENT is the sclang this run started.** Nobody else's.
+- **A file that boots a server is refused while an engine is up** (`engineUp()`; `opts.boots === false` marks `devices.scd`).
+- **A piece does not list the audio devices beside a live engine** — PortAudio's ASIO listing loads every driver, ReaRoute among them.
+
+**`leEcho` — a player's bus to the master, `time` seconds LATER** (`DelayN`, to 4 s; dual mono, unity), chosen by `passThrough`'s third
+argument and `session.scd`'s `LE_ECHO`. Why it exists: a pass-through returns two DAW blocks behind the note (§8) and the ear takes
+the two for one sound; a return must be HEARD to be judged. It is an aid for the route, not an effect of the engine's brief — the
+capture and the playback (4.3 · 4.4) replace it.
+
+**Proven** (the piece's §55): with `LE_ECHO=1` the engine's out trails its in; the piece's return track carries −42.62 dB; the piece's
+`meters` command leaves the engine up; `selftest.scd` still passes.

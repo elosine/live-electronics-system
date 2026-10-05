@@ -2,6 +2,8 @@
 //
 // leIn       one player's microphone: a hardware input onto the player's own bus. amp is the preamp.
 // lePass     a player's bus to the master, untouched — dual mono at unity.
+// leEcho     a player's bus to the master, LATER: the same sound `time` seconds behind. A LISTENING AID — a pass-through
+//            returns two DAW blocks after the note and is not heard as a second sound; one second behind, it is.
 // leMaster   THE OUTPUT: the master bus to the hardware. The chain is the sandbox's ensemble bus
 //            (live-electronics-engine/engine/playhead-engine.js, its journal §113-114), translated from Web Audio:
 //              high-pass 30 Hz                   -> HPF, switched by hpfOn         (default OFF)
@@ -21,6 +23,11 @@ SynthDef(\leIn, { |in = 0, out = 0, amp = 1|
 
 SynthDef(\lePass, { |in = 0, out = 0, amp = 1|
 	var sig = In.ar(in, 1) * amp;
+	Out.ar(out, [sig, sig]);
+}).add;
+
+SynthDef(\leEcho, { |in = 0, out = 0, amp = 1, time = 1|
+	var sig = DelayN.ar(In.ar(in, 1), 4, time) * amp;
 	Out.ar(out, [sig, sig]);
 }).add;
 
