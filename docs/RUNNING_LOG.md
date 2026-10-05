@@ -415,3 +415,13 @@ instrument's room; a swelling multiphonic's "attack" is found at the swell (1.3 
 **A rule, learned the hard way:** an engine on ReaRoute ended with `taskkill` left ReaRoute's client side wedged — every later boot came up and hung at its
 first `s.sync`; Reaper's `Audio_Quit/Init` did not free it; only a Reaper restart does. Hence `/le/leave`. And a note sender killed mid-note leaves a stuck
 note in the sampler — a sender finishes on its own now.
+
+## §16. THE ROW-MAKING REPORTS ITS OWN FAILURE — from the Decibel piece's step 8 (2026-10-05, Fable; the piece's RUNNING_LOG §74 has the facts)
+
+In the piece a capture once ended with the cropped file on disk and NO ROW in the index (`bfl-impulse-1`, 08:29:23; a 265 ms raw,
+peak −36.9 dB, a first take), and the window said nothing a reader could use. Read, not solved: `captureDone` (`sc/bank.scd`) writes
+the file, builds the row, adds it, writes the index; the rows are a `List`; `indexRead` runs only at the bank's load; the next
+capture's index write carried every row in memory — so the row never got in, and whatever threw between the file and the add was
+lost. **Done:** the row-making sits in a `try`; on an error the engine says `LE_ERROR the row of <name> was NOT made — the sample is
+saved as <file> · <error>` and sends a `captured` result with `rowError`, `file`, `raw` — the page sees it. The cause is still to be
+read from the window the next time it happens. No change to the capture, the crop or the index format. Not tested (the piece's D13).

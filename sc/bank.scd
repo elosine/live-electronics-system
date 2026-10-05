@@ -222,23 +222,30 @@
 	} {
 		out = self.cropTake(data, sr, c, self[\cropOpts]);
 		self.wavWrite(dir +/+ rel, out, sr);
-		lenMs = (out.size / sr * 1000).round(0.1);
-		atMs = (c[\attack] / sr * 1000).round(0.1);
-		old = self[\samples][name.asSymbol];
-		row = (id: "smp_" ++ self.nowIso.select(_.isDecDigit), name: name, player: who.asString, lane: (d[\lane] ? -1).asInteger,
-			category: (d[\category] ? "").asString, scoreTime: (d[\t] ? 0).asFloat.round(0.001), lengthMs: lenMs,
-			peakDb: self.db(c[\peak]), file: rel, raw: rawRel, openingId: id, windowMs: winMs, attackMs: atMs, captured: self.nowIso);
-		self[\indexRows] = self[\indexRows].reject({ |r| r[\name].asString == name });
-		self[\indexRows].add(row);
-		if(self.indexWrite.not) { self.say("LE_INFO", "the index was NOT written — the sample is saved as " ++ rel) };
-		Buffer.read(s, dir +/+ rel, action: { |b|
-			self[\samples][name.asSymbol] = (row: row, buf: b, from: \captured);
-			if(old.notNil) { SystemClock.sched(10, { old[\buf].free; nil }) };
-		});
-		self.say("LE_INFO", "cropped · " ++ name ++ " · " ++ lenMs.round(1).asInteger ++ " ms of " ++ rawMs
-			++ " · the attack at " ++ atMs.round(1).asInteger ++ " ms · peak " ++ self.db(c[\peak]) ++ " dB"
-			++ if(old.notNil) { " · REPLACES the earlier take" } { "" });
-		self.say("LE_RESULT", self.json(row.copy.putAll((msg: "captured", cropped: true, rawMs: rawMs, replaced: old.notNil))));
+		// §74 (2026-10-05): a sample file was once written with NO ROW (bfl-impulse-1, 08:29:23) and the window said nothing — whatever throws
+		// between the file and the index now says so, in the window and in the result the page gets.
+		try {
+			lenMs = (out.size / sr * 1000).round(0.1);
+			atMs = (c[\attack] / sr * 1000).round(0.1);
+			old = self[\samples][name.asSymbol];
+			row = (id: "smp_" ++ self.nowIso.select(_.isDecDigit), name: name, player: who.asString, lane: (d[\lane] ? -1).asInteger,
+				category: (d[\category] ? "").asString, scoreTime: (d[\t] ? 0).asFloat.round(0.001), lengthMs: lenMs,
+				peakDb: self.db(c[\peak]), file: rel, raw: rawRel, openingId: id, windowMs: winMs, attackMs: atMs, captured: self.nowIso);
+			self[\indexRows] = self[\indexRows].reject({ |r| r[\name].asString == name });
+			self[\indexRows].add(row);
+			if(self.indexWrite.not) { self.say("LE_INFO", "the index was NOT written — the sample is saved as " ++ rel) };
+			Buffer.read(s, dir +/+ rel, action: { |b|
+				self[\samples][name.asSymbol] = (row: row, buf: b, from: \captured);
+				if(old.notNil) { SystemClock.sched(10, { old[\buf].free; nil }) };
+			});
+			self.say("LE_INFO", "cropped · " ++ name ++ " · " ++ lenMs.round(1).asInteger ++ " ms of " ++ rawMs
+				++ " · the attack at " ++ atMs.round(1).asInteger ++ " ms · peak " ++ self.db(c[\peak]) ++ " dB"
+				++ if(old.notNil) { " · REPLACES the earlier take" } { "" });
+			self.say("LE_RESULT", self.json(row.copy.putAll((msg: "captured", cropped: true, rawMs: rawMs, replaced: old.notNil))));
+		} { |err|
+			self.say("LE_ERROR", "the row of " ++ name ++ " was NOT made — the sample is saved as " ++ rel ++ " · " ++ err.errorString);
+			self.say("LE_RESULT", self.json((msg: "captured", name: name, player: who, openingId: id, cropped: true, rowError: err.errorString, file: rel, raw: rawRel)));
+		};
 	};
 	self
 };
