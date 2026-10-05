@@ -32,6 +32,17 @@
     const D = (key, label, min, max, step, def, unit) => ({ key, label, min, max, step, def, unit: unit || '' });
     const O = (key, label, options, def) => ({ key, label, options, def });
 
+    // PRESETS (§111, his ask) — starting points for an effect: a name and the dials it sets (merged onto the effect's defaults); the dials
+    // stay editable after. Only the feedback has them so far; any row may carry `presets`.
+    const FB_PRESETS = [
+        { name: 'held note — a Hendrix sustain', args: { fbBloom: 0.8, fbHold: 4, fbDrive: 8, fbTone: 2500, fbPath: 8, fbClimb: 0.15, fbWobble: 0.2 } },
+        { name: 'slow bloom — it rises out of the slap', args: { fbBloom: 3, fbHold: 6, fbDrive: 4, fbTone: 1800, fbPath: 10, fbClimb: 0, fbWobble: 0.1 } },
+        { name: 'squeal — it climbs the harmonics', args: { fbBloom: 0.4, fbHold: 3, fbDrive: 12, fbTone: 4000, fbPath: 5, fbClimb: 0.8, fbWobble: 0.3 } },
+        { name: 'power chord — E5, four strings', args: { fbBloom: 0.6, fbHold: 4, fbDrive: 10, fbTone: 3000, fbPath: 8, fbS1: 82.41, fbS2: 123.47, fbS3: 164.81, fbS4: 329.63, fbS5: 0, fbS6: 0 } },
+        { name: 'found — no strings, the slap\'s own spectrum', args: { fbBloom: 1, fbHold: 3, fbDrive: 6, fbTone: 2500, fbPath: 12, fbClimb: 0.3, fbWobble: 0.4, fbS1: 0, fbS2: 0, fbS3: 0, fbS4: 0, fbS5: 0, fbS6: 0 } },
+        { name: 'bark — short and hard', args: { fbBloom: 0.15, fbHold: 0.4, fbDrive: 15, fbTone: 3500, fbPath: 6, fbClimb: 0, fbWobble: 0 } },
+    ];
+
     // THE CATALOGUE — the chain's stages in the order the chain runs them (sc/process.scd); `on` is what the stage needs besides its dials
     // Grown 2026-10-05 by audition (the Decibel piece's DEC-17 · §106): `override`, and after `drive` the pedals and the shredders — the
     // dials PROVISIONAL until he has heard each on a brick; the knobs are shaped after.
@@ -47,7 +58,7 @@
         { key: 'fuzz', label: 'fuzz — a pedal, hard and lopsided', dials: [D('fzMix', 'mix', 0, 1, 0.05, 1), D('fzGain', 'fuzz', 2, 200, 1, 30), D('fzBias', 'bias', -1, 1, 0.05, 0.3), D('fzTone', 'tone', 500, 8000, 50, 4000, 'Hz')] },
         { key: 'octave', label: 'octave fuzz — rectified, the octave above', dials: [D('ocMix', 'mix', 0, 1, 0.05, 1), D('ocOctave', 'octave', 0, 1, 0.05, 1), D('ocGain', 'fuzz', 2, 200, 1, 20), D('ocTone', 'tone', 500, 8000, 50, 4000, 'Hz')] },
         { key: 'cab', label: 'cabinet — a guitar speaker\'s voicing, after a pedal', dials: [D('cabMix', 'mix', 0, 1, 0.05, 1), D('cabLow', 'low cut', 40, 300, 5, 100, 'Hz'), D('cabHigh', 'high roll-off', 2000, 12000, 100, 4500, 'Hz'), D('cabPres', 'presence', -12, 12, 0.5, 3, 'dB')] },
-        { key: 'feedback', label: 'feedback — the slap held to the amp: six strings bloom and sing', dials: [D('fbMix', 'mix', 0, 1, 0.05, 1), D('fbBloom', 'bloom', 0.05, 10, 0.05, 1, 's'), D('fbHold', 'hold', 0, 20, 0.1, 2, 's'), D('fbDrive', 'drive', 1, 40, 0.5, 6), D('fbTone', 'tone', 500, 8000, 50, 2500, 'Hz'), D('fbPath', 'path', 1, 50, 0.5, 8, 'ms'), D('fbClimb', 'climb', 0, 1, 0.05, 0), D('fbWobble', 'wobble', 0, 1, 0.05, 0), D('fbS1', 'string 1', 0, 2000, 0.01, 82.41, 'Hz'), D('fbS2', 'string 2', 0, 2000, 0.01, 110, 'Hz'), D('fbS3', 'string 3', 0, 2000, 0.01, 146.83, 'Hz'), D('fbS4', 'string 4', 0, 2000, 0.01, 196, 'Hz'), D('fbS5', 'string 5', 0, 2000, 0.01, 246.94, 'Hz'), D('fbS6', 'string 6', 0, 2000, 0.01, 329.63, 'Hz')] },
+        { key: 'feedback', label: 'feedback — the slap held to the amp: six strings bloom and sing', dials: [D('fbMix', 'mix', 0, 1, 0.05, 1), D('fbBloom', 'bloom', 0.05, 10, 0.05, 1, 's'), D('fbHold', 'hold', 0, 20, 0.1, 2, 's'), D('fbDrive', 'drive', 1, 40, 0.5, 6), D('fbTone', 'tone', 500, 8000, 50, 2500, 'Hz'), D('fbPath', 'path', 1, 50, 0.5, 8, 'ms'), D('fbClimb', 'climb', 0, 1, 0.05, 0), D('fbWobble', 'wobble', 0, 1, 0.05, 0), D('fbS1', 'string 1', 0, 2000, 0.01, 82.41, 'Hz'), D('fbS2', 'string 2', 0, 2000, 0.01, 110, 'Hz'), D('fbS3', 'string 3', 0, 2000, 0.01, 146.83, 'Hz'), D('fbS4', 'string 4', 0, 2000, 0.01, 196, 'Hz'), D('fbS5', 'string 5', 0, 2000, 0.01, 246.94, 'Hz'), D('fbS6', 'string 6', 0, 2000, 0.01, 329.63, 'Hz')], presets: FB_PRESETS },
         { key: 'crush', label: 'crush — bit depth and sample rate', dials: [D('crMix', 'mix', 0, 1, 0.05, 1), D('crBits', 'bits', 2, 16, 1, 8), D('crRate', 'rate', 500, 48000, 100, 12000, 'Hz')] },
         { key: 'cheby', label: 'cheby — harmonics by Chebyshev polynomials', dials: [D('chMix', 'mix', 0, 1, 0.05, 1), D('chDrive', 'drive', 0.1, 4, 0.1, 1), D('ch2', '2nd', 0, 1, 0.05, 0.5), D('ch3', '3rd', 0, 1, 0.05, 0.3), D('ch4', '4th', 0, 1, 0.05, 0), D('ch5', '5th', 0, 1, 0.05, 0.2)] },
         { key: 'squiz', label: 'squiz — chopped and squeezed up in pitch', dials: [D('sqMix', 'mix', 0, 1, 0.05, 1), D('sqRatio', 'ratio', 1, 16, 0.1, 2), D('sqChunks', 'chunks', 1, 32, 1, 1)] },
@@ -144,6 +155,22 @@
         return (h ? h[0] : d.label) + (d.options ? '' : ' — ' + d.min + ' … ' + d.max + (d.unit ? ' ' + d.unit : '')) + (h && h[1] ? ' · usually ' + h[1] : '');
     };
 
+    // THE ENDINGS (§111, his ask): shape — his envelope · tail — the ring-out · perc — SuperCollider's Env.perc (a fast rise, a fall, both on
+    // curve −4; the sandbox's grains use it) · the Roads grain envelopes (Microsound): gauss (a bell) · quasi (Gaussian sides, a flat middle) ·
+    // tri (a triangle) · expodec (instant, an exponential fall to −60 dB) · rexpodec (its mirror: an exponential rise, then cut).
+    // Each new one has a STANDARD length, set the moment it is picked; the length box changes it. The engine draws them (sc/process.scd processDone).
+    const ENDS = [
+        ['shape', 'shape — an envelope; its length is the object\'s', null],
+        ['tail', 'tail — it rings out', null],
+        ['perc', 'perc — SuperCollider\'s Env.perc: a fast rise, a fall on curve −4', { durMs: 1010, atkMs: 10 }],
+        ['gauss', 'gauss — Roads: a bell', { durMs: 500 }],
+        ['quasi', 'quasi-gauss — Roads: Gaussian sides, a flat middle', { durMs: 800 }],
+        ['tri', 'triangle — Roads: up to the middle, then down', { durMs: 400 }],
+        ['expodec', 'expodec — Roads: instant, then an exponential fall', { durMs: 600 }],
+        ['rexpodec', 'rexpodec — Roads: an exponential rise, then cut', { durMs: 600 }],
+    ];
+    const END_STD = Object.fromEntries(ENDS.map(([k, , s]) => [k, s]));
+    const isEnd = (k) => ENDS.some(([x]) => x === k);
     const END = { end: 'shape', atkMs: 2, durMs: 600, relMs: 600, curve: -4, floorDb: -60, capMs: 8000, gainDb: 0, match: 1 };
     const RANGE = { atkMs: [0, 10000], durMs: [10, 120000], relMs: [0, 120000], curve: [-12, 12], floorDb: [-120, -6], capMs: [100, 60000], gainDb: [-60, 24], match: [0, 1] };
     const clamp = (k, v) => Math.max(RANGE[k][0], Math.min(RANGE[k][1], v));
@@ -154,6 +181,20 @@
         effectDefaults(key) { const f = this.effect(key), a = {}; if (f) for (const d of f.dials) a[d.key] = d.def; return a; },
         // every control the engine gets: what turns the stage on, then the brick's own
         processArgs(e) { const f = this.effect(e.effect); return Object.assign({}, f && f.on, e.args || {}); },
+        // §111 (his randomizer): a dial may be a RANGE [lo, hi] — the brick keeps the range; at every Render a value is DRAWN from it
+        // (uniform, rounded to the dial's step) and the message carries the number; the engine's row records what was drawn.
+        isRange(v) { return Array.isArray(v) && v.length === 2 && Number.isFinite(+v[0]) && Number.isFinite(+v[1]); },
+        drawArgs(e, a) {
+            const f = this.effect(e.effect), drawn = [];
+            for (const k of Object.keys(a)) {
+                if (!this.isRange(a[k])) continue;
+                const lo = Math.min(+a[k][0], +a[k][1]), hi = Math.max(+a[k][0], +a[k][1]), d = f && f.dials.find((x) => x.key === k), step = d && d.step > 0 ? d.step : 0;
+                let v = lo + Math.random() * (hi - lo);
+                if (step) v = +(Math.round(v / step) * step).toFixed(Math.max(0, -Math.floor(Math.log10(step) + 1e-9)));
+                a[k] = v; drawn.push((d ? d.label : k) + ' ' + v);
+            }
+            return drawn;
+        },
         rootOf(name) { return String(name || '').split('~')[0]; },
         nextOut(source, skip) {
             const root = this.rootOf(source) || 'sample', used = new Set(this.index.map((r) => r.name));
@@ -164,14 +205,15 @@
         // the brick's settings as one string: has anything changed since its render?
         processSig(e) {
             const a = this.processArgs(e), keys = Object.keys(a).sort();
-            return JSON.stringify([e.source, e.effect, keys.map((k) => [k, +a[k]]), e.end, e.end === 'shape' ? [+e.atkMs, +e.durMs, +e.relMs, +e.curve] : [+e.floorDb, +e.capMs], +e.gainDb, +e.match]);
+            return JSON.stringify([e.source, e.effect, keys.map((k) => [k, a[k]]), e.end, e.end === 'tail' ? [+e.floorDb, +e.capMs] : [+e.atkMs, +e.durMs, +e.relMs, +e.curve], +e.gainDb, +e.match]);
         },
         // what the message carries (the engine's field names)
         processMessage(zone, id) {
             const e = zone.elec, a = this.processArgs(e);
+            this._drawnFor = this._drawnFor || {}; this._drawnFor[safe(e.out)] = this.drawArgs(e, a);   // the ranges, drawn for THIS render
             const args = Object.keys(a).filter((k) => /^[A-Za-z][A-Za-z0-9]*$/.test(k) && Number.isFinite(+a[k])).map((k) => k + ':' + (+a[k])).join(',');
-            const m = { id, source: safe(e.source), out: safe(e.out), effect: String(e.effect || '').slice(0, 40), args, end: e.end === 'tail' ? 'tail' : 'shape', gainDb: +e.gainDb || 0, match: +e.match > 0 ? 1 : 0 };
-            if (m.end === 'shape') Object.assign(m, { atkMs: +e.atkMs || 0, durMs: +e.durMs || END.durMs, relMs: +e.relMs || 0, curve: +e.curve || 0 });
+            const m = { id, source: safe(e.source), out: safe(e.out), effect: String(e.effect || '').slice(0, 40), args, end: isEnd(e.end) ? e.end : 'shape', gainDb: +e.gainDb || 0, match: +e.match > 0 ? 1 : 0 };
+            if (m.end !== 'tail') Object.assign(m, { atkMs: +e.atkMs || 0, durMs: +e.durMs || END.durMs, relMs: +e.relMs || 0, curve: +e.curve || 0 });
             else Object.assign(m, { floorDb: +e.floorDb || END.floorDb, capMs: +e.capMs || END.capMs });
             return m;
         },
@@ -242,9 +284,13 @@
             if (typeof o.effect === 'string') e.effect = o.effect.slice(0, 40);
             if (o.args && typeof o.args === 'object') {
                 e.args = {};
-                for (const k of Object.keys(o.args)) if (/^[A-Za-z][A-Za-z0-9]*$/.test(k) && Number.isFinite(+o.args[k])) e.args[k] = +o.args[k];
+                for (const k of Object.keys(o.args)) {
+                    if (!/^[A-Za-z][A-Za-z0-9]*$/.test(k)) continue;
+                    if (this.isRange(o.args[k])) e.args[k] = [+o.args[k][0], +o.args[k][1]];   // a range: drawn at each render
+                    else if (Number.isFinite(+o.args[k])) e.args[k] = +o.args[k];
+                }
             }
-            if (o.end === 'shape' || o.end === 'tail') e.end = o.end;
+            if (isEnd(o.end)) e.end = o.end;
             for (const k of Object.keys(RANGE)) if (o[k] != null && Number.isFinite(+o[k])) e[k] = clamp(k, +o[k]);
             if (typeof o.label === 'string') e.label = o.label.trim().slice(0, 40);
             if (typeof o.source === 'string' && safe(o.source) && safe(o.source) !== e.source) this.setSource(zone, safe(o.source));
@@ -306,13 +352,28 @@
             const fxs = EFFECTS.map((f) => [f.key, f.label]);
             if (!fx) fxs.unshift([e.effect || '', (e.effect || '?') + ' — not in the catalogue (its controls are in the box below)']);
             sec.appendChild(rowEl('Effect', pick(e.effect, fxs, (v) => { e.effect = v; e.args = this.effectDefaults(v); })));
+            if (fx && fx.presets) {   // §111: a starting point — sets this effect's dials (onto its defaults); they stay editable
+                const ps = pick('', [['', '— a starting point —']].concat(fx.presets.map((p, i) => [String(i), p.name])),
+                    (v) => { const p = fx.presets[+v]; if (p) { e.args = Object.assign(this.effectDefaults(fx.key), p.args); if (p.end && isEnd(p.end)) Object.assign(e, { end: p.end }, END_STD[p.end] || {}); } });
+                ps.title = 'a preset sets every dial of this effect at once; turn them after as you like';
+                sec.appendChild(rowEl('Preset', ps));
+            }
             if (fx) {
                 for (const d of fx.dials) {
                     if (e.args[d.key] === undefined) e.args[d.key] = d.def;
                     const hint = hintOf(d);
                     let control;
                     if (d.options) { control = pick(e.args[d.key], d.options, (v) => { e.args[d.key] = +v; }); control.title = hint; }
-                    else { const box = num(e.args, d.key, d.min, d.max, d.step, 64, hint); control = pair(slider(e.args, d.key, d, box), box, tiny(d.unit)); }
+                    else if (this.isRange(e.args[d.key])) {   // §111: a range — two boxes; a value is drawn between them at every Render
+                        const r = e.args[d.key];
+                        control = pair(num(r, 0, d.min, d.max, d.step, 58, 'the low end of the range'), tiny('…'), num(r, 1, d.min, d.max, d.step, 58, 'the high end of the range'), tiny(d.unit + ' · drawn at each render'),
+                            btn('=', () => commit(() => { e.args[d.key] = +((Math.min(+r[0], +r[1]) + Math.max(+r[0], +r[1])) / 2).toFixed(4); }), 'back to one value: the middle of the range'));
+                    } else {
+                        const box = num(e.args, d.key, d.min, d.max, d.step, 64, hint), v = +e.args[d.key];
+                        const logish = d.min > 0 && d.max / d.min >= 50, lo = logish ? v / 2 : v - (d.max - d.min) / 4, hi = logish ? v * 2 : v + (d.max - d.min) / 4;
+                        control = pair(slider(e.args, d.key, d, box), box, tiny(d.unit),
+                            btn('⚄', () => commit(() => { e.args[d.key] = [Math.max(d.min, +lo.toFixed(4)), Math.min(d.max, +hi.toFixed(4))]; }), 'make it a RANGE: a value is drawn between two ends at every Render'));
+                    }
                     const row = rowEl(d.label, control);
                     if (row.firstChild) row.firstChild.title = hint;   // the label too: hover anywhere on the row
                     sec.appendChild(row);
@@ -322,13 +383,19 @@
             }
 
             // HOW IT ENDS · HOW LOUD
-            sec.appendChild(rowEl('Ends by', pick(e.end, [['shape', 'shape — an envelope; its length is the object\'s'], ['tail', 'tail — it rings out']], (v) => { e.end = v; })));
+            const endPick = pick(e.end, ENDS.map(([k, t]) => [k, t]), (v) => { e.end = v; if (END_STD[v]) Object.assign(e, END_STD[v]); });   // a new envelope brings its standard length
+            endPick.title = 'how the render ends: shape is your envelope · tail rings out to the floor · perc and the Roads envelopes are fixed curves over a length — picked, each sets its standard length; the box changes it';
+            sec.appendChild(rowEl('Ends by', endPick));
             if (e.end === 'shape') {
                 sec.appendChild(rowEl('', pair(tiny('attack'), num(e, 'atkMs', 0, 10000, 1, 52, 'the rise from silence, in ms — 0 … 10000 · usually 1 … 30'), tiny('length'), num(e, 'durMs', 10, 120000, 10, 64, 'the whole object\'s length, in ms — 10 … 120000; the release is inside it'), tiny('ms'))));
                 sec.appendChild(rowEl('', pair(tiny('release'), num(e, 'relMs', 0, 120000, 10, 64, 'the fall at the end, in ms — 0 … the length; as long as the length = a struck shape'), tiny('ms · curve'), num(e, 'curve', -12, 12, 0.5, 52, 'the shape of the fall: −4 falls fast first (a struck sound), 0 is a straight line, above 0 holds then drops — −12 … 12'))));
                 sec.appendChild(note('a release as long as the length = a struck shape, falling from the attack · curve −4 falls fast first, 0 is a straight line'));
-            } else {
+            } else if (e.end === 'tail') {
                 sec.appendChild(rowEl('', pair(tiny('until'), num(e, 'floorDb', -120, -6, 1, 52, 'the tail ends where it falls this far under its own peak — −120 … −6 · usually −60'), tiny('dB under its peak · at most'), num(e, 'capMs', 100, 60000, 100, 64, 'if it never falls that far (a freeze), it is cut and faded this long past the source — 100 … 60000 ms'), tiny('ms past the source'))));
+            } else {
+                const kids = [tiny('length'), num(e, 'durMs', 10, 120000, 10, 64, 'the whole object\'s length, in ms — 10 … 120000; the standard was set when the envelope was picked (' + (END_STD[e.end] ? END_STD[e.end].durMs : '') + ')'), tiny('ms')];
+                if (e.end === 'perc') kids.unshift(tiny('attack'), num(e, 'atkMs', 0, 10000, 1, 52, 'the rise, in ms — Env.perc\'s standard is 10'));
+                sec.appendChild(rowEl('', pair(...kids)));
             }
             const match = el('input', { type: 'checkbox', checked: +e.match > 0, style: 'margin:0 3px 0 0;vertical-align:middle' });
             match.addEventListener('change', () => commit(() => { e.match = match.checked ? 1 : 0; }));
@@ -386,7 +453,8 @@
                 zone.endTime = r3(zone.startTime + row.lengthMs / 1000);
                 h.markDirty();
                 this.redraw();
-                tell('rendered ' + e.out + ' — ' + Math.round(row.lengthMs) + ' ms · peak ' + row.peakDb + ' dB');
+                const drawn = (this._drawnFor || {})[safe(e.out)] || [];
+                tell('rendered ' + e.out + ' — ' + Math.round(row.lengthMs) + ' ms · peak ' + row.peakDb + ' dB' + (drawn.length ? ' · drew ' + drawn.join(', ') : ''));
                 return row;
             }).catch((err) => { tell('NOT rendered: ' + err.message); return null; })
                 .then((r) => { delete this._rendering[key]; return r; });

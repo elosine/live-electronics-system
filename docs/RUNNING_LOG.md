@@ -615,3 +615,11 @@ re-rendered re-rendering those made from it — the label already says which are
 - **Why a time:** a feedback's loop gain is barely above 1 and a dial on it is unplayable; the time to grow 60 dB is what a hand can set.
 - **Proven:** `process_test.scd`, the seventh case — the tone at 0.0 dB under the peak from 0.5 to 1.0 s with the source over at 0.35 s; 3825 ms long under a 4 s cap; PASS.
 - **Not claimed:** the sound; the dials. Later, at his word: the strings as a chord box (a note name, not Hz), the sustained level as a dial.
+
+## §32. Eight endings (Env.perc, the Roads grain envelopes), presets on a catalogue row, a RANGE as a dial's value (2026-10-05, Fable; the Decibel piece's §111)
+
+- **The endings (`sc/process.scd` `processRender` · `processDone`):** `end` is one of shape · tail · perc · gauss · quasi · tri · expodec · rexpodec (an unknown word = tail; compared by content). Every non-tail mode takes `durMs` frames from the found start and draws its curve sample by sample: shape as before; perc = Env.perc's two curve −4 segments (atkMs up, the rest down); gauss = exp(−½((pos−0.5)/0.15)²); quasi = Gaussian quarters over a flat middle; tri; expodec = exp(−6.9078·pos); rexpodec = its mirror. The mode is switched as a Symbol.
+- **Presets (`score/le_process.js`):** a catalogue row may carry `presets: [{ name, args, end? }]`; the panel shows a Preset menu for it; a pick merges the preset's args onto the effect's defaults. The feedback has six.
+- **A range (`score/le_process.js`):** a dial's value may be `[lo, hi]`; `drawArgs` draws it at every render (uniform, to the dial's step) and the message carries the number; the panel offers ⚄ (to a range) and = (back to one value); the JSON box reads and writes it. The engine sees numbers only.
+- **The page's `ENDS` table** carries each ending's label and standard length; the engine's list must match it (two lists, kept equal by hand — as the dial ranges are).
+- **Proven:** `process_test.scd`, an eighth case — `none` under `perc` 700 ms: 700.0 ms, the last tenth at −inf dB; PASS. The page module parses.

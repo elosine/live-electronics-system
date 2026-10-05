@@ -14,6 +14,9 @@
 //                          with an ATTACK's shape: the two are decoupled.
 //                  tail    the effect rings out: the sample ends where it falls floorDb (-60) under its own peak, or at capMs
 //                          (8000) past the source's end if it never does (a freeze) — then faded.
+//                  perc · gauss · quasi · tri · expodec · rexpodec   (§111) FIXED CURVES over durMs: SuperCollider's Env.perc (atkMs
+//                          up and the rest down, both on curve -4) · Roads's grain envelopes — a bell (sigma 0.15 of the length) ·
+//                          Gaussian sides over a flat middle · a triangle · an exponential fall to -60 dB · its mirror, a rise then a cut.
 //       match    1 (default): the result's PEAK is set to the source's, so a chain neither fades away nor runs hot · 0: as rendered
 //       gainDb   then this, on top
 //       id       comes back in the row as openingId — how the page knows THIS render is done
@@ -259,8 +262,10 @@
 	var effect = (d[\effect] ? "").asString.select({ |c| c.isAlphaNum or: { " -_+".includes(c) } }).keep(40);
 	var lim = (floorDb: [-120, -6], capMs: [100, 60000], fadeOutMs: [0, 2000], atkMs: [0, 10000], durMs: [10, 120000], relMs: [0, 120000], curve: [-12, 12], gainDb: [-60, 24], match: [0, 1]);
 	var endMode, srcPath, sf, sr, srcData, srcPeak, parsed, args, argsText, rate = 1, total, lead = 0.02, oscPath, nrtPath, opts, score;
+	var endModes = ["shape", "tail", "perc", "gauss", "quasi", "tri", "expodec", "rexpodec"];
 	lim.keysValuesDo({ |k, r| if(d[k].notNil) { o[k] = d[k].asString.asFloat.clip(r[0], r[1]) } });
-	endMode = if((d[\end] ? o[\end]).asString == "shape") { "shape" } { "tail" };
+	endMode = (d[\end] ? o[\end]).asString;
+	if(endModes.detect({ |m| m == endMode }).isNil) { endMode = "tail" };   // compared by content (§94)
 	case
 	{ dir.isNil } { self.say("LE_INFO", "process — the engine was started with no bank folder: nothing is rendered") }
 	{ (src.size == 0) or: { out.size == 0 } } { self.say("LE_INFO", "process — a source and a name are needed: nothing is rendered") }
@@ -286,7 +291,7 @@
 			argsText = args.clump(2).collect({ |p| p[0].asString ++ ":" ++ p[1] }).join(",");
 			args.clump(2).do({ |p| if(p[0] == \rate) { rate = p[1].abs.clip(0.05, 8) } });
 			// shape: the object's length and room for the head · tail: the source, then the cap
-			total = if(endMode == "shape") { (o[\durMs] / 1000) + 0.5 } { (srcData.size / sr / rate) + (o[\capMs] / 1000) };
+			total = if(endMode != "tail") { (o[\durMs] / 1000) + 0.5 } { (srcData.size / sr / rate) + (o[\capMs] / 1000) };
 			File.mkdir(dir +/+ "raw");
 			oscPath = dir +/+ "raw" +/+ out ++ ".osc";
 			nrtPath = dir +/+ "raw" +/+ out ++ ".nrt.wav";
@@ -316,7 +321,7 @@
 // the rendered file -> the sample: its start found, its end made (shape | tail), its level set, written, indexed, loaded
 ~le[\processDone] = { |self, o, src, out, id, effect, argsText, endMode, sr, srcPeak, nrtPath, oscPath, code|
 	var s = self[\server], dir = self[\bankDir], rel = out ++ ".wav", sf = SoundFile.new;
-	var data, peak, thr, head, last, start, stop, n, take, nA, nR, c, g, outPeak, fadeMs, capped = false, held = false, srcRow, row, old, lenMs;
+	var data, peak, thr, head, last, start, stop, n, take, nA, nR, c, g, outPeak, fadeMs, capped = false, held = false, srcRow, row, old, lenMs, mode;
 	if(File.exists(nrtPath) and: { sf.openRead(nrtPath) }) {
 		data = FloatArray.newClear(sf.numFrames * sf.numChannels);
 		sf.readData(data);
@@ -331,19 +336,39 @@
 		thr = peak * o[\floorDb].dbamp;
 		head = data.detectIndex({ |x| x.abs >= thr });
 		start = (head - (0.002 * sr).asInteger).max(0);
-		if(endMode == "shape") {
+		if(endMode != "tail") {
 			n = (o[\durMs] / 1000 * sr).round.asInteger.max(1);
 			take = data.copyRange(start, (start + n - 1).min(data.size - 1));
 			if(take.size < n) { take = take ++ FloatArray.newClear(n - take.size) };
-			nA = (o[\atkMs] / 1000 * sr).round.asInteger.clip(0, n);
-			nR = (o[\relMs] / 1000 * sr).round.asInteger.clip(0, n - nA);
-			c = o[\curve];
-			nA.do({ |i| take[i] = take[i] * (i / nA) });
-			// the release, on the curve an Env draws: 0 a straight line, below it a fast fall first (-4 a struck sound's)
-			nR.do({ |i|
-				var pos = (i + 1) / nR, lvl = if(c.abs < 0.001) { 1 - pos } { 1 - ((1 - exp(pos * c)) / (1 - exp(c))) };
-				take[n - nR + i] = take[n - nR + i] * lvl;
-			});
+			if(endMode == "shape") {
+				nA = (o[\atkMs] / 1000 * sr).round.asInteger.clip(0, n);
+				nR = (o[\relMs] / 1000 * sr).round.asInteger.clip(0, n - nA);
+				c = o[\curve];
+				nA.do({ |i| take[i] = take[i] * (i / nA) });
+				// the release, on the curve an Env draws: 0 a straight line, below it a fast fall first (-4 a struck sound's)
+				nR.do({ |i|
+					var pos = (i + 1) / nR, lvl = if(c.abs < 0.001) { 1 - pos } { 1 - ((1 - exp(pos * c)) / (1 - exp(c))) };
+					take[n - nR + i] = take[n - nR + i] * lvl;
+				});
+			} {
+				// the fixed curves (§111): perc — Env.perc, atkMs up and the rest down, both on curve -4 · gauss — a bell, sigma 0.15 of the
+				// length · quasi — Gaussian sides (a quarter each) over a flat middle · tri — a triangle · expodec — an exponential fall to
+				// -60 dB at the end · rexpodec — its mirror, a rise to full then a cut. The mode as a Symbol: switch compares by identity.
+				mode = endMode.asSymbol;
+				nA = (o[\atkMs] / 1000 * sr).round.asInteger.clip(1, n);
+				n.do({ |i|
+					var pos = i / n, lvl;
+					lvl = switch(mode,
+						\perc, { if(i < nA) { (1 - exp(i / nA * -4)) / (1 - exp(-4)) } { var p = (i - nA) / (n - nA).max(1); 1 - ((1 - exp(p * -4)) / (1 - exp(-4))) } },
+						\gauss, { exp(-0.5 * (((pos - 0.5) / 0.15) ** 2)) },
+						\quasi, { if(pos < 0.25) { exp(-0.5 * (((0.25 - pos) / 0.0833) ** 2)) } { if(pos > 0.75) { exp(-0.5 * (((pos - 0.75) / 0.0833) ** 2)) } { 1 } } },
+						\tri, { if(pos < 0.5) { 2 * pos } { 2 * (1 - pos) } },
+						\expodec, { exp(pos * -6.9078) },
+						\rexpodec, { exp((1 - pos) * -6.9078) },
+						{ 1 });
+					take[i] = take[i] * lvl;
+				});
+			};
 		} {
 			last = data.size - 1;
 			while { (last > head) and: { data[last].abs < thr } } { last = last - 1 };

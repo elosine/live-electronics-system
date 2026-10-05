@@ -9,6 +9,7 @@
 //     t-src~5   t-src   through BUFFER OVERRIDE, a shape of 800 ms             (DEC-17, §106: the mini-buffer machinery compiles and renders)
 //     t-src~6   t-src   through FUZZ INTO A CABINET, ended by its tail         (two of the new stages in ONE brick, by the JSON road)
 //     t-src~7   t-src   through the FEEDBACK, ended by its tail               (DEC-18 · 19, §110: six strings in a loop — it must BLOOM and HOLD past the source)
+//     t-src~8   t-src   through NONE, ended by PERC over 700 ms                (§111: a fixed-curve ending — exactly its length, nearly gone at 90 % of it)
 //   "C:/Program Files/SuperCollider-3.14.1/sclang.exe" electronics/sc/process_test.scd
 // A living engine beside it is untouched: nothing here opens a port or a device; the renderer is a second scsynth in NRT mode.
 // It ends PROCESS_TEST PASS (exit 0) or PROCESS_TEST FAIL (exit 1) and names each check.
@@ -28,7 +29,7 @@ src = FloatArray.fill(n, { |i|
 rowOf = { |name| ~le[\indexRows].detect({ |r| r[\name].asString == name }) };
 check = { |what, ok, detail| ("  " ++ if(ok) { "ok   " } { "FAIL " } ++ what ++ " — " ++ detail).postln; if(ok.not) { fails.add(what) } };
 fork {
-	var r1, r2, r3, r4, r5, r6, r7, f4, d4, held, f7, d7, fbHeld, srcDb = ~le.db(src.abs.maxItem), t0 = Main.elapsedTime;
+	var r1, r2, r3, r4, r5, r6, r7, r8, f4, d4, held, f7, d7, fbHeld, f8, d8, late8, srcDb = ~le.db(src.abs.maxItem), t0 = Main.elapsedTime;
 	waitFor = { |name, secs = 30|
 		var t = 0;
 		while { rowOf.(name).isNil and: { t < secs } } { 0.25.wait; t = t + 0.25 };
@@ -91,7 +92,18 @@ fork {
 		check.("~7 the feedback blooms and holds, then dies", (fbHeld > -20) and: { r7[\lengthMs] > 1000 } and: { r7[\lengthMs] < 4000 },
 			"0.5 … 1.0 s into it, " ++ fbHeld ++ " dB under its peak (the source ended at 0.35 s) · " ++ r7[\lengthMs] ++ " ms long, the hold 1 s, the cap 4000");
 	};
-	check.("the index on disk holds the seven", ~le.indexRowsOf(tmp).size == 7, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
+	// §111: an ENDING of the new kind — Env.perc over 700 ms on the plain sample (`none`): exactly its length, nearly gone at 90 % of it
+	~le.processRender((source: 't-src', out: 't-src~8', effect: 'none', args: '', end: 'perc', atkMs: 10, durMs: 700, id: 'test-8'));
+	r8 = waitFor.("t-src~8");
+	check.("~8 none · perc", r8.notNil and: { File.exists(tmp +/+ "t-src~8.wav") }, if(r8.notNil) { r8[\lengthMs].asString ++ " ms · peak " ++ r8[\peakDb] ++ " dB · end " ++ r8[\end] } { "no row" });
+	if(r8.notNil) {
+		f8 = SoundFile.new;
+		if(f8.openRead(tmp +/+ "t-src~8.wav")) { d8 = FloatArray.newClear(f8.numFrames); f8.readData(d8); f8.close };
+		late8 = if(d8.notNil and: { d8.size > 100 }) { (d8.copyRange((d8.size * 0.9).asInteger, d8.size - 1).abs.maxItem / d8.abs.maxItem).ampdb.round(0.1) } { 0 };
+		check.("~8 is its length and falls on the perc curve", ((r8[\lengthMs] - 700).abs < 0.5) and: { late8 < -25 } and: { r8[\end].asString == "perc" },
+			r8[\lengthMs].asString ++ " ms · the last tenth " ++ late8 ++ " dB under the peak · end " ++ r8[\end]);
+	};
+	check.("the index on disk holds the eight", ~le.indexRowsOf(tmp).size == 8, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
 	// what a chain's "*" plays: every CAPTURED sample — a render does not join it (bank.scd chainNames)
 	~le[\samples].put('t-src', (row: (name: "t-src")));
 	if(r1.notNil) { ~le[\samples].put('t-src~1', (row: r1)) };
