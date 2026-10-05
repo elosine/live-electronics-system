@@ -469,3 +469,11 @@ A name `*` in `/le/play … names` is replaced, at the moment of the roll, by ev
 I when I says so): the composer's "every live input triggers all the samples from all the instruments recorded so far" — the
 bank grows while the piece is composed, so the list is resolved by the engine, never written into the score. The page labels
 the brick `ALL n samples` by its index; the length drawn is the index's count × a link.
+
+## §22. THE ROLLS, HEADLESS — `sc/roll_test.scd`: the behaviours' arithmetic proven without a server (2026-10-05, Fable; the Decibel piece's §91)
+
+`bank.scd` loads into a bare sclang (`~le = ()` and a `say` stub are all it needs), the piece's dials go in as the engine
+receives them, and `chainRoll` · `arRoll` print their links: three per three names, every time; the stances and distances as
+the dials say. The file carries the Decibel piece's dials of 2026-10-05 inline — edit them to a piece's own. Run:
+`sclang.exe sc/roll_test.scd` (no server boots; the engine beside it is untouched). It answered the composer's "are three
+samples played?" without his hands: yes; what he heard as one was a near-unison by design.
