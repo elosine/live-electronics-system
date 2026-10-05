@@ -439,3 +439,12 @@ missLateLo/Hi · missEarlyLo/Hi`. Each roll is one line in the window and in the
 the region's start. A player may own several MIDI ports (`players[].ports`; `le_msg.js` `playerOf`, `tools/relay.js`): one
 microphone, two lanes. Not tested (the piece's D13); the roll's arithmetic is five lines. Taken from the piece's #2 lineage:
 the bands' floors (80 / 100 ms), a separation, three-body's accuracy as the tight share and its air shot as the miss.
+
+## §18. THE SECOND BEHAVIOUR — `chain`: the samples follow the live note one after another, the order rolled (2026-10-05, Fable; the Decibel piece's RUNNING_LOG §80 … §82, DEC-10 · 10b)
+
+`/le/play … behaviour chain names a,b`: `chainRoll` scrambles the order (I), then link by link takes as reference the previous
+link's rolled time (H = 1) or the live note (H = 0; between, a coin), rolls a follower's stance from G (after · lazy · unison; no
+before) and a distance from ar's B draw; the error accumulates down the chain. Each link is scheduled from the message's `dueMs`
+(the live note), said in one window line, and listed in the result. Defaults `chainDefaults`; a piece overrides with `LE_CHAIN`
+(`after · lazy · unison · before · follow · shuffle`). The page: `elec.names` on a return brick, the brick from the live note
+forward 0.5 s per sample, a "Samples, in order" field. Not tested (the piece's D13).

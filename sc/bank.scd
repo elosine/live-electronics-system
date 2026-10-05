@@ -280,27 +280,75 @@
 	(stance: stance, offsetMs: off.round(0.1))
 };
 
+// 'chain' — his FLOCKING redesigned (DEC-10): the samples named by the brick, one after another — the first follows the LIVE
+// note (the brick's start), each next one follows the sample before it; whispers: the error accumulates. A follower's stances
+// (G) have no "before"; the ranges and the draw are ar's (B); no miss. H: whom a link listens to (1 = the previous, always;
+// 0 = the live note; between = a coin per link). I: the order shuffled at every roll (his word) or as named.
+~le[\chainDefaults] = (after: 0.70, lazy: 0.20, unison: 0.10, before: 0.0, follow: 1.0, shuffle: 1);
+~le[\chainRoll] = { |self, names|
+	var o = self[\chainDefaults].copy, a = self[\arDefaults].copy, order, links = List.new, prevAt = 0;
+	if(self[\chainOpts].notNil) { o.putAll(self[\chainOpts]) };
+	if(self[\arOpts].notNil) { a.putAll(self[\arOpts]) };
+	order = if(o[\shuffle] > 0.5) { names.scramble } { names };
+	order.do({ |name|
+		var u = 1.0.rand, draw = { |lo, hi| lo + ((hi - lo) * (1.0.rand ** a[\skew])) }, usePrev, ref, stance, off, at;
+		usePrev = (links.size > 0) and: { 1.0.rand < o[\follow] };
+		ref = if(usePrev) { prevAt } { 0 };
+		stance = case { u < o[\before] } { \before }
+			{ u < (o[\before] + o[\after]) } { \after }
+			{ u < (o[\before] + o[\after] + o[\lazy]) } { \lazy }
+			{ true } { \unison };
+		off = switch(stance,
+			\before, { draw.(a[\beforeLo], a[\beforeHi]).neg },
+			\after,  { draw.(a[\afterLo], a[\afterHi]) },
+			\lazy,   { draw.(a[\lazyLo], a[\lazyHi]) },
+			\unison, { draw.(a[\unisonLo], a[\unisonHi]) * [1, -1].choose });
+		at = ref + off;
+		links.add((name: name, stance: stance, offsetMs: off.round(0.1), atMs: at.round(0.1), ref: if(usePrev) { "previous" } { "live" }));
+		prevAt = at;
+	});
+	links.asArray
+};
+
 // ---- the return: /le/play ---------------------------------------------------------------------------------------------
+//   /le/play … behaviour chain names a,b   the brick's start is the live note; the links roll above, each scheduled from it
 //   /le/play … behaviour ar   the brick's centre is the live note (t · dueMs point at it); the roll above moves the sample
 ~le[\samplePlay] = { |self, d|
 	var s = self[\server], name = self.safeName(d[\name]), due = ((d[\dueMs] ? 0).asFloat / 1000).clip(0, 5);
 	var smp = if(self[\samples].notNil) { self[\samples][name.asSymbol] };
 	var beh = (d[\behaviour] ? "").asString, roll, at = due, clipped = false;
-	if(smp.isNil) {
-		self.say("LE_INFO", "play · " ++ name ++ " — no such sample in the bank");
-	} {
-		if(beh == "ar") {   // the roll: the sample moves from the centre by the offset; a "before" the message came too late for lands now
-			roll = self.arRoll; at = due + (roll[\offsetMs] / 1000); clipped = at < 0; at = at.max(0);
-		};
-		s.makeBundle(if(at > 0.005) { at }, {
-			Synth(\leSample, [\out, self[\busMaster].index, \buf, smp[\buf].bufnum], self[\grpFx], \addToTail);
+	if(beh == "chain") {   // §82: the samples named, rolled as a chain from the live note; a missing one is said and skipped
+		var list = (d[\names] ? name).asString.split($,).collect({ |x| self.safeName(x) }).reject({ |x| x.size == 0 });
+		var links = self.chainRoll(list);
+		links.do({ |k|
+			var sk = if(self[\samples].notNil) { self[\samples][k[\name].asSymbol] }, when = (due + (k[\atMs] / 1000)).max(0);
+			if(sk.isNil) { self.say("LE_INFO", "chain · " ++ k[\name] ++ " — no such sample in the bank") } {
+				s.makeBundle(if(when > 0.005) { when }, {
+					Synth(\leSample, [\out, self[\busMaster].index, \buf, sk[\buf].bufnum], self[\grpFx], \addToTail);
+				});
+				self.say("LE_INFO", "chain · " ++ k[\name] ++ " · in " ++ (when * 1000).round(1).asInteger ++ " ms · " ++ k[\stance] ++ " "
+					++ k[\offsetMs].round(1).asInteger ++ " ms after the " ++ k[\ref]);
+			};
 		});
-		self.say("LE_INFO", "play · " ++ name ++ " · in " ++ (at * 1000).round(1).asInteger ++ " ms · "
-			++ smp[\row][\lengthMs].round(1).asInteger ++ " ms long"
-			++ if(roll.notNil) { " · AR " ++ roll[\stance] ++ " " ++ roll[\offsetMs].round(1).asInteger ++ " ms" ++ if(clipped) { " (too late to be early: now)" } { "" } } { "" });
-		self.say("LE_RESULT", self.json((msg: "play", name: name, id: (d[\id] ? "").asString, dueMs: (at * 1000).round(0.1),
-			lengthMs: smp[\row][\lengthMs], peakDb: smp[\row][\peakDb], behaviour: beh,
-			stance: if(roll.notNil) { roll[\stance].asString } { "" }, offsetMs: if(roll.notNil) { roll[\offsetMs] } { 0 })));
+		self.say("LE_RESULT", self.json((msg: "play", behaviour: "chain", id: (d[\id] ? "").asString, dueMs: (due * 1000).round(0.1),
+			links: links.collect({ |k| k[\name].asString ++ ":" ++ k[\stance] ++ ":" ++ k[\atMs] }).join(","))));
+	} {
+		if(smp.isNil) {
+			self.say("LE_INFO", "play · " ++ name ++ " — no such sample in the bank");
+		} {
+			if(beh == "ar") {   // the roll: the sample moves from the centre by the offset; a "before" the message came too late for lands now
+				roll = self.arRoll; at = due + (roll[\offsetMs] / 1000); clipped = at < 0; at = at.max(0);
+			};
+			s.makeBundle(if(at > 0.005) { at }, {
+				Synth(\leSample, [\out, self[\busMaster].index, \buf, smp[\buf].bufnum], self[\grpFx], \addToTail);
+			});
+			self.say("LE_INFO", "play · " ++ name ++ " · in " ++ (at * 1000).round(1).asInteger ++ " ms · "
+				++ smp[\row][\lengthMs].round(1).asInteger ++ " ms long"
+				++ if(roll.notNil) { " · AR " ++ roll[\stance] ++ " " ++ roll[\offsetMs].round(1).asInteger ++ " ms" ++ if(clipped) { " (too late to be early: now)" } { "" } } { "" });
+			self.say("LE_RESULT", self.json((msg: "play", name: name, id: (d[\id] ? "").asString, dueMs: (at * 1000).round(0.1),
+				lengthMs: smp[\row][\lengthMs], peakDb: smp[\row][\peakDb], behaviour: beh,
+				stance: if(roll.notNil) { roll[\stance].asString } { "" }, offsetMs: if(roll.notNil) { roll[\offsetMs] } { 0 })));
+		};
 	};
 	self
 };

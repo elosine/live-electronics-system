@@ -19,6 +19,8 @@
 //       behaviour 'ar' (2026-10-05, step 9): the brick is a REGION around its CENTRE, the live note; the message points at the
 //       centre and names the behaviour; the ENGINE rolls where the sample lands (before, after, lazily after, near unison, a
 //       miss) — never the page: the score stays still, the simulation runs the same dice. Its panel chooses the behaviour.
+//       behaviour 'chain' (the same day): elec.names, the samples IN ORDER; the brick STARTS at the live note and runs 0.5 s per
+//       sample; the engine rolls which follows the live note and the rest follow the one before (the piece's DEC-10).
 //       Played through, it sends   /le/play   name · id · lane · t · dueMs   and the engine plays the banked sample WHERE THE
 //       BRICK IS. Its length is the sample's, read from the bank's index; its lane says whose staff it is drawn on.
 //       KEY (`r` in the first): at the playhead — the sample of the selected opening, else of the nearest opening before
@@ -48,7 +50,7 @@
     const LEObjects = {
         MODELS, host: null, index: [], _pass: null, _prev: null,
         opts: { keys: { open: 'm', play: 'r' }, portOf: () => null, laneLabel: (l) => 'lane ' + l, lanes: 99,
-            indexUrl: '/bank/samples/index.json', lookAheadS: 0.1, openMs: 500, preMs: 100, arRegionMs: 400 },
+            indexUrl: '/bank/samples/index.json', lookAheadS: 0.1, openMs: 500, preMs: 100, arRegionMs: 400, chainLinkS: 0.5 },
 
         is(o) { return !!(o && o.type === 'zone' && MODELS[o.midiModel]); },
         zones(model) { return (this.host ? this.host.objects : []).filter((o) => this.is(o) && (!model || o.midiModel === model)); },
@@ -118,6 +120,7 @@
                 const p = this.playerOf(zone.layer);
                 if (p !== undefined) { e.player = p || ''; if (!p) text += ' — no microphone on this lane'; }
             } else {
+                if (e.behaviour === 'chain' && Array.isArray(e.names) && e.names.length) text = M.sign + ' ' + e.names.join(' + ');
                 if (e.behaviour) text += ' ~ ' + String(e.behaviour).toUpperCase();
                 if (!this.row(e.name)) text += ' — not captured yet';
             }
@@ -232,16 +235,29 @@
                 const beh = el('select');
                 beh.appendChild(el('option', { value: '', textContent: 'where the brick is', selected: !e.behaviour }));
                 beh.appendChild(el('option', { value: 'ar', textContent: 'anticipation-reaction around the centre', selected: e.behaviour === 'ar' }));
+                beh.appendChild(el('option', { value: 'chain', textContent: 'chain — the samples follow the live note, one after another', selected: e.behaviour === 'chain' }));
                 beh.addEventListener('change', () => {
                     beh.blur();
                     commit(() => {
                         const R = this.opts.arRegionMs / 1000, x = this.row(e.name);
-                        if (beh.value === 'ar') { const c = zone.startTime; e.behaviour = 'ar'; zone.startTime = r3(Math.max(0, c - R)); zone.endTime = r3(c + R); }
-                        else { const c = r3((zone.startTime + zone.endTime) / 2); delete e.behaviour; zone.startTime = c; zone.endTime = r3(c + ((x && x.lengthMs > 0 ? x.lengthMs : this.opts.openMs) / 1000)); }
+                        const ref = e.behaviour === 'ar' ? r3((zone.startTime + zone.endTime) / 2) : zone.startTime;   // where the live note is, whatever the brick was
+                        if (beh.value === 'ar') { e.behaviour = 'ar'; zone.startTime = r3(Math.max(0, ref - R)); zone.endTime = r3(ref + R); }
+                        else if (beh.value === 'chain') { e.behaviour = 'chain'; if (!Array.isArray(e.names) || !e.names.length) e.names = [e.name]; zone.startTime = ref; zone.endTime = r3(ref + this.opts.chainLinkS * e.names.length); }
+                        else { delete e.behaviour; zone.startTime = ref; zone.endTime = r3(ref + ((x && x.lengthMs > 0 ? x.lengthMs : this.opts.openMs) / 1000)); }
                     });
                 });
                 sec.appendChild(rowEl('Behaviour', beh));
                 if (e.behaviour === 'ar') sec.appendChild(note('rolled by the engine at every playback — just before · just after · lazily after · near unison · a miss; the dials are the piece\'s route table, return.ar (A … F); the engine window shows each roll'));
+                if (e.behaviour === 'chain') {
+                    const names = el('input', { type: 'text', value: (e.names || [e.name]).join(', '), title: 'the samples, in order, comma-separated' });
+                    names.addEventListener('change', () => commit(() => {
+                        e.names = String(names.value || '').split(',').map((s) => safe(s.trim())).filter(Boolean);
+                        if (!e.names.length) e.names = [e.name]; e.name = e.names[0];
+                        zone.endTime = r3(zone.startTime + this.opts.chainLinkS * e.names.length);
+                    }));
+                    sec.appendChild(rowEl('Samples, in order', names));
+                    sec.appendChild(note('rolled by the engine: which sample follows the live note (the brick\'s start) and the rest follow the one before — just after · lazily after · near unison; the dials return.chain (G · H · I), the ranges ar\'s B'));
+                }
                 const row = this.row(e.name);
                 sec.appendChild(note(row ? 'from ' + row.player + (row.category ? ' · ' + row.category : '') + ' · ' + Math.round(row.lengthMs) + ' ms · peak ' + row.peakDb + ' dB · taken ' + String(row.captured || '').replace('T', ' ')
                     : 'its length becomes the sample\'s once it is captured'));
@@ -274,6 +290,9 @@
                 const lengthMs = Math.round((z.endTime - at) * 1000);
                 LE.send('open', { player, lane: z.layer, id: String(z.id), name: safe(e.name), category: String(e.category || ''), t: r3(at), lengthMs, dueMs });
                 setTimeout(() => this.loadIndex(), dueMs + lengthMs + 1200);   // the engine has cropped and indexed it by then
+            } else if (e.behaviour === 'chain') {   // the live note is the brick's START; the samples, in order, go with the message
+                const names = (Array.isArray(e.names) && e.names.length ? e.names : [e.name]).map(safe);
+                LE.send('play', { name: names[0], names: names.join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'chain' });
             } else if (e.behaviour) {   // the message points at the CENTRE (the live note) and names the behaviour; the engine rolls
                 const c = r3((z.startTime + z.endTime) / 2), perfC = host.playStartTime + (c - host.playStartOffset / host.pixelsPerSecond) * 1000;
                 const dueC = Math.max(0, Math.round(((Number.isFinite(perfC) ? perfC : performance.now()) - performance.now()) * 10) / 10);
