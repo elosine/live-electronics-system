@@ -39,6 +39,7 @@
 //   ADDED 2026-10-05 (the Decibel piece's DEC-17 · RUNNING_LOG §106; the engine's §28) — nine stages, each a mix at 0 like the rest:
 //   `override` (after Destroy FX's Buffer Override — from how it works, not its code) right after the noise bed; after `drive` the
 //   pedals `overdrive` · `fuzz` · `octave` and a speaker `cab`, then `crush` (a true bit depth) · `cheby` · `squiz` · `waveloss`.
+//   ADDED the same day (DEC-18 · DEC-19 · §110): `feedback` after `cab` — the slap held to the amp, six strings in a loop (LocalIn/Out).
 // The sc3-plugins stages are looked up BY NAME when the synth is built: one that is not installed is left out of the graph and
 // named once (~le[\processMissing]) — the file still loads.
 (
@@ -72,10 +73,13 @@
 			chMix = 0, chDrive = 1, ch2 = 0.5, ch3 = 0.3, ch4 = 0, ch5 = 0.2,
 			sqMix = 0, sqRatio = 2, sqChunks = 1,
 			wlMix = 0, wlDrop = 20, wlOf = 40, wlMode = 2,
+			fbMix = 0, fbS1 = 82.41, fbS2 = 110, fbS3 = 146.83, fbS4 = 196, fbS5 = 246.94, fbS6 = 329.63,
+			fbBloom = 1, fbHold = 2, fbDrive = 6, fbTone = 2500, fbPath = 8, fbClimb = 0, fbWobble = 0,
 			amp = 1, lag = 0.04|
 			var sig, play, dry, pre, soft, bank, shaped, filtered, chainA, chainF, specA, specF, frz, wet, back;
 			var ovrBufL, ovrFrames, wr, ovrTrig, startPos, miniSamps, fadeSamps, period, ph, firstRep, gA, rdA, rdB, ovr;
 			var od, fz, oc, cabSig, cr, chx, chx2, ch;
+			var fbRt, fbProg, fbGain, fbIn, fbExc, fbStr, fbNone, fbAmp, fbToneNow, fbCol, fbPathNow;
 			var mix = { |a, b, m| XFade2.ar(a, b, (m.lag(lag) * 2 - 1).clip(-1, 1)) };
 			// a stage whose class is not installed is left out: `otherwise` stands in its place
 			var opt = { |name, f, otherwise|
@@ -141,6 +145,28 @@
 			cabSig = BPeakEQ.ar(cabSig, 2500, 1.0, cabPres.lag(lag).clip(-12, 12));                    // presence
 			cabSig = LPF.ar(LPF.ar(cabSig, cabHigh.lag(lag).clip(2000, 12000)), cabHigh.lag(lag).clip(2000, 12000) * 1.3);   // a speaker's roll-off, steep
 			sig = mix.(sig, cabSig, cabMix);
+			// --- feedback (DEC-18 · DEC-19): the slap held to the amp — a LOOP of six strings, the amp's clipping, a speaker's colour
+			//     and the path to the amp; the strings the impulse excites most win and BLOOM, limited by the clipping, sing for fbHold s,
+			//     then the loop is broken and they ring down. fbBloom is the TIME to grow 60 dB: the loop gain is set from it and the
+			//     round trip (a real feedback's gain is barely above 1 — set as a gain it is unplayable). Each string is a comb at 1/f with
+			//     its resonance brought to unity, so the loop gain IS the bloom. No strings (all six at 0) = the material's own spectrum.
+			fbRt = (fbPath.clip(1, 50) / 1000) + (64 / SampleRate.ir);
+			fbProg = (Sweep.kr(0, 1) / fbHold.clip(0.01, 20)).clip(0, 1);
+			fbGain = (60 * fbRt / fbBloom.clip(0.05, 10)).dbamp * EnvGen.kr(Env([1, 1, 0.25], [fbHold.clip(0, 20), 0.6], \lin));
+			fbIn = LocalIn.ar(1);
+			fbExc = sig + fbIn;
+			fbStr = [fbS1, fbS2, fbS3, fbS4, fbS5, fbS6].collect({ |f|
+				var on = f > 0, d = 1 / f.max(20);
+				CombC.ar(fbExc * on, 0.05, d, 1.5) * (1 - 10.pow(-3 * d / 1.5)) * on   // the string: it rings 1.5 s; its resonance at unity gain
+			}).sum * 0.5;
+			fbNone = (fbS1 + fbS2 + fbS3 + fbS4 + fbS5 + fbS6) <= 0;
+			fbStr = Select.ar(fbNone, [fbStr, fbExc]);
+			fbAmp = (fbStr * fbDrive.clip(1, 40)).tanh / fbDrive.clip(1, 40);   // the amp: unity for small signals, a ceiling for large — what the bloom meets
+			fbToneNow = (fbTone.clip(500, 8000) * (1 + (fbClimb.clip(0, 1) * 3 * fbProg))).clip(200, 16000);   // the climb: the colour rises over the hold
+			fbCol = HPF.ar(LPF.ar(fbAmp, fbToneNow), 120);
+			fbPathNow = (fbPath.clip(1, 50) / 1000) * (1 - (0.4 * fbClimb.clip(0, 1) * fbProg)) * (1 + (0.2 * fbWobble.clip(0, 1) * LFNoise1.kr(1.5)));
+			LocalOut.ar(DelayC.ar(fbCol, 0.06, fbPathNow.clip(0.0005, 0.06)) * fbGain);
+			sig = mix.(sig, fbCol * 2, fbMix);
 			// --- crush: a TRUE bit depth, and the sample rate (the `drive` stage's "bitcrush" is the rate alone) -------------------------
 			cr = Latch.ar(sig, Impulse.ar(crRate.lag(lag).clip(500, 48000))).round(2.pow(1 - crBits.lag(lag).clip(2, 16)));
 			sig = mix.(sig, cr, crMix);

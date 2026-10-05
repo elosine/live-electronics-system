@@ -8,6 +8,7 @@
 //     t-src~4   t-src   through the FREEZE, a shape of 1.5 s                    (the held spectrum still sounds a second after the source)
 //     t-src~5   t-src   through BUFFER OVERRIDE, a shape of 800 ms             (DEC-17, §106: the mini-buffer machinery compiles and renders)
 //     t-src~6   t-src   through FUZZ INTO A CABINET, ended by its tail         (two of the new stages in ONE brick, by the JSON road)
+//     t-src~7   t-src   through the FEEDBACK, ended by its tail               (DEC-18 · 19, §110: six strings in a loop — it must BLOOM and HOLD past the source)
 //   "C:/Program Files/SuperCollider-3.14.1/sclang.exe" electronics/sc/process_test.scd
 // A living engine beside it is untouched: nothing here opens a port or a device; the renderer is a second scsynth in NRT mode.
 // It ends PROCESS_TEST PASS (exit 0) or PROCESS_TEST FAIL (exit 1) and names each check.
@@ -27,7 +28,7 @@ src = FloatArray.fill(n, { |i|
 rowOf = { |name| ~le[\indexRows].detect({ |r| r[\name].asString == name }) };
 check = { |what, ok, detail| ("  " ++ if(ok) { "ok   " } { "FAIL " } ++ what ++ " — " ++ detail).postln; if(ok.not) { fails.add(what) } };
 fork {
-	var r1, r2, r3, r4, r5, r6, f4, d4, held, srcDb = ~le.db(src.abs.maxItem), t0 = Main.elapsedTime;
+	var r1, r2, r3, r4, r5, r6, r7, f4, d4, held, f7, d7, fbHeld, srcDb = ~le.db(src.abs.maxItem), t0 = Main.elapsedTime;
 	waitFor = { |name, secs = 30|
 		var t = 0;
 		while { rowOf.(name).isNil and: { t < secs } } { 0.25.wait; t = t + 0.25 };
@@ -78,7 +79,19 @@ fork {
 	if(r5.notNil) { check.("~5 is its envelope, at the source's peak", ((r5[\lengthMs] - 800).abs < 0.5) and: { (r5[\peakDb] - srcDb).abs < 0.3 }, r5[\lengthMs].asString ++ " ms · " ++ r5[\peakDb] ++ " dB (the source " ++ srcDb ++ ")") };
 	check.("~6 fuzz into a cabinet, one brick · tail", r6.notNil and: { File.exists(tmp +/+ "t-src~6.wav") }, if(r6.notNil) { r6[\lengthMs].asString ++ " ms · peak " ++ r6[\peakDb] ++ " dB · args " ++ r6[\args] } { "no row" });
 	if(r6.notNil) { check.("~6 carries both stages and ends before the cap", r6[\args].asString.contains("fzMix") and: { r6[\args].asString.contains("cabMix") } and: { r6[\lengthMs] < 3000 }, r6[\args].asString ++ " · " ++ r6[\lengthMs] ++ " ms") };
-	check.("the index on disk holds the six", ~le.indexRowsOf(tmp).size == 6, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
+	// DEC-18 · 19 (§110): the feedback — six open strings in a loop with the amp's clipping (LocalIn/Out): the source is 330 Hz, string 6 is
+	// E4 329.63 — the tone must BLOOM (bloom 0.3 s) and HOLD (1 s) past the source's 0.35 s, then die before the cap
+	~le.processRender((source: 't-src', out: 't-src~7', effect: 'feedback', args: 'fbMix:1,fbBloom:0.3,fbHold:1,fbDrive:6', end: 'tail', capMs: 4000, id: 'test-7'));
+	r7 = waitFor.("t-src~7");
+	check.("~7 feedback · tail", r7.notNil and: { File.exists(tmp +/+ "t-src~7.wav") }, if(r7.notNil) { r7[\lengthMs].asString ++ " ms · peak " ++ r7[\peakDb] ++ " dB" } { "no row" });
+	if(r7.notNil) {
+		f7 = SoundFile.new;
+		if(f7.openRead(tmp +/+ "t-src~7.wav")) { d7 = FloatArray.newClear(f7.numFrames); f7.readData(d7); f7.close };
+		fbHeld = if(d7.notNil and: { d7.size > (1.0 * sr) }) { (d7.copyRange((0.5 * sr).asInteger, (1.0 * sr).asInteger).abs.maxItem / d7.abs.maxItem).ampdb.round(0.1) } { -999 };
+		check.("~7 the feedback blooms and holds, then dies", (fbHeld > -20) and: { r7[\lengthMs] > 1000 } and: { r7[\lengthMs] < 4000 },
+			"0.5 … 1.0 s into it, " ++ fbHeld ++ " dB under its peak (the source ended at 0.35 s) · " ++ r7[\lengthMs] ++ " ms long, the hold 1 s, the cap 4000");
+	};
+	check.("the index on disk holds the seven", ~le.indexRowsOf(tmp).size == 7, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
 	// what a chain's "*" plays: every CAPTURED sample — a render does not join it (bank.scd chainNames)
 	~le[\samples].put('t-src', (row: (name: "t-src")));
 	if(r1.notNil) { ~le[\samples].put('t-src~1', (row: r1)) };
