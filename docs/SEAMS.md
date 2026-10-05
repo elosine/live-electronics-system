@@ -238,7 +238,7 @@ through the rack; the notation's extractor unmoved by the two models.
 |---|---|---|
 | 1 | `<script src="/electronics/le_msg.js"></script>` | after the last panel's script tag |
 | 2 | `<script src="/electronics/le_objects.js"></script>` | after it |
-| 3 | `if (window.LEObjects) LEObjects.attach(Composer, { keys: { open: 'm', play: 'r' }, lanes: META_LAYER, indexUrl: '/bank/samples/index.json', portOf: (l) => (Composer.trackInstrument(l) \|\| {}).port, laneLabel: (l) => (TRACKS[l] \|\| {}).short \|\| ('lane ' + l) });` | just BEFORE `Composer.init()` is called — so a loaded score's first drawing has the bricks' labels. The keys, the lanes and the index's address are the PIECE's |
+| 3 | `if (window.LEObjects) LEObjects.attach(Composer, { keys: { open: 'm', play: 'r' }, lanes: META_LAYER, indexUrl: '/bank/samples/index.json', accel: window.AccelCalc, containers: window.TimeContainers, portOf: (l) => (Composer.trackInstrument(l) \|\| {}).port, laneLabel: (l) => (TRACKS[l] \|\| {}).short \|\| ('lane ' + l) });` | just BEFORE `Composer.init()` is called — so a loaded score's first drawing has the bricks' labels. The keys, the lanes and the index's address are the PIECE's |
 | 4 | `if (window.LEObjects) LEObjects.tick(this, timeSec);` | in `applyScroll`, the last of the playback ticks |
 
 *(4.2's test hook — `LE.noteOn(…)` in `tickCurvePlayback` — is OUT: the mic opening is the message.)*

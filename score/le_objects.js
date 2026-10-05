@@ -25,10 +25,14 @@
 //       further sample; one sample anticipates or reacts to the live note, the rest chain after it.
 //       behaviour 'pattern' (DEC-15, the same day): a COMPOSED rhythm — no dice. elec.pick names the samples by two rows of
 //       boxes (the players · the tags after them, bcl-impulse-1 → bcl · impulse-1; no pick = every sample the bank holds);
-//       elec.rhythm is the dials (shape · span · gap · jitter · order · seed); Generate writes elec.pattern = [{ name, atMs }]
+//       elec.rhythm is the dials — the Strikes drawer's menu (DEC-15b): unison · even · front-loaded · back-loaded · centre · edges ·
+//       random (this module's own) · accel · round robin and containers (the HOST's calculators, opts.accel · opts.containers, the
+//       samples DEALT onto the run's onsets under the re-attack rule) · order · seed · reverse · rotate; Generate writes
+//       elec.pattern = [{ name, atMs, db? }]
 //       from the brick's START (the live note), its length the span. ONE message carries the onsets and the engine plays each
-//       on time — the same in concert and in simulation. The generator is this file's own, small (rhythm()): the module may
-//       lean on no drawer of a piece's stack.
+//       on time — the same in concert and in simulation. A message onset is name:atMs or name:atMs:db (a level ramp). The simple
+//       shapes are this file's own (rhythm()); a run's calculator comes in through attach() — the module leans on no file of a
+//       piece's stack, it is HANDED what it may use.
 //       Played through, it sends   /le/play   name · id · lane · t · dueMs   and the engine plays the banked sample WHERE THE
 //       BRICK IS. Its length is the sample's, read from the bank's index; its lane says whose staff it is drawn on.
 //       KEY (`r` in the first): at the playhead — the sample of the selected opening, else of the nearest opening before
@@ -57,10 +61,21 @@
     // a seeded random (mulberry32): the same seed, the same rhythm — a save reproduces what he heard
     const mulberry32 = (a) => () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
     const byName = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true });   // impulse-2 before impulse-10
-    const DEFAULT_RHYTHM = { shape: 'even', spanMs: 2000, gapMs: 0, jitterMs: 0, order: 'named', seed: 1 };
+    const DEFAULT_RHYTHM = {
+        shape: 'even', spanMs: 2000, gapMs: 0, jitterMs: 0, seed: 1, order: 'named', oSeed: 1, reverse: false, rotate: 0,
+        // accel · round robin — the host's calculator (opts.accel = the stack's AccelCalc); the drawer's dials under the drawer's names
+        aShape: 'geometric', aLen: 'ratio', aFirst: 100, aFloor: 45, aRatio: 0.85, aCount: 12, aDur: 2000, aCurve: 0, aEase: 2, aKnee: 0.5, aGamma: 2,
+        aJit: 0, aJitEnd: '', aHold: 0, aMirror: false, aDeal: 'robin', aMin: 250, aDb0: '', aDb1: '', aDbCurve: 0,
+        // containers — the host's roller (opts.containers = the stack's TimeContainers); values in units of cUnit seconds, filling cTotal
+        cValues: '2 5 7 15', cWeights: '', cUnit: 1, cTotal: 20, cStick: 0.8, cJump: 0.1, cContour: 'flat', cTurn: 0.5, cBow: 1, cDepth: 1,
+    };
+    const SHAPES = [['unison', 'unison'], ['even', 'even'], ['front', 'front-loaded'], ['back', 'back-loaded'], ['centre', 'centre'], ['edges', 'edges'], ['random', 'random'], ['accel', 'accel · round robin'], ['containers', 'containers']];
+    const DIAL_KEY = { curve: 'aCurve', ease: 'aEase', knee: 'aKnee', gamma: 'aGamma' };   // a run shape's one dial (AccelCalc.SHAPES[].dial.key) → the brick's field
+    const shuffled = (arr, rnd) => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+    const permutations = (arr) => { if (arr.length <= 1) return [arr.slice()]; const out = []; arr.forEach((x, i) => { permutations(arr.slice(0, i).concat(arr.slice(i + 1))).forEach((p) => out.push([x].concat(p))); }); return out; };
 
     const LEObjects = {
-        MODELS, host: null, index: [], _pass: null, _prev: null,
+        MODELS, host: null, index: [], _pass: null, _prev: null, _info: {},   // _info: a pattern brick's readout by zone id (never saved)
         opts: { keys: { open: 'm', play: 'r' }, portOf: () => null, laneLabel: (l) => 'lane ' + l, lanes: 99,
             indexUrl: '/bank/samples/index.json', lookAheadS: 0.1, openMs: 500, preMs: 100, arRegionMs: 400, chainLinkS: 0.5 },
 
@@ -288,54 +303,144 @@
         },
 
         // ---- behaviour 'pattern': the samples by two rows of boxes, the rhythm's dials, Generate ----------------------------
+        // (2026-10-05, DEC-15 · DEC-15b): the shape menu is the Strikes drawer's — the six shapes and unison this module's own
+        // (rhythm()); accel · round robin and containers are the HOST's calculators, handed in at attach (opts.accel = the stack's
+        // AccelCalc · opts.containers = its TimeContainers) and absent from the menu when a page has none. A run has its own count
+        // of onsets; the samples are DEALT onto them (deal(): round robin or free, under the re-attack rule). Left out, no meaning
+        // for samples: as played · span × · amount · drop rests · pitches / re-deal.
         tagOf(row) { const n = String(row.name || ''), p = String(row.player || ''); return p && n.startsWith(p + '-') ? n.slice(p.length + 1) : n; },
         // the samples a brick picks: no pick = every sample the bank holds today; a pick = the players ticked × the tags ticked
         picked(e) {
             const P = e.pick && Array.isArray(e.pick.players) ? e.pick.players : null, T = e.pick && Array.isArray(e.pick.impulses) ? e.pick.impulses : null;
             return this.index.filter((r) => (!P || P.includes(String(r.player))) && (!T || T.includes(this.tagOf(r))));
         },
-        // n onsets in ms over a span, by a shape — the first at 0 (the live note), the last at the span; seeded
+        // the simple shapes: n onsets in ms over a span — the first at 0 (the live note), the last at the span; seeded
         rhythm(n, cfg) {
             if (!(n > 0)) return [];
-            const S = Math.max(0, +cfg.spanMs || 0), u = (i) => (n > 1 ? i / (n - 1) : 0), seed = +cfg.seed || 0;
-            const rnd = mulberry32(seed * 48611 + 5), ix = [...Array(n)].map((_, i) => i);
-            const run = (ratio) => { const g = ix.slice(1).map((i) => Math.pow(ratio, i - 1)), tot = g.reduce((a, b) => a + b, 0) || 1; const out = [0]; g.forEach((x) => out.push(out[out.length - 1] + (S * x) / tot)); return out; };
-            let out;
+            const S = Math.max(0, +cfg.spanMs || 0), u = (i) => (n > 1 ? i / (n - 1) : 0), rnd = mulberry32((+cfg.seed || 0) * 48611 + 5), ix = [...Array(n)].map((_, i) => i);
             switch (cfg.shape) {
-                case 'front': out = ix.map((i) => S * u(i) * u(i)); break;                                   // dense at the start
-                case 'back': out = ix.map((i) => S * Math.sqrt(u(i))); break;                                  // dense at the end
-                case 'centre': out = ix.map((i) => S * (Math.asin(2 * u(i) - 1) / Math.PI + 0.5)); break;      // dense in the middle
-                case 'edges': out = ix.map((i) => { const x = u(i); return S * (x * x * (3 - 2 * x)); }); break;   // dense at both ends
-                case 'accel': out = run(0.75); break;                                                          // each gap three quarters of the one before
-                case 'rit': out = run(1 / 0.75); break;                                                        // each gap a third longer than the one before
-                case 'random': out = [0].concat(ix.slice(1).map(() => rnd() * S)).sort((a, b) => a - b); break;
-                default: out = ix.map((i) => S * u(i));                                                       // even
+                case 'unison': return ix.map(() => 0);                                                          // every onset at the live note
+                case 'front': return ix.map((i) => S * u(i) * u(i));                                            // dense at the start
+                case 'back': return ix.map((i) => S * Math.sqrt(u(i)));                                           // dense at the end
+                case 'centre': return ix.map((i) => S * (Math.asin(2 * u(i) - 1) / Math.PI + 0.5));              // dense in the middle
+                case 'edges': return ix.map((i) => { const x = u(i); return S * (x * x * (3 - 2 * x)); });         // dense at both ends
+                case 'random': return [0].concat(ix.slice(1).map(() => rnd() * S)).sort((a, b) => a - b);
+                default: return ix.map((i) => S * u(i));                                                         // even
             }
-            if (+cfg.jitterMs > 0) { const jr = mulberry32(seed * 31 + 9); out = out.map((t, i) => (i ? Math.max(0, t + (jr() * 2 - 1) * +cfg.jitterMs) : t)); }   // the first stays at the live note
-            return out.map((t) => Math.round(t * 10) / 10);
         },
-        // Generate: the samples picked, in the order asked, on the rhythm's onsets → elec.pattern; the brick runs to the last onset
+        // the onsets for a shape: the simple ones one per sample; a run (accel · containers) its own count, the samples dealt after
+        runOnsets(cfg, n) {
+            const o = this.opts, blank = (v) => v === '' || v == null;
+            if (cfg.shape === 'accel' && o.accel) {   // the drawer's spec, the drawer's names (strike_drawer.js accelSpec)
+                const lenBy = (cfg.aShape === 'even' && cfg.aLen !== 'count') ? 'duration' : cfg.aLen;
+                const L = lenBy === 'count' ? { count: +cfg.aCount || 2 } : lenBy === 'duration' ? { duration: +cfg.aDur || 1 } : { ratio: +cfg.aRatio || 0.85 };
+                const spec = { gapStart: Math.max(1, +cfg.aFirst || 1), gapEnd: Math.max(1, +cfg.aFloor || 45), length: L, shape: cfg.aShape || 'geometric',
+                    curve: +cfg.aCurve || 0, ease: +cfg.aEase || 2, knee: +cfg.aKnee || 0, gamma: +cfg.aGamma || 2,
+                    jitter: { pct: +cfg.aJit || 0, pctEnd: blank(cfg.aJitEnd) ? null : +cfg.aJitEnd, seed: +cfg.seed || 1 },
+                    hold: { gaps: +cfg.aHold || 0 }, mirror: !!cfg.aMirror,
+                    level: (!blank(cfg.aDb0) && !blank(cfg.aDb1)) ? { start: +cfg.aDb0, end: +cfg.aDb1, curve: +cfg.aDbCurve || 0 } : null };
+                const R = o.accel.run(spec);
+                return { onsets: R.onsets.slice(), levels: R.levels ? R.levels.slice() : null, dealt: true,
+                    info: o.accel.describe(R, spec) + (R.fit && Math.abs(R.fit.residual || 0) > 0.5 ? ' · fit off by ' + R.fit.residual.toFixed(1) + ' ms' : '') };
+            }
+            if (cfg.shape === 'containers' && o.containers) {
+                const T = o.containers, nums = String(cfg.cValues || '').split(/[\s,]+/).map(Number).filter((x) => isFinite(x) && x > 0);
+                const ws = String(cfg.cWeights || '').trim() ? String(cfg.cWeights).trim().split(/[\s,]+/).map((w) => (w === '' || isNaN(+w) ? null : +w)) : null;
+                const opt = { values: nums.length ? nums : T.DEFAULTS.values.slice(), weights: ws, unit: +cfg.cUnit || 1, total: +cfg.cTotal || 60, stick: +cfg.cStick || 0, jump: +cfg.cJump || 0,
+                    contour: cfg.cContour || 'flat', turn: +cfg.cTurn || 0.5, bow: +cfg.cBow || 1, depth: +cfg.cDepth || 1, seed: +cfg.seed || 1 };
+                const res = T.roll(opt);
+                return { onsets: T.onsetsMs(res, 0), levels: null, dealt: true, info: T.describe(opt, res) };
+            }
+            const span = +cfg.gapMs > 0 ? +cfg.gapMs * Math.max(0, n - 1) : Math.max(0, +cfg.spanMs || 0);
+            return { onsets: this.rhythm(n, Object.assign({}, cfg, { spanMs: span })), levels: null, dealt: false, info: '' };
+        },
+        // the dealing (the drawer's U13, for samples): N onsets, n samples. round robin — every sample once per lap, lap 1 in order,
+        // each later lap a shuffle that keeps the re-attack rule (the same sample not struck again within aMin ms) against the known
+        // times — every order tried for ≤ 7 samples, 3000 draws above — else the order again, flagged. free — no lap: each onset to
+        // any sample the rule allows, at random, never the one just played while another is free, leaning to the longest wait.
+        deal(rows, onsets, cfg, rnd) {
+            const n = rows.length, N = onsets.length, minMs = Math.max(0, +cfg.aMin || 0), last = new Map(), out = [];
+            let viol = 0;
+            if (!n || !N) return { events: out, info: '' };
+            const fits = (r, t, L) => !L.has(r.name) || t - L.get(r.name) >= minMs;
+            const flag = () => (viol ? ' ⚠ ' + viol + ' re-attack' + (viol > 1 ? 's' : '') + ' < ' + minMs + ' ms' : '');
+            if (cfg.aDeal === 'free') {
+                let prev = null;
+                onsets.forEach((t) => {
+                    const wait = (r) => (last.has(r.name) ? t - last.get(r.name) : Infinity);
+                    let free = rows.filter((r) => wait(r) >= minMs);
+                    if (free.length > 1 && prev) free = free.filter((r) => r.name !== prev);
+                    let pick;
+                    if (free.length) {
+                        const finite = free.map(wait).filter((w) => w !== Infinity), top = (finite.length ? Math.max(...finite) : 0) + 1;
+                        const ws = free.map((r) => (wait(r) === Infinity ? top * 2 : wait(r)) + 1), tot = ws.reduce((a, b) => a + b, 0);
+                        let x = rnd() * tot; pick = free[free.length - 1]; for (let j = 0; j < free.length; j++) { x -= ws[j]; if (x <= 0) { pick = free[j]; break; } }
+                    } else { viol++; pick = rows.reduce((b, r) => (wait(r) > wait(b) ? r : b), rows[0]); }
+                    out.push({ name: pick.name, atMs: t }); last.set(pick.name, t); prev = pick.name;
+                });
+                return { events: out, info: 'free dealing over ' + n + ' samples' + flag() };
+            }
+            const checkPerm = (perm, times) => { const L = new Map(last); for (let j = 0; j < times.length; j++) { if (!fits(perm[j], times[j], L)) return false; L.set(perm[j].name, times[j]); } return true; };
+            let pos = 0, laps = 0, shuffledLaps = 0, again = 0;
+            while (pos < N) {
+                const len = Math.min(n, N - pos), times = onsets.slice(pos, pos + len);
+                let order = null;
+                if (laps === 0) order = rows.slice(0, len);
+                else {
+                    if (n <= 7) { const valid = permutations(rows).filter((p) => checkPerm(p.slice(0, len), times)); if (valid.length) { order = valid[Math.floor(rnd() * valid.length)].slice(0, len); shuffledLaps++; } }
+                    else { for (let a = 0; a < 3000 && !order; a++) { const p = shuffled(rows, rnd); if (checkPerm(p.slice(0, len), times)) { order = p.slice(0, len); shuffledLaps++; } } }
+                    if (!order) { order = rows.slice(0, len); again++; }
+                }
+                order.forEach((r, j) => { const t = times[j]; if (!fits(r, t, last)) viol++; out.push({ name: r.name, atMs: t }); last.set(r.name, t); });
+                pos += len; laps++;
+            }
+            return { events: out, info: 'round robin · ' + laps + (laps === 1 ? ' lap' : ' laps') + (shuffledLaps ? ' · ' + shuffledLaps + ' shuffled' : '') + (again ? ' · ' + again + ' in order again (no shuffle kept the rule)' : '') + flag() };
+        },
+        // Generate: the samples picked, in the order asked, on the shape's onsets → elec.pattern = [{ name, atMs, db? }]; the brick
+        // runs from the live note to the last onset (a simple shape: to its span)
         generate(zone) {
             const e = zone.elec, cfg = e.rhythm || (e.rhythm = Object.assign({}, DEFAULT_RHYTHM));
+            for (const k of Object.keys(DEFAULT_RHYTHM)) if (cfg[k] === undefined) cfg[k] = DEFAULT_RHYTHM[k];   // a brick saved before a dial existed
             let rows = this.picked(e).slice().sort((a, b) => byName(a.name, b.name));
             if (cfg.order === 'byImpulse') rows.sort((a, b) => byName(this.tagOf(a), this.tagOf(b)) || byName(a.name, b.name));
-            if (cfg.order === 'shuffled') { const rnd = mulberry32((+cfg.seed || 0) * 7877 + 11); for (let i = rows.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [rows[i], rows[j]] = [rows[j], rows[i]]; } }
-            const span = +cfg.gapMs > 0 ? +cfg.gapMs * Math.max(0, rows.length - 1) : Math.max(0, +cfg.spanMs || 0);
-            const on = this.rhythm(rows.length, Object.assign({}, cfg, { spanMs: span }));
-            e.pattern = rows.map((r, i) => ({ name: r.name, atMs: on[i] }));
-            if (e.pattern.length) e.name = e.pattern[0].name;
-            const last = e.pattern.reduce((m, p) => Math.max(m, p.atMs), 0);
+            if (cfg.order === 'shuffled') rows = shuffled(rows, mulberry32((+cfg.oSeed || 0) * 7877 + 11));
+            const run = rows.length ? this.runOnsets(cfg, rows.length) : { onsets: [], levels: null, dealt: false, info: '' };
+            let on = run.onsets, lv = run.levels;
+            // reverse: mirrored within its own span, the first onset still at 0 · rotate: the gaps turned by so many places
+            if (cfg.reverse && on.length) { const L = on[on.length - 1]; on = on.map((t) => L - t).reverse(); if (lv) lv = lv.slice().reverse(); }
+            if (+cfg.rotate && on.length > 2) { const gaps = on.slice(1).map((t, i) => t - on[i]), k = ((Math.round(+cfg.rotate) % gaps.length) + gaps.length) % gaps.length, g = gaps.slice(k).concat(gaps.slice(0, k)); on = [0]; g.forEach((x) => on.push(on[on.length - 1] + x)); }
+            if (+cfg.jitterMs > 0 && cfg.shape !== 'accel') { const jr = mulberry32((+cfg.seed || 0) * 31 + 9); on = on.map((t, i) => (i ? Math.max(0, t + (jr() * 2 - 1) * +cfg.jitterMs) : t)); if (run.dealt) on.sort((a, b) => a - b); }   // the first stays at the live note
+            on = on.map((t) => Math.round(t * 10) / 10);
+            let events, info = run.info;
+            if (run.dealt) { const d = this.deal(rows, on, cfg, mulberry32((+cfg.seed || 1) * 7727 + 29)); events = d.events; info = [run.info, d.info].filter(Boolean).join(' · '); }
+            else events = rows.map((r, i) => ({ name: r.name, atMs: on[i] }));
+            if (lv) events.forEach((ev, i) => { if (lv[i] != null && isFinite(lv[i])) ev.db = Math.round(lv[i] * 10) / 10; });
+            e.pattern = events;
+            this._info[String(zone.id)] = info;
+            if (events.length) e.name = events[0].name;
+            const last = events.reduce((m, p) => Math.max(m, p.atMs), 0);
+            const span = !events.length || run.dealt || cfg.shape === 'unison' ? 0 : (+cfg.gapMs > 0 ? +cfg.gapMs * Math.max(0, rows.length - 1) : Math.max(0, +cfg.spanMs || 0));
             zone.endTime = r3(zone.startTime + Math.max(span, last, 100) / 1000);
             return e.pattern;
         },
         patternPanel(zone, sec, ui) {
-            const e = zone.elec, cfg = e.rhythm || (e.rhythm = Object.assign({}, DEFAULT_RHYTHM)), { el, rowEl, note, commit } = ui;
+            const e = zone.elec, o = this.opts, cfg = e.rhythm || (e.rhythm = Object.assign({}, DEFAULT_RHYTHM)), { el, rowEl, note, commit } = ui;
+            for (const k of Object.keys(DEFAULT_RHYTHM)) if (cfg[k] === undefined) cfg[k] = DEFAULT_RHYTHM[k];
             const regen = (fn) => commit(() => { fn(); this.generate(zone); });
+            const small = 'font-size:11px';
+            const sel = (key, options) => { const s = el('select'); for (const [v, t, dis] of options) s.appendChild(el('option', { value: v, textContent: t, selected: String(cfg[key]) === String(v), disabled: !!dis })); s.addEventListener('change', () => { s.blur(); regen(() => { cfg[key] = s.value; }); }); return s; };
+            const num = (key, min, max, step, blankOk, width) => { const n = el('input', { type: 'number', value: cfg[key] == null ? '' : String(cfg[key]), min: String(min), max: String(max), step: String(step), style: 'width:' + (width || 62) + 'px' }); n.addEventListener('change', () => regen(() => { cfg[key] = blankOk && n.value === '' ? '' : Math.max(min, Math.min(max, +n.value || 0)); })); return n; };
+            const text = (key, width) => { const n = el('input', { type: 'text', value: String(cfg[key] == null ? '' : cfg[key]), style: 'width:' + (width || 110) + 'px' }); n.addEventListener('change', () => regen(() => { cfg[key] = n.value; })); return n; };
+            const chk = (key, label) => { const c = el('input', { type: 'checkbox', checked: !!cfg[key], style: 'margin:0 3px 0 0;vertical-align:middle' }); c.addEventListener('change', () => regen(() => { cfg[key] = !!c.checked; })); return el('label', { style: small + ';white-space:nowrap' }, [c, el('span', { textContent: label })]); };
+            const btn = (t, fn, title) => { const b = el('button', { type: 'button', textContent: t, title: title || '', style: small }); b.addEventListener('click', fn); return b; };
+            const tiny = (t) => el('span', { textContent: t, style: 'font-size:10px;color:#888;white-space:nowrap' });
+            const pair = (...kids) => el('span', { style: 'display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;' + small }, kids);
+            // THE SAMPLES — two rows of boxes: the players × the tags after them
             const players = [...new Set(this.index.map((r) => String(r.player)))].sort(byName);
             const tags = [...new Set(this.index.map((r) => this.tagOf(r)))].sort(byName);
             const P = e.pick && Array.isArray(e.pick.players) ? e.pick.players : players, T = e.pick && Array.isArray(e.pick.impulses) ? e.pick.impulses : tags;
             const boxes = (all, on, label, write) => {
-                const wrap = el('span', { style: 'display:inline-flex;flex-wrap:wrap;gap:2px 8px;font-size:11px' });
+                const wrap = el('span', { style: 'display:inline-flex;flex-wrap:wrap;gap:2px 8px;' + small });
                 for (const v of all) {
                     const cb = el('input', { type: 'checkbox', checked: on.includes(v), style: 'margin:0 2px 0 0;vertical-align:middle' });
                     cb.addEventListener('change', () => regen(() => { const now = all.filter((x) => (x === v ? cb.checked : on.includes(x))); write(now); }));
@@ -346,28 +451,48 @@
             const pickSet = (k) => (now) => { if (!e.pick) e.pick = {}; e.pick[k] = now; };
             sec.appendChild(rowEl('Players', boxes(players, P, (v) => v, pickSet('players'))));
             sec.appendChild(rowEl('Impulses', boxes(tags, T, (v) => v.replace(/^impulse-/, ''), pickSet('impulses'))));
-            const shape = el('select');
-            for (const [v, t] of [['even', 'even'], ['front', 'front — dense at the start'], ['back', 'back — dense at the end'], ['centre', 'centre'], ['edges', 'edges'], ['accel', 'accel — gaps shrink'], ['rit', 'rit — gaps grow'], ['random', 'random (seed)']])
-                shape.appendChild(el('option', { value: v, textContent: t, selected: cfg.shape === v }));
-            shape.addEventListener('change', () => { shape.blur(); regen(() => { cfg.shape = shape.value; }); });
-            sec.appendChild(rowEl('Shape', shape));
-            const num = (key, min, max, step) => { const n = el('input', { type: 'number', value: String(cfg[key] == null ? 0 : cfg[key]), min: String(min), max: String(max), step: String(step) }); n.addEventListener('change', () => regen(() => { cfg[key] = Math.max(min, Math.min(max, +n.value || 0)); })); return n; };
-            sec.appendChild(rowEl('Span (ms)', num('spanMs', 0, 120000, 10)));
-            sec.appendChild(rowEl('Gap (ms)', num('gapMs', 0, 60000, 10)));
-            sec.appendChild(rowEl('Jitter (ms)', num('jitterMs', 0, 5000, 5)));
-            const order = el('select');
-            for (const [v, t] of [['named', 'as named'], ['byImpulse', 'by impulse, then by name'], ['shuffled', 'shuffled (seed)']]) order.appendChild(el('option', { value: v, textContent: t, selected: cfg.order === v }));
-            order.addEventListener('change', () => { order.blur(); regen(() => { cfg.order = order.value; }); });
-            sec.appendChild(rowEl('Order', order));
-            sec.appendChild(rowEl('Seed', num('seed', 0, 999999, 1)));
-            const gen = el('button', { type: 'button', textContent: 'Generate', style: 'font-size:11px' }), re = el('button', { type: 'button', textContent: 'Reshuffle', style: 'font-size:11px;margin-left:6px' });
-            gen.addEventListener('click', () => regen(() => {}));
-            re.addEventListener('click', () => regen(() => { cfg.seed = (+cfg.seed || 0) + 1; }));
-            sec.appendChild(rowEl('', el('span', {}, [gen, re])));
-            const pat = Array.isArray(e.pattern) ? e.pattern : [];
-            sec.appendChild(note(pat.length ? pat.length + ' onsets over ' + Math.round((zone.endTime - zone.startTime) * 1000) + ' ms from the brick\'s start (the live note) · a gap above 0 sets the span as gap × (n − 1) · one message carries them all; the engine plays each on time, no dice'
+            // THE SHAPE — the drawer's menu; a run's calculator the host's, absent from the menu when the page has none
+            const shapes = SHAPES.map(([v, t]) => { const none = (v === 'accel' && !o.accel) || (v === 'containers' && !o.containers); return [v, t + (none ? ' (not in this page)' : ''), none]; });
+            sec.appendChild(rowEl('Shape', sel('shape', shapes)));
+            if (cfg.shape === 'accel' && o.accel) {
+                const AC = o.accel, sh = AC.shapeOf(cfg.aShape);
+                sec.appendChild(rowEl('run', sel('aShape', AC.SHAPES.map((s) => [s.key, s.label]))));
+                if (sh.dial) sec.appendChild(rowEl(sh.dial.label, num(DIAL_KEY[sh.dial.key], sh.dial.min, sh.dial.max, sh.dial.step)));
+                sec.appendChild(rowEl('gap (first)', pair(num('aFirst', 1, 60000, 1), tiny('ms'))));
+                sec.appendChild(rowEl('→ last', pair(num('aFloor', 1, 60000, 1), tiny('ms' + (sh.flat ? ' (ignored: an even run)' : '')))));
+                const lenBy = (cfg.aShape === 'even' && cfg.aLen !== 'count') ? 'duration' : cfg.aLen;
+                const lenSel = sel('aLen', [['ratio', 'steep', !!sh.flat], ['count', 'notes'], ['duration', '= ms']]);
+                sec.appendChild(rowEl('length by', pair(lenSel, lenBy === 'ratio' ? num('aRatio', 0.5, 0.99, 0.01) : lenBy === 'count' ? num('aCount', 2, 500, 1) : num('aDur', 1, 600000, 10, false, 72), tiny(lenBy === 'ratio' ? 'each gap this fraction of the one before' : lenBy === 'count' ? 'notes' : 'ms'))));
+                sec.appendChild(rowEl('jitter %', pair(num('aJit', 0, 100, 1), tiny('→'), num('aJitEnd', 0, 100, 1, true), tiny('(blank = same)'))));
+                sec.appendChild(rowEl('hold', pair(num('aHold', 0, 200, 1), tiny('gaps at → last'), chk('aMirror', 'mirror'))));
+                sec.appendChild(rowEl('level dB', pair(num('aDb0', -60, 12, 1, true), tiny('→'), num('aDb1', -60, 12, 1, true), tiny('curve'), num('aDbCurve', -1, 1, 0.05), tiny('(blank = unity)'))));
+                sec.appendChild(rowEl('deal', pair(sel('aDeal', [['robin', 'round robin'], ['free', 'free']]), tiny('re-attack ≥'), num('aMin', 0, 10000, 10), tiny('ms, the same sample'))));
+            } else if (cfg.shape === 'containers' && o.containers) {
+                const T = o.containers;
+                sec.appendChild(rowEl('values', pair(text('cValues', 100), tiny('×'), num('cUnit', 0.001, 60, 0.1, false, 52), tiny('s'))));
+                sec.appendChild(rowEl('weights', pair(text('cWeights', 100), tiny('(blank = even)'))));
+                sec.appendChild(rowEl('total', pair(num('cTotal', 0.1, 3600, 1), tiny('s to fill'))));
+                sec.appendChild(rowEl('order', pair(tiny('stick'), num('cStick', 0, 3, 0.05, false, 52), tiny('jump'), num('cJump', 0, 1, 0.01, false, 52))));
+                sec.appendChild(rowEl('contour', sel('cContour', T.CONTOURS.map(([k, t]) => [k, t]))));
+                if (cfg.cContour !== 'flat') sec.appendChild(rowEl('', pair(tiny('turn'), num('cTurn', 0, 1, 0.05, false, 52), tiny('bow'), num('cBow', 0.1, 5, 0.1, false, 52), tiny('depth'), num('cDepth', 0, 3, 0.1, false, 52))));
+            } else if (cfg.shape !== 'unison') {
+                sec.appendChild(rowEl('= ms', num('spanMs', 0, 600000, 10, false, 72)));
+                sec.appendChild(rowEl('gap', pair(num('gapMs', 0, 60000, 10), tiny('ms (above 0: the span = gap × (n − 1))'))));
+            }
+            if (cfg.shape !== 'accel') sec.appendChild(rowEl('jitter', pair(num('jitterMs', 0, 5000, 5), tiny('ms, all but the first'))));
+            sec.appendChild(rowEl('order', pair(sel('order', [['named', 'as named'], ['byImpulse', 'by impulse, then name'], ['shuffled', 'shuffled']]),
+                btn('shuffle order', () => regen(() => { cfg.order = 'shuffled'; cfg.oSeed = (+cfg.oSeed || 0) + 1; }), 'another shuffle of the samples (its own seed)'))));
+            sec.appendChild(rowEl('seed', pair(num('seed', 0, 999999, 1), btn('reshuffle', () => regen(() => { cfg.seed = (+cfg.seed || 0) + 1; }), 'the rhythm rolled again: seed + 1'))));
+            sec.appendChild(rowEl('', pair(
+                btn('generate', () => regen(() => {}), 'again, from the bank as it is now'),
+                btn(cfg.reverse ? 'reverse ✓' : 'reverse', () => regen(() => { cfg.reverse = !cfg.reverse; }), 'the rhythm mirrored within its span'),
+                btn('rotate' + (+cfg.rotate ? ' (' + cfg.rotate + ')' : ''), () => regen(() => { cfg.rotate = (Math.round(+cfg.rotate) || 0) + 1; }), 'the gaps turned by one more place'),
+                btn('reset rhythm', () => regen(() => { e.rhythm = Object.assign({}, DEFAULT_RHYTHM); }), 'every dial back to its default'))));
+            const pat = Array.isArray(e.pattern) ? e.pattern : [], info = this._info[String(zone.id)] || '';
+            if (info) sec.appendChild(note(info));
+            sec.appendChild(note(pat.length ? pat.length + ' onsets over ' + Math.round((zone.endTime - zone.startTime) * 1000) + ' ms from the brick\'s start (the live note) · one message carries them all; the engine plays each on time, no dice'
                 : 'no sample picked — tick a player and an impulse, or play through the openings with the engine up'));
-            if (pat.length) sec.appendChild(note(pat.slice(0, 12).map((p) => p.name + ' ' + Math.round(p.atMs)).join(' · ') + (pat.length > 12 ? ' · … (' + pat.length + ')' : '')));
+            if (pat.length) sec.appendChild(note(pat.slice(0, 12).map((p) => p.name + ' ' + Math.round(p.atMs) + (p.db != null ? ' (' + p.db + ' dB)' : '')).join(' · ') + (pat.length > 12 ? ' · … (' + pat.length + ')' : '')));
         },
 
         // ---- the transport: each brick's message, once, ahead of its start ------------------------------------------------
@@ -406,7 +531,7 @@
             } else if (e.behaviour === 'pattern') {   // the composed rhythm: ONE message, every onset from the brick's START; the engine plays each on time, no dice
                 const pat = Array.isArray(e.pattern) ? e.pattern.filter((p) => p && safe(p.name)) : [];
                 if (!pat.length) { this.say('pattern on ' + this.opts.laneLabel(z.layer) + ': no sample picked — nothing is played'); return; }
-                LE.send('play', { name: safe(pat[0].name), pattern: pat.map((p) => safe(p.name) + ':' + (Math.round((+p.atMs || 0) * 10) / 10)).join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'pattern' });
+                LE.send('play', { name: safe(pat[0].name), pattern: pat.map((p) => safe(p.name) + ':' + (Math.round((+p.atMs || 0) * 10) / 10) + (p.db != null && isFinite(+p.db) ? ':' + (Math.round(+p.db * 10) / 10) : '')).join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'pattern' });
             } else if (e.behaviour) {   // the message points at the CENTRE (the live note) and names the behaviour; the engine rolls
                 const c = r3((z.startTime + z.endTime) / 2), perfC = host.playStartTime + (c - host.playStartOffset / host.pixelsPerSecond) * 1000;
                 const dueC = Math.max(0, Math.round(((Number.isFinite(perfC) ? perfC : performance.now()) - performance.now()) * 10) / 10);

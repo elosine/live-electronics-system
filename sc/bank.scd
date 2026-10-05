@@ -327,13 +327,15 @@
 	}
 };
 
-// the onsets of a COMPOSED rhythm, from the message's "name:atMs,name:atMs,…" (behaviour pattern, 2026-10-05): each name scrubbed
-// to a file name, each atMs a number of milliseconds from the live note (never below 0); a pair without a time lands AT the note.
+// the onsets of a COMPOSED rhythm, from the message's "name:atMs,name:atMs:db,…" (behaviour pattern, 2026-10-05): each name
+// scrubbed to a file name, each atMs a number of milliseconds from the live note (never below 0); a pair without a time lands AT
+// the note; a third field is a LEVEL in dB from unity (a run's ramp, the piece's §98) — absent = unity, clipped at +12.
 // No dice here — the composer arranged it in the page, and it plays the same in concert and in simulation (the piece's D10).
 ~le[\patternOnsets] = { |self, pattern|
 	(pattern ? "").asString.split($,).collect({ |x|
 		var b = x.asString.stripWhiteSpace.split($:), nm = self.safeName(b[0]);
-		(name: nm, atMs: if(b.size > 1) { b[1].asString.asFloat.max(0) } { 0 })
+		(name: nm, atMs: if(b.size > 1) { b[1].asString.asFloat.max(0) } { 0 },
+			db: if(b.size > 2) { b[2].asString.asFloat.clip(-90, 12) } { 0 })
 	}).reject({ |k| k[\name].size == 0 })
 };
 
@@ -353,10 +355,10 @@
 			var sk = if(self[\samples].notNil) { self[\samples][k[\name].asSymbol] }, when = (due + (k[\atMs] / 1000)).max(0);
 			if(sk.isNil) { self.say("LE_INFO", "pattern · " ++ k[\name] ++ " — no such sample in the bank") } {
 				s.makeBundle(if(when > 0.005) { when }, {
-					Synth(\leSample, [\out, self[\busMaster].index, \buf, sk[\buf].bufnum], self[\grpFx], \addToTail);
+					Synth(\leSample, [\out, self[\busMaster].index, \buf, sk[\buf].bufnum, \amp, k[\db].dbamp], self[\grpFx], \addToTail);
 				});
 				self.say("LE_INFO", "pattern · " ++ k[\name] ++ " · in " ++ (when * 1000).round(1).asInteger ++ " ms · "
-					++ k[\atMs].round(1).asInteger ++ " ms after the live note");
+					++ k[\atMs].round(1).asInteger ++ " ms after the live note" ++ if(k[\db] != 0) { " · " ++ k[\db].round(0.1) ++ " dB" } { "" });
 			};
 		});
 		if(onsets.size == 0) { self.say("LE_INFO", "pattern · nothing to play — the message carried no onsets") };

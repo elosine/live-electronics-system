@@ -498,3 +498,18 @@ Generate → `elec.pattern = [{ name, atMs }]` from the brick's start; `fire` se
 richer one, and it was NOT lifted — the engine's page module may lean on no file of a piece's stack (the boundary, objective 6);
 what it needs, it carries. Proven headless both sides: `sc/roll_test.scd` (the parse, four cases) and the module under a stub
 window (six generates, one reproducible). The sound in the running app is the composer's, as he composes.
+
+## §25. THE PATTERN BRICK'S FULL MENU — the host's calculators handed in, the samples dealt, a level per onset (2026-10-05, Fable; the Decibel piece's §98)
+
+The composer wanted the Strikes drawer's whole rhythm part on the pattern brick — above all the accelerating run (first gap → last
+gap) with its round robin. The run and the containers are pure modules of the piece's stack (`accel_calc.js` · `time_containers.js`);
+**this module does not load them — the host hands them in at attach** (`opts.accel` · `opts.containers`), and a page without
+them simply has no such shapes. That is the boundary kept the cheap way: the engine is given what it may use, never reaches for it.
+
+`score/le_objects.js`: SHAPES (unison · even · front-loaded · back-loaded · centre · edges · random — its own; accel · round
+robin · containers — the host's) · `runOnsets()` builds the drawer's spec from the brick's dials · `deal()` ports the drawer's
+U13 dealing for samples (round robin by laps under a re-attack rule PER SAMPLE, or free dealing leaning to the longest wait) ·
+`generate()` adds reverse · rotate · an order seed apart from the rhythm's · a level in dB per onset from the run's ramp.
+`sc/bank.scd`: a message onset is `name:atMs` or `name:atMs:db` — `patternOnsets` reads the third field (clipped at +12 dB),
+`samplePlay` gives `\leSample` its `amp`. Proven headless both sides (`sc/roll_test.scd`; the module under a stub window with
+the two calculators required as node modules — eleven generates). The sound is the composer's to hear.

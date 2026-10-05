@@ -35,6 +35,7 @@ var dir = thisProcess.nowExecutingPath.dirname;
 ~le.patternOnsets("a:0,b:250.5").collect({ |k| k[\name] ++ " at " ++ k[\atMs] ++ " ms" }).join(" · ").postln;
 ~le.patternOnsets("vc-impulse-1: 10, x/y:-5, :3,").collect({ |k| k[\name] ++ " at " ++ k[\atMs] ++ " ms" }).join(" · ").postln;
 ("  \"\" -> " ++ ~le.patternOnsets("").size ++ " onsets").postln;
+~le.patternOnsets("a:0:-6,b:250:3.5,c:500:40").collect({ |k| k[\name] ++ " at " ++ k[\atMs] ++ " ms " ++ k[\db] ++ " dB (amp " ++ k[\db].dbamp.round(0.001) ++ ")" }).join(" · ").postln;
 "ROLL_TEST done".postln;
 0.exit;
 )
