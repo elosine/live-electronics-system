@@ -299,3 +299,21 @@ without him. A check that needs the composer's hands is offered, not assumed.
 
 **Next here:** 4.3 the capture · 4.3b the crop · 4.4 the playback · the index — proposed to him in the piece as ONE build, the first
 object end to end (the piece's §61). Not decided.
+
+## §13. 4.3 · 4.3b · 4.4 · the index LAID OUT — the engine's half of the first object (2026-10-04, Fable, in the Decibel piece's chat)
+
+His word there: *"a, write it"* (its RUNNING_LOG §61 · §62). The four are built as ONE in the piece (its 6.3 … 6.6); `docs/PLAN.md` part 4
+has the generic forms. **The engine's own decisions in it, each a default the composer's ear may move:**
+- **The capture runs from the message to the window's end** — `dueMs/1000 + length` seconds. Nothing is scheduled and no clock is shared:
+  the message is early (§12: about 100 ms), and early is right.
+- **The crop is done by the engine itself, in the language, on the recording's samples** — so the engine is whole without a piece's
+  server (his aim: *"eventually, ideally, it would be a standalone"*). The rule: the attack is the first rise above −30 dB below the
+  recording's peak AND above −50 dBFS, with 5 ms of pre-roll; the end is where the level stays below −45 dB below the peak for 50 ms, or
+  the window's end; fades of 2 ms in, 10 ms out. A window with no attack is reported, not saved.
+- **The index's place — ANSWERED:** the file sits in the PIECE's bank (the samples are the piece's); its SCHEMA is the engine's.
+- **The bank's folder is given to the engine at its start (`LE_BANK`), never in a message** — the same rule as the relay's address (§11).
+- **The playback is scheduled on the engine's clock `dueMs` after its message** — the lead compensates itself; a sample lands where its
+  brick is to within the network's jitter. At UNITY.
+- **The composer-score objects (part 11) are ZONES WITH A NEW MODEL in a piece's score, not a new object type** — the reason is the
+  pieces' shared composer page, which has no registry of types (the piece's §62).
+**Rejected:** the crop in Node · a capture scheduled to the brick's exact start. **Not built yet** — the build is the piece's next step.

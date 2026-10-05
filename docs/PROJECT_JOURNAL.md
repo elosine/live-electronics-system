@@ -34,6 +34,11 @@ reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, 
 
 ### THE REPO OPENS ON THIS (2026-10-03, Fable) — PART 1 DONE; the next part is HIS to name
 
+- **UPDATE 7 · 2026-10-04 (RUNNING_LOG §13, Fable) — 4.3 · 4.3b · 4.4 · THE INDEX LAID OUT**, as ONE build in the Decibel piece (its
+  PLAN.md 1.1, 6.3 … 6.6; `docs/PLAN.md` part 4 has the generic forms, part 11 is `doing`): `/le/open` → the capture from the message to
+  the window's end → the crop in the language by a rule his ear tunes → `<bank>/<name>.wav` and a row in `<bank>/index.json` → `/le/play`
+  → `leSample` at unity, scheduled on the engine's clock. The bank's folder from `LE_BANK`. **NOT BUILT. ► NEXT: the build, in the
+  Decibel piece, on Opus (its journal §2, checkpoint #4).**
 - **UPDATE 6 · 2026-10-04 (RUNNING_LOG §11, Opus) — 4.2 BUILT: THE MESSAGE ROUTE**, in the Decibel piece (its 6.2). A piece's score
   page → its score server (`POST /api/elec`) → OSC over UDP → the engine's LANGUAGE on **UDP 57211** (pinned; the server stays 57210) —
   the same road in concert and in simulation (the piece's D10). New here: `sc/boot.scd` the ear (`openEar` · `hear`) and the onset
