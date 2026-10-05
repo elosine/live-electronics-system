@@ -372,7 +372,7 @@
             };
 
             // THE SOURCE — any sample of the bank, or a stage placed and not yet rendered
-            const srcs = this.index.map((r) => r.name).filter((n) => n !== e.out).sort(byName).map((n) => {
+            const srcs = this.index.filter((r) => !r.planned).map((r) => r.name).filter((n) => n !== e.out).sort(byName).map((n) => {   // a plan's variant (le_objects.js) is not offered: typed into the box below, it is a source like any
                 const r = this.row(n);
                 return [n, n + ' · ' + Math.round(r.lengthMs) + ' ms' + (r.kind === 'processed' ? ' · ' + (r.effect || 'processed') : '')];
             });

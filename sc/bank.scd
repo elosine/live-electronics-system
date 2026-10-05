@@ -20,6 +20,8 @@
 //   /le/play  name · id · lane · t · dueMs
 //       THE RETURN. The sample is played to the master at UNITY, dueMs from now ON THE ENGINE'S CLOCK — it lands where
 //       the score's brick is, with no clock shared between the score and the engine.
+//       A name may be a VARIANT of the plan, <base>~<key>-<env> (process.scd): played before its render is in, it falls back to
+//       the earlier render or to its base, raw — ~le.sampleFor, said in the window.
 //
 // THE CROP'S RULE (~le.cropFind — on the recording's samples, in the language, so the engine is whole without a score server):
 //   the level is read in steps of one millisecond (the loudest sample of each);
@@ -175,6 +177,10 @@
 	self.hear(\open, { |le, d| le.captureOpen(d) });
 	self.hear(\play, { |le, d| le.samplePlay(d) });
 	if(self[\processRender].notNil) { self.hear(\process, { |le, d| le.processRender(d) }) };   // process.scd: a sample through the chain, banked again
+	if(self[\planTake].notNil) {   // process.scd: the score's plan of variants, and the button that renders them all
+		self.hear(\plan, { |le, d| le.planTake(d) });
+		self.hear(\planrender, { |le, d| le.planRenderAll });
+	};
 	self
 };
 
@@ -245,12 +251,36 @@
 				++ " · the attack at " ++ atMs.round(1).asInteger ++ " ms · peak " ++ self.db(c[\peak]) ++ " dB"
 				++ if(old.notNil) { " · REPLACES the earlier take" } { "" });
 			self.say("LE_RESULT", self.json(row.copy.putAll((msg: "captured", cropped: true, rawMs: rawMs, replaced: old.notNil))));
+			// the Decibel piece's 10.8: the take is in its file and its row — the variants the score PLANNED for this sample are rendered
+			// from it now, the soonest-needed first (process.scd planRender). Its own try: a fault there is not a fault of the row.
+			if(self[\planRender].notNil) {
+				try { self.planRender(name) } { |err2| self.say("LE_ERROR", "plan · " ++ name ++ " — its variants were NOT queued · " ++ err2.errorString) };
+			};
 		} { |err|
 			self.say("LE_ERROR", "the row of " ++ name ++ " was NOT made — the sample is saved as " ++ rel ++ " · " ++ err.errorString);
 			self.say("LE_RESULT", self.json((msg: "captured", name: name, player: who, openingId: id, cropped: true, rowError: err.errorString, file: rel, raw: rawRel)));
 		};
 	};
 	self
+};
+
+// the sample a NAME plays (the Decibel piece's 10.8 · DEC-21 · 22). Itself — or, for a VARIANT of the plan (<base>~<key>-<env>,
+// process.scd) whose render is not in yet: the EARLIER render if a buffer still holds one (the take before, or the backup's — it is
+// played and said), else its BASE, raw, said too. A score never waits on a render, and a return is never silent for one.
+~le[\sampleFor] = { |self, name|
+	var nm = (name ? "").asString, e = if(self[\samples].notNil) { self[\samples][nm.asSymbol] }, cut = nm.indexOf($~), base;
+	if(cut.notNil) {
+		if(e.isNil) {
+			base = nm.keep(cut);
+			e = if(self[\samples].notNil) { self[\samples][base.asSymbol] };
+			if(e.notNil) { self.say("LE_INFO", "late · " ++ nm ++ " is not rendered yet — " ++ base ++ " played raw") };
+		} {
+			if(self[\planStale].notNil and: { self[\planStale].includes(nm.asSymbol) }) {
+				self.say("LE_INFO", "late · " ++ nm ++ " — this take's render is not in yet: the earlier render played");
+			};
+		};
+	};
+	e
 };
 
 // ---- the behaviours of a return (the Decibel piece's step 9, 2026-10-05; the engine plan's part 11) --------------------
@@ -354,12 +384,11 @@
 //   /le/play … behaviour pattern pattern a:0,b:250,c:610   the brick's start is the live note; each sample atMs after it, as composed
 ~le[\samplePlay] = { |self, d|
 	var s = self[\server], name = self.safeName(d[\name]), due = ((d[\dueMs] ? 0).asFloat / 1000).clip(0, 5);
-	var smp = if(self[\samples].notNil) { self[\samples][name.asSymbol] };
-	var beh = (d[\behaviour] ? "").asString, roll, at = due, clipped = false;
+	var smp, beh = (d[\behaviour] ? "").asString, roll, at = due, clipped = false;   // smp: looked up where ONE sample is played — sampleFor says a late variant
 	if(beh == "pattern") {   // §97 (the piece's): a COMPOSED rhythm — the page's onsets, each from the live note; no roll
 		var onsets = self.patternOnsets(d[\pattern]);
 		onsets.do({ |k|
-			var sk = if(self[\samples].notNil) { self[\samples][k[\name].asSymbol] }, when = (due + (k[\atMs] / 1000)).max(0);
+			var sk = self.sampleFor(k[\name]), when = (due + (k[\atMs] / 1000)).max(0);
 			if(sk.isNil) { self.say("LE_INFO", "pattern · " ++ k[\name] ++ " — no such sample in the bank") } {
 				s.makeBundle(if(when > 0.005) { when }, {
 					Synth(\leSample, [\out, self[\busMaster].index, \buf, sk[\buf].bufnum, \amp, k[\db].dbamp], self[\grpFx], \addToTail);
@@ -376,7 +405,7 @@
 		var list = self.chainNames(d[\names] ? name), links;   // §94: the names resolved in one place — "*" before the scrub, see chainNames
 		links = self.chainRoll(list, beh == "arChain");
 		links.do({ |k|
-			var sk = if(self[\samples].notNil) { self[\samples][k[\name].asSymbol] }, when = (due + (k[\atMs] / 1000)).max(0);
+			var sk = self.sampleFor(k[\name]), when = (due + (k[\atMs] / 1000)).max(0);
 			if(sk.isNil) { self.say("LE_INFO", "chain · " ++ k[\name] ++ " — no such sample in the bank") } {
 				s.makeBundle(if(when > 0.005) { when }, {
 					Synth(\leSample, [\out, self[\busMaster].index, \buf, sk[\buf].bufnum], self[\grpFx], \addToTail);
@@ -388,6 +417,7 @@
 		self.say("LE_RESULT", self.json((msg: "play", behaviour: beh, id: (d[\id] ? "").asString, dueMs: (due * 1000).round(0.1),
 			links: links.collect({ |k| k[\name].asString ++ ":" ++ k[\stance] ++ ":" ++ k[\atMs] }).join(","))));
 	} {
+		smp = self.sampleFor(name);
 		if(smp.isNil) {
 			self.say("LE_INFO", "play · " ++ name ++ " — no such sample in the bank");
 		} {

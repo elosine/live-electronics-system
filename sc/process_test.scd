@@ -10,6 +10,8 @@
 //     t-src~6   t-src   through FUZZ INTO A CABINET, ended by its tail         (two of the new stages in ONE brick, by the JSON road)
 //     t-src~7   t-src   through the FEEDBACK, ended by its tail               (DEC-18 · 19, §110: six strings in a loop — it must BLOOM and HOLD past the source)
 //     t-src~8   t-src   through NONE, ended by PERC over 700 ms                (§111: a fixed-curve ending — exactly its length, nearly gone at 90 % of it)
+//     THE PLAN  three variants of t-src (t-src~x1-perc …) sent in two parts, out of order; planRender as a capture's end calls it —
+//               a queue two wide, lengths as multiples of the source's (durX), a tape's speed counted in; the fallback to the base
 //   "C:/Program Files/SuperCollider-3.14.1/sclang.exe" electronics/sc/process_test.scd
 // A living engine beside it is untouched: nothing here opens a port or a device; the renderer is a second scsynth in NRT mode.
 // It ends PROCESS_TEST PASS (exit 0) or PROCESS_TEST FAIL (exit 1) and names each check.
@@ -30,6 +32,7 @@ rowOf = { |name| ~le[\indexRows].detect({ |r| r[\name].asString == name }) };
 check = { |what, ok, detail| ("  " ++ if(ok) { "ok   " } { "FAIL " } ++ what ++ " — " ++ detail).postln; if(ok.not) { fails.add(what) } };
 fork {
 	var r1, r2, r3, r4, r5, r6, r7, r8, f4, d4, held, f7, d7, fbHeld, f8, d8, late8, srcDb = ~le.db(src.abs.maxItem), t0 = Main.elapsedTime;
+	var p1, p2, p3, fb, lenOf = { |r| if(r.notNil) { r[\lengthMs] } { -1 } };
 	waitFor = { |name, secs = 30|
 		var t = 0;
 		while { rowOf.(name).isNil and: { t < secs } } { 0.25.wait; t = t + 0.25 };
@@ -108,6 +111,30 @@ fork {
 	~le[\samples].put('t-src', (row: (name: "t-src")));
 	if(r1.notNil) { ~le[\samples].put('t-src~1', (row: r1)) };
 	check.("\"*\" is every CAPTURED sample", ~le.chainNames("*") == ["t-src"], "of t-src and t-src~1 it plays " ++ ~le.chainNames("*"));
+	// THE PLAN (the Decibel piece's 10.8 · DEC-21 · 22, §116): three variants of t-src as a score's page sends them — in TWO parts, the
+	// second FIRST (the order of arrival must not matter); then planRender, as a capture's end calls it. Three for a queue two wide: the
+	// third waits for a slot. Their lengths are multiples of the source's 350 ms — 1.0 · 1.75 · and 1.0 of a tape at half speed (700).
+	~le.planTake((stamp: 'pt1', part: 2, of: 2, rows: 't-src;x3-tri;tape;tri;0;1;1;12;0;rate:0.5,rev:0'));
+	check.("a plan waits for all its parts", ~le[\plan].isNil, "part 2 of 2 alone: " ++ if(~le[\plan].isNil) { "no plan yet" } { "a plan of " ++ ~le[\plan].size });
+	~le.planTake((stamp: 'pt1', part: 1, of: 2,
+		rows: 't-src;x2-expodec;diffusion;expodec;0;1.75;1;9.5;0;diffMix:1,diffTime:0.02,diffGain:0.55|t-src;x1-perc;crush;perc;3;1;1;6.2;0;crMix:0.4,crBits:4,crRate:10400'));
+	check.("the plan is whole, the soonest-needed first", ~le[\plan].notNil and: { ~le[\plan].size == 3 } and: { ~le[\plan][0][\suffix] == "x1-perc" } and: { ~le[\plan][2][\suffix] == "x3-tri" },
+		if(~le[\plan].notNil) { ~le[\plan].collect({ |r| r[\suffix] ++ " at " ++ r[\t] }).join(" · ") } { "no plan" });
+	~le.planRender("t-src");
+	check.("the queue is two wide", (~le[\processBusy].size == 2) and: { ~le[\planQueue].size == 1 }, ~le[\processBusy].size.asString ++ " rendering · " ++ ~le[\planQueue].size ++ " waiting");
+	p1 = waitFor.("t-src~x1-perc");
+	p2 = waitFor.("t-src~x2-expodec");
+	p3 = waitFor.("t-src~x3-tri");
+	check.("the three variants are banked under their names", p1.notNil and: { p2.notNil } and: { p3.notNil } and: { File.exists(tmp +/+ "t-src~x1-perc.wav") },
+		[p1, p2, p3].collect({ |r| if(r.notNil) { r[\name].asString ++ " " ++ r[\lengthMs] ++ " ms" } { "no row" } }).join(" · "));
+	check.("their lengths are multiples of the source's", ((lenOf.(p1) - 350).abs < 0.5) and: { (lenOf.(p2) - 612.5).abs < 0.5 } and: { (lenOf.(p3) - 700).abs < 0.5 },
+		"350 · 612.5 · 700 asked — " ++ lenOf.(p1) ++ " · " ++ lenOf.(p2) ++ " · " ++ lenOf.(p3) ++ " made");
+	if(p1.notNil) { check.("a variant's row says what it is", (p1[\planned] == 1) and: { p1[\kind].asString == "processed" } and: { p1[\source].asString == "t-src" } and: { p1[\end].asString == "perc" },
+		"planned " ++ p1[\planned] ++ " · kind " ++ p1[\kind] ++ " · source " ++ p1[\source] ++ " · end " ++ p1[\end]) };
+	// the fallback: a variant with no buffer plays its base, raw (t-src stands in the samples since the "*" check above)
+	fb = ~le.sampleFor("t-src~nope-perc");
+	check.("a variant not rendered yet falls back to its base", fb.notNil and: { fb[\row][\name].asString == "t-src" }, if(fb.notNil) { "t-src~nope-perc plays " ++ fb[\row][\name] } { "nothing" });
+	check.("a name that is nobody's variant plays nothing", ~le.sampleFor("no-such~x-perc").isNil and: { ~le.sampleFor("no-such").isNil }, "no-such~x-perc · no-such");
 	// a pass leaves nothing behind; a failure keeps the scratch bank to be looked at
 	if(fails.size == 0) { try { File.deleteAll(tmp) }; "PROCESS_TEST PASS".postln; 0.exit } { ("PROCESS_TEST FAIL — " ++ fails.join(" · ")).postln; 1.exit };
 };

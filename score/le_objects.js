@@ -38,6 +38,14 @@
 //       KEY (`r` in the first): at the playhead — the sample of the selected opening, else of the nearest opening before
 //       the playhead; the panel's picker lists every sample in the index.
 //
+//       THE PROCESSED RETURN (the same day; the first piece's "every return a transformation"): elec.variants = { '<sample>':
+//       '<key>-<env>' } — per sample the brick plays, a PRESET of the piece's presets file (opts.presetsUrl: one effect of the
+//       chain, a class that sets its length as a multiple of the sample's) under an ENVELOPE of that file. The brick then asks for
+//       <sample>~<key>-<env>. The score is a PLAN:   /le/plan   stamp · part · of · rows · [render]   tells the engine every
+//       variant the bricks will ask for, with the time of its first use (at a pass's start · a second after a change · with the
+//       panel's button, render 1); the engine renders each right after its sample's capture and falls back to the sample, raw,
+//       when one is asked for too early (sc/process.scd · sc/bank.scd sampleFor). A pattern's samples take a variant too.
+//
 //   midiModel 'elecProcess'   A STAGE OF A CHAIN (2026-10-05) — the THIRD object: a banked sample through one configuration of
 //       the engine's chain, banked again under a name of its own (<root>~1, ~2 …). Its catalogue, its panel and its render are
 //       le_process.js — a mixin on this object, one more tag; this file only knows that it IS one of its bricks and hands it
@@ -82,12 +90,15 @@
 
     const LEObjects = {
         MODELS, host: null, index: [], _pass: null, _prev: null, _info: {},   // _info: a pattern brick's readout by zone id (never saved)
+        presets: null,   // the piece's presets file { classes, envelopes, presets } (opts.presetsUrl) — null: this piece has none, every return is raw
         opts: { keys: { open: 'm', play: 'r', process: 'e' }, portOf: () => null, laneLabel: (l) => 'lane ' + l, lanes: 99,
-            indexUrl: '/bank/samples/index.json', lookAheadS: 0.1, openMs: 500, preMs: 100, arRegionMs: 400, chainLinkS: 0.5 },
+            indexUrl: '/bank/samples/index.json', presetsUrl: '/bank/presets.json', lookAheadS: 0.1, openMs: 500, preMs: 100, arRegionMs: 400, chainLinkS: 0.5 },
 
         is(o) { return !!(o && o.type === 'zone' && MODELS[o.midiModel]); },
         zones(model) { return (this.host ? this.host.objects : []).filter((o) => this.is(o) && (!model || o.midiModel === model)); },
         row(name) { return this.index.find((x) => x.name === name) || null; },
+        captured() { return this.index.filter((x) => x.kind !== 'processed'); },   // what '*' plays: a render is not one of "every sample"
+        choosable() { return this.index.filter((x) => !x.planned); },             // what a picker offers: a plan's variant is chosen on its brick, never as a sample
         say(text) { const h = this.host; if (h && h.saveStatus) h.saveStatus.textContent = text; },
         // the engine's player on this lane: a name · null (the lane has no microphone) · undefined (the route table has not come yet)
         playerOf(layer) {
@@ -122,7 +133,78 @@
             });
             if (window.LE && LE.ready) LE.ready.then(() => this.redraw());
             this.loadIndex();
+            this.loadPresets();
+            // the plan follows the bricks: a second after the score last changed, if what it asks of the engine is different
+            const dirty = host.markDirty;
+            if (typeof dirty === 'function') host.markDirty = function () { const r = dirty.apply(this, arguments); self.planSoon(); return r; };
             return this;
+        },
+
+        // ---- THE PROCESSED RETURN (2026-10-05; the Decibel piece's 10.8 · DEC-21 · 22): every return may be a TRANSFORMATION ----------
+        // elec.variants = { '<sample>': '<key>-<env>' } — one per sample the brick plays: a PRESET of the piece's file (one effect of
+        // the engine's chain) under an ENVELOPE. The brick then asks for  <sample>~<key>-<env>  instead of the sample. THE SCORE IS A
+        // PLAN: the page tells the engine every variant its bricks will ask for (/le/plan — at a pass's start, after a change, with the
+        // button) and the ENGINE renders each as soon as its sample is captured, the soonest-needed first; asked for before it is ready,
+        // a variant falls back to the sample, raw (sc/bank.scd sampleFor). The same messages in concert and in simulation.
+        loadPresets() {
+            return fetch(this.opts.presetsUrl, { cache: 'no-store' })
+                .then((r) => (r.ok ? r.json() : null))
+                .then((doc) => { this.presets = doc && Array.isArray(doc.presets) ? doc : null; this.redraw(); return this.presets; })
+                .catch(() => this.presets);
+        },
+        // the samples a return brick plays, by name ('*' is the bank at playback: it has no variant)
+        samplesOf(e) {
+            if (!e) return [];
+            if (e.behaviour === 'pattern') return [...new Set((Array.isArray(e.pattern) ? e.pattern : []).map((p) => p && p.name).filter(Boolean))];
+            if ((e.behaviour === 'chain' || e.behaviour === 'arChain') && Array.isArray(e.names) && e.names.length) return e.names.filter((n) => n && n !== '*');
+            return e.name && e.name !== '*' ? [e.name] : [];
+        },
+        variantOf(e, name) { const v = e && e.variants && e.variants[name]; return v ? safe(v) : ''; },
+        splitVariant(v) { const s = String(v || ''), i = s.lastIndexOf('-'); return i > 0 ? { key: s.slice(0, i), env: s.slice(i + 1) } : { key: s, env: '' }; },
+        // the name a brick asks the engine for: the sample's, or its variant's
+        vname(e, name) { const v = this.variantOf(e, name); return safe(safe(name) + (v && name !== '*' ? '~' + v : '')); },
+        // every variant the score's bricks ask for, once each, with the time of its first use — what the engine must have rendered by then
+        planRows() {
+            const P = this.presets, out = new Map();
+            if (!P) return [];
+            for (const z of this.zones('elecPlay')) {
+                const e = z.elec;
+                if (!e || !e.variants) continue;
+                for (const name of this.samplesOf(e)) {
+                    const v = this.variantOf(e, name);
+                    if (!v) continue;
+                    const { key, env } = this.splitVariant(v), p = P.presets.find((x) => x.key === key), E = (P.envelopes || {})[env];
+                    if (!p || !E) continue;   // a preset or an envelope the file no longer has: the sample returns raw
+                    const id = safe(name) + '~' + v, t = r3(z.startTime), was = out.get(id), cls = (P.classes || {})[p.class] || {};
+                    if (was) { if (t < was.t) was.t = t; continue; }
+                    out.set(id, { base: safe(name), suffix: v, effect: String(p.effect || '').replace(/[^A-Za-z0-9 _+-]/g, '').slice(0, 40), end: env === 'tail' ? 'tail' : env,
+                        atkMs: +E.atkMs || 0, durX: +(p.durX || cls.durX || 1), match: p.match === 0 ? 0 : 1, t, capMs: env === 'tail' ? +(p.capMs || E.capMs || 4000) : 0, args: p.args || {} });
+                }
+            }
+            return [...out.values()].sort((a, b) => a.t - b.t);
+        },
+        planSig(rows) { return JSON.stringify(rows.map((r) => [r.base, r.suffix, r.t])); },
+        // the plan to the engine, in parts of six variants (a part is one small message; they share a stamp and may arrive in any
+        // order). A dial given as a RANGE [lo, hi] is drawn here, fresh at every send. render: the engine then renders them all.
+        sendPlan(render) {
+            if (!window.LE || !this.presets) return 0;
+            const rows = this.planRows();
+            if (!rows.length && this._planSent === false) return 0;   // nothing planned, and the engine has been told so (the first send of a page goes even when empty: it clears a plan left from before)
+            const lines = rows.map((r) => {
+                const args = Object.keys(r.args).filter((k) => /^[A-Za-z][A-Za-z0-9]*$/.test(k)).map((k) => {
+                    const v = r.args[k], x = Array.isArray(v) && v.length === 2 ? Math.round((Math.min(+v[0], +v[1]) + Math.random() * Math.abs(+v[1] - +v[0])) * 100) / 100 : +v;
+                    return Number.isFinite(x) ? k + ':' + x : null;
+                }).filter(Boolean).join(',');
+                return [r.base, r.suffix, r.effect, r.end, r.atkMs, r.durX, r.match, r.t, r.capMs, args].join(';');
+            });
+            const per = 6, n = Math.max(1, Math.ceil(lines.length / per)), stamp = 'p' + Date.now().toString(36);
+            for (let i = 0; i < n; i++) LE.send('plan', { stamp, part: i + 1, of: n, rows: lines.slice(i * per, (i + 1) * per).join('|'), render: render ? 1 : 0 });
+            this._planSent = rows.length > 0; this._planSig = this.planSig(rows);
+            return rows.length;
+        },
+        planSoon() {
+            clearTimeout(this._planTimer);
+            this._planTimer = setTimeout(() => { if (this.presets && this.planSig(this.planRows()) !== (this._planSig || '[]')) this.sendPlan(false); }, 1000);
         },
 
         // ---- the bank's index: what has been captured -------------------------------------------------------------------
@@ -156,7 +238,9 @@
                 const p = this.playerOf(zone.layer);
                 if (p !== undefined) { e.player = p || ''; if (!p) text += ' — no microphone on this lane'; }
             } else {
-                if ((e.behaviour === 'chain' || e.behaviour === 'arChain') && Array.isArray(e.names) && e.names.length) text = M.sign + ' ' + (e.names.includes('*') ? 'ALL ' + this.index.length + ' samples' : e.names.join(' + '));
+                const lab = (n) => { const v = this.variantOf(e, n); return n + (v ? '~' + this.splitVariant(v).key : ''); };   // a PROCESSED return says its preset: bfl-impulse-1~crush4
+                text = M.sign + ' ' + (e.name ? lab(e.name) : '?');
+                if ((e.behaviour === 'chain' || e.behaviour === 'arChain') && Array.isArray(e.names) && e.names.length) text = M.sign + ' ' + (e.names.includes('*') ? 'ALL ' + this.captured().length + ' samples' : e.names.map(lab).join(' + '));
                 if (e.behaviour === 'pattern') { const n = Array.isArray(e.pattern) ? e.pattern.length : 0; text = M.sign + ' ' + (n ? n + ' samples · ' + Math.round((zone.endTime - zone.startTime) * 1000) + ' ms' : 'no sample picked'); }
                 if (e.behaviour) text += ' ~ ' + String(e.behaviour).toUpperCase();
                 if (e.behaviour !== 'pattern' && !this.row(e.name)) text += ' — not captured yet';
@@ -257,7 +341,7 @@
                 if (this.processPanel) this.processPanel(zone, sec, { el, rowEl, note, commit });   // le_process.js
                 else sec.appendChild(note('this brick\'s panel is le_process.js — not loaded on this page'));
             } else {
-                const rows = this.index.slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+                const rows = this.choosable().sort((a, b) => String(a.name).localeCompare(String(b.name)));
                 const pick = el('select');
                 if (!this.row(e.name)) pick.appendChild(el('option', { value: e.name || '', textContent: (e.name || '?') + ' — not captured yet', selected: true }));
                 for (const x of rows) pick.appendChild(el('option', { value: x.name, textContent: x.name + ' · ' + x.player + ' · ' + Math.round(x.lengthMs) + ' ms', selected: x.name === e.name }));
@@ -268,7 +352,12 @@
                 }
                 pick.addEventListener('change', () => {
                     pick.blur();
-                    commit(() => { e.name = pick.value; const x = this.row(e.name); if (x && x.lengthMs > 0) zone.endTime = r3(zone.startTime + x.lengthMs / 1000); });
+                    commit(() => {
+                        const was = e.name;
+                        e.name = pick.value;
+                        if (e.variants && e.variants[was] && was !== e.name) { e.variants[e.name] = e.variants[was]; delete e.variants[was]; }   // the transformation stays on the brick
+                        const x = this.row(e.name); if (x && x.lengthMs > 0) zone.endTime = r3(zone.startTime + x.lengthMs / 1000);
+                    });
                 });
                 if (e.behaviour !== 'pattern') sec.appendChild(rowEl('Sample', pick));   // a pattern picks its samples by the rows below
                 // the behaviour (step 9): plain = the sample where the brick is · ar = rolled by the engine around the brick's centre
@@ -298,7 +387,7 @@
                     names.addEventListener('change', () => commit(() => {
                         e.names = String(names.value || '').split(',').map((s) => safe(s.trim())).filter(Boolean);
                         if (!e.names.length) e.names = [e.name]; e.name = e.names[0];
-                        const n = e.names.includes('*') ? Math.max(1, this.index.length) : e.names.length;   // '*': as many as the bank holds today
+                        const n = e.names.includes('*') ? Math.max(1, this.captured().length) : e.names.length;   // '*': as many as the bank holds today (the captured ones)
                         zone.endTime = e.behaviour === 'arChain' ? r3(zone.startTime + 2 * this.opts.arRegionMs / 1000 + this.opts.chainLinkS * (n - 1)) : r3(zone.startTime + this.opts.chainLinkS * n);
                     }));
                     sec.appendChild(rowEl('Samples, in order', names));
@@ -310,8 +399,50 @@
                 const row = this.row(e.name);
                 if (e.behaviour !== 'pattern') sec.appendChild(note(row ? 'from ' + row.player + (row.category ? ' · ' + row.category : '') + ' · ' + Math.round(row.lengthMs) + ' ms · peak ' + row.peakDb + ' dB · taken ' + String(row.captured || '').replace('T', ' ')
                     : 'its length becomes the sample\'s once it is captured'));
+                if (e.behaviour !== 'pattern') this.variantPanel(zone, sec, { el, rowEl, note, commit });
             }
             panelEl.appendChild(sec);
+        },
+
+        // ---- the processed return, in the panel: per sample the brick plays — a preset · an envelope · ▶; and the button for them all ----
+        variantPanel(zone, sec, ui) {
+            const h = this.host, e = zone.elec, P = this.presets, { el, rowEl, note, commit } = ui, small = 'font-size:11px';
+            const names = this.samplesOf(e);
+            if (!P || !names.length) return;
+            const envs = Object.keys(P.envelopes || {});
+            const tiny = (t) => el('span', { textContent: t, style: 'font-size:10px;color:#888;white-space:nowrap' });
+            const pair = (...kids) => el('span', { style: 'display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;' + small }, kids);
+            const btn = (t, fn, title) => { const b = el('button', { type: 'button', textContent: t, title: title || '', style: small }); b.addEventListener('click', fn); return b; };
+            sec.appendChild(el('h5', { textContent: 'Processed as' }));
+            for (const name of names) {
+                const cur = this.splitVariant(this.variantOf(e, name)), known = P.presets.find((p) => p.key === cur.key);
+                const set = (key, env) => commit(() => {
+                    if (!e.variants) e.variants = {};
+                    if (key) e.variants[name] = safe(key + '-' + (envs.includes(env) ? env : envs[0])); else delete e.variants[name];
+                    if (!Object.keys(e.variants).length) delete e.variants;
+                });
+                const ps = el('select', { style: 'max-width:170px;' + small, title: 'the transformation this sample returns as — one effect of the chain; — raw — returns the sample as it is' });
+                ps.appendChild(el('option', { value: '', textContent: '— raw —', selected: !cur.key }));
+                if (cur.key && !known) ps.appendChild(el('option', { value: cur.key, textContent: cur.key + ' — not in the presets: raw', selected: true }));
+                for (const p of P.presets) ps.appendChild(el('option', { value: p.key, textContent: p.name, selected: p.key === cur.key }));
+                ps.addEventListener('change', () => { ps.blur(); set(ps.value, cur.env); });
+                const es = el('select', { style: small, disabled: !cur.key, title: envs.map((k) => k + ' — ' + ((P.envelopes[k] || {}).what || '')).join('\n') });
+                for (const k of envs) es.appendChild(el('option', { value: k, textContent: k, selected: k === cur.env }));
+                es.addEventListener('change', () => { es.blur(); set(cur.key, es.value); });
+                const hear = btn('▶', () => { if (window.LE) LE.send('play', { name: this.vname(e, name), id: 'audition', lane: -1, t: 0, dueMs: 0 }); this.say('▶ ' + this.vname(e, name)); },
+                    'this sample as the brick will ask for it, now — raw if its variant is not rendered yet (the engine\'s window says)');
+                const made = cur.key ? this.row(safe(name) + '~' + this.variantOf(e, name)) : null;
+                sec.appendChild(rowEl(name, pair(ps, es, hear, tiny(!cur.key ? '' : made ? Math.round(made.lengthMs) + ' ms' : 'not rendered'))));
+            }
+            const rows = this.planRows(), have = rows.filter((r) => this.row(r.base + '~' + r.suffix)).length;
+            sec.appendChild(rowEl('', pair(
+                btn('render all planned', () => {
+                    const n = this.sendPlan(true);
+                    this.say(n ? 'render all planned: ' + n + ' variants asked of the engine — its window names each as it lands' : 'nothing is planned in this score — pick a preset on a return brick first');
+                    for (const ms of [4000, 12000, 30000]) setTimeout(() => this.loadIndex().then(() => { if (h.selectedObject === zone) h.showPropertyPanel(); }), ms);
+                }, 'the engine renders EVERY variant this score plans, from the samples the bank holds now — as it does by itself after each capture when the score is played through its openings'),
+                tiny(rows.length + ' planned in this score · ' + have + ' in the bank'))));
+            sec.appendChild(note('a processed return: the sample through ONE effect, under an envelope, as long as a multiple of the sample — rendered by the engine right after the sample\'s capture; asked for before it is ready, the sample returns raw (the engine\'s window says "late")'));
         },
 
         // ---- behaviour 'pattern': the samples by two rows of boxes, the rhythm's dials, Generate ----------------------------
@@ -448,8 +579,8 @@
             const tiny = (t) => el('span', { textContent: t, style: 'font-size:10px;color:#888;white-space:nowrap' });
             const pair = (...kids) => el('span', { style: 'display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;' + small }, kids);
             // THE SAMPLES — two rows of boxes: the players × the tags after them
-            const players = [...new Set(this.index.map((r) => String(r.player)))].sort(byName);
-            const tags = [...new Set(this.index.map((r) => this.tagOf(r)))].sort(byName);
+            const players = [...new Set(this.choosable().map((r) => String(r.player)))].sort(byName);
+            const tags = [...new Set(this.choosable().map((r) => this.tagOf(r)))].sort(byName);   // a plan's variants are not boxes: thirty of them would bury the five
             const P = e.pick && Array.isArray(e.pick.players) ? e.pick.players : players, T = e.pick && Array.isArray(e.pick.impulses) ? e.pick.impulses : tags.filter((t) => !this.index.some((r) => r.kind === 'processed' && this.tagOf(r) === t));
             const boxes = (all, on, label, write) => {
                 const wrap = el('span', { style: 'display:inline-flex;flex-wrap:wrap;gap:2px 8px;' + small });
@@ -510,10 +641,12 @@
         // ---- the transport: each brick's message, once, ahead of its start ------------------------------------------------
         tick(host, t) {
             const look = this.opts.lookAheadS;
-            const fresh = this._pass !== host.playStartTime || this._prev == null || Math.abs(t - this._prev) > 0.5;
+            const newPass = this._pass !== host.playStartTime;
+            const fresh = newPass || this._prev == null || Math.abs(t - this._prev) > 0.5;
             const from = fresh ? t - 1e-6 : this._prev + look, to = t + look;
             this._pass = host.playStartTime; this._prev = t;
             if (!window.LE) return;
+            if (newPass) this.sendPlan(false);   // a pass begins: the engine is told what the bricks will ask for, before the first capture ends (it may have been restarted since)
             for (const z of host.objects) {
                 if (!this.is(z) || !z.elec) continue;
                 const ahead = z.startTime > from && z.startTime <= to;
@@ -534,23 +667,23 @@
                 LE.send('open', { player, lane: z.layer, id: String(z.id), name: safe(e.name), category: String(e.category || ''), t: r3(at), lengthMs, dueMs });
                 setTimeout(() => this.loadIndex(), dueMs + lengthMs + 1200);   // the engine has cropped and indexed it by then
             } else if (e.behaviour === 'arChain') {   // the live note is the brick's start + the region; the first sample's ar roll needs the lead
-                const names = (Array.isArray(e.names) && e.names.length ? e.names : [e.name]).map(safe);
+                const names = (Array.isArray(e.names) && e.names.length ? e.names : [e.name]).map((n) => this.vname(e, n));   // each sample's variant, if it has one (10.8)
                 const ref = r3(z.startTime + this.opts.arRegionMs / 1000), perfR = host.playStartTime + (ref - host.playStartOffset / host.pixelsPerSecond) * 1000;
                 const dueR = Math.max(0, Math.round(((Number.isFinite(perfR) ? perfR : performance.now()) - performance.now()) * 10) / 10);
                 LE.send('play', { name: names[0], names: names.join(','), id: String(z.id), lane: z.layer, t: ref, dueMs: dueR, behaviour: 'arChain' });
             } else if (e.behaviour === 'chain') {   // the live note is the brick's START; the samples, in order, go with the message
-                const names = (Array.isArray(e.names) && e.names.length ? e.names : [e.name]).map(safe);
+                const names = (Array.isArray(e.names) && e.names.length ? e.names : [e.name]).map((n) => this.vname(e, n));
                 LE.send('play', { name: names[0], names: names.join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'chain' });
             } else if (e.behaviour === 'pattern') {   // the composed rhythm: ONE message, every onset from the brick's START; the engine plays each on time, no dice
                 const pat = Array.isArray(e.pattern) ? e.pattern.filter((p) => p && safe(p.name)) : [];
                 if (!pat.length) { this.say('pattern on ' + this.opts.laneLabel(z.layer) + ': no sample picked — nothing is played'); return; }
-                LE.send('play', { name: safe(pat[0].name), pattern: pat.map((p) => safe(p.name) + ':' + (Math.round((+p.atMs || 0) * 10) / 10) + (p.db != null && isFinite(+p.db) ? ':' + (Math.round(+p.db * 10) / 10) : '')).join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'pattern' });
+                LE.send('play', { name: this.vname(e, pat[0].name), pattern: pat.map((p) => this.vname(e, p.name) + ':' + (Math.round((+p.atMs || 0) * 10) / 10) + (p.db != null && isFinite(+p.db) ? ':' + (Math.round(+p.db * 10) / 10) : '')).join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'pattern' });
             } else if (e.behaviour) {   // the message points at the CENTRE (the live note) and names the behaviour; the engine rolls
                 const c = r3((z.startTime + z.endTime) / 2), perfC = host.playStartTime + (c - host.playStartOffset / host.pixelsPerSecond) * 1000;
                 const dueC = Math.max(0, Math.round(((Number.isFinite(perfC) ? perfC : performance.now()) - performance.now()) * 10) / 10);
-                LE.send('play', { name: safe(e.name), id: String(z.id), lane: z.layer, t: c, dueMs: dueC, behaviour: String(e.behaviour) });
+                LE.send('play', { name: this.vname(e, e.name), id: String(z.id), lane: z.layer, t: c, dueMs: dueC, behaviour: String(e.behaviour) });
             } else {
-                LE.send('play', { name: safe(e.name), id: String(z.id), lane: z.layer, t: r3(at), dueMs });
+                LE.send('play', { name: this.vname(e, e.name), id: String(z.id), lane: z.layer, t: r3(at), dueMs });
             }
         },
     };

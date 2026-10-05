@@ -32,6 +32,17 @@
 play back, then **STOP and ask**. No edits, no builds, no tool calls beyond the resume
 reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, then work.)*
 
+### 2026-10-05 — THE PLAN IS BUILT, in the Decibel piece (Opus; RUNNING_LOG §35; parts 6.2 · 11.2)
+
+- **What exists:** a return brick may ask for a VARIANT of its sample (`elec.variants`, `<sample>~<key>-<env>`: one effect of the
+  chain under an envelope, from the piece's presets file) · the page tells the engine every variant its bricks will ask for
+  (`/le/plan`, in parts that share a stamp) · the engine renders a sample's variants right after its capture, the soonest-needed
+  first, two at a time (`sc/process.scd` `planTake` · `planRender` · `planNext`; `/le/planrender`) · a variant asked for too early
+  falls back to the earlier render or to the sample, raw (`sc/bank.scd` `sampleFor`) · `/le/process` takes `durX`.
+  `docs/SEAMS.md` § the processed return has the field, the file and the two message kinds; no stack line.
+- **Not claimed:** a plan through a living engine; the composer's ear; what a machine carries beside a performance (`planWidth`).
+- **Next, by the piece's need:** as below — the granular voices · the pedals of resonance · a stereo bank.
+
 ### 2026-10-05 — THE PROCESSING IS BUILT, in the Decibel piece (Opus; RUNNING_LOG §26; parts 2 · 6.1 · 11.3)
 
 - **What exists:** `sc/process.scd` — the sandbox's chain as `\leProcess`, rendered OFFLINE from a banked sample's file into a new

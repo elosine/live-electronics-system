@@ -169,7 +169,7 @@ added here as sub-parts by compositional need. *To be laid out when we discuss i
   freeze · reverb · Greyhole · JPverb · a noise bed · tape (speed, direction) — rendered OFFLINE (NRT) into a NEW banked sample.
   `/le/process` source · out · effect · args · end (`shape`: an envelope after the effect | `tail`: it rings out) · gainDb · match · id.
   Proven by `sc/process_test.scd`. NOT YET: the granular voices · the pedals of resonance · the freeze and the delay as LIVE
-  effects on a player's bus (this chain is a sample's; the momentary gate of the brief is the mic opening).
+  effects on a player's bus (this chain is a sample's; the momentary gate of the brief is the mic opening). **6.2 THE PLAN — `done but for the composer's ear` 2026-10-05 (RUNNING_LOG §35; the Decibel piece's PLAN 10.8):** `/le/plan` — the variants a score will ask for (one effect under an envelope, `durX` = its length as a multiple of the sample's), rendered right after each sample's capture, the soonest-needed first, two at a time; `/le/planrender`; a fallback to the earlier render or to the raw sample when one is asked for too early (`sc/bank.scd` `sampleFor`).
 
 ## 7. The notation kinds — `todo`
 
@@ -226,7 +226,7 @@ first member; the rest by compositional need, one at a time, each through the pl
   kinds in the notation (part 7 — a device sheet each); the extractor skips them.
 - **11.3 THE PROCESS BRICK — `done but for the composer's ear` 2026-10-05 (RUNNING_LOG §26).** `score/le_process.js`, a MIXIN on
   `LEObjects` (one more tag): `midiModel` `elecProcess` — a stage of a chain: a source, an effect from the catalogue, its dials, how
-  it ends, a Render button; rendered, it is played as a plain return. `docs/SEAMS.md` § the third object.
+  it ends, a Render button; rendered, it is played as a plain return. `docs/SEAMS.md` § the third object. **11.2 b A RETURN'S VARIANTS — `done but for the composer's ear` 2026-10-05 (RUNNING_LOG §35):** `elec.variants` on the return brick, its panel rows (a preset · an envelope · ▶), the plan sent by the page, "render all planned"; the presets are a file of the PIECE's. `docs/SEAMS.md` § the processed return.
 
 ## 12. The live graphics — `todo`
 

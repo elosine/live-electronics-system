@@ -244,9 +244,37 @@ page without it still opens a score that has these bricks. A zone like the other
 **Proven** (the Decibel piece's 10.1, RUNNING_LOG §26): the engine's half by `sc/process_test.scd` (four offline renders, no
 hardware); the page's half under a stub window with the piece's workshop score. NOT yet by a browser's real input or a living engine.
 
+## The composer score — the processed return: a brick's variants and the plan (parts 6 · 11.2)
+
+**The shape.** Nothing new on the page: a field on the return brick, a file of the piece's, two message kinds. A return may ask
+for a TRANSFORMATION of its sample instead of the sample — one effect of the chain under an envelope — and the engine makes it
+from whatever was just captured.
+
+| | where | what |
+|---|---|---|
+| **the variant** | the return brick: `elec.variants = { '<sample>': '<key>-<env>' }` | one per sample the brick plays; the brick then asks for `<sample>~<key>-<env>` (`bfl-impulse-1~crush4-perc`) |
+| **the presets** | THE PIECE's file, fetched at `opts.presetsUrl` (`/bank/presets.json` by default) | `{ classes: { <class>: { durX } }, envelopes: { <env>: { atkMs?, capMs? } }, presets: [{ key, name, effect, args, class, durX?, match?, capMs? }] }` — `args` whole, under the chain's own control names; a value may be a range `[lo, hi]`, drawn at each send. `<env>` is one of the engine's endings (`perc` · `expodec` · `gauss` · `tri` · … · `tail`) |
+| **the plan** | `/le/plan  stamp · part · of · rows · [render]` | every variant the score's bricks ask for, once, with the score time of its first use: `base;suffix;effect;end;atkMs;durX;match;t;capMs;args`, `\|` between rows. In parts of six that share a stamp; in force when the last part is in |
+| **render them all** | `/le/planrender`, or `render 1` on a plan (the panel's button sends the latter) | every planned variant whose sample is in the bank, again |
+
+- **The engine renders a sample's variants right after its capture**, the soonest-needed first, two at a time, offline; each is a
+  processed sample — a file, a row with `planned: 1`, a buffer.
+- **Asked for before it is ready, a variant falls back** — the earlier render if a buffer holds one, else the sample, raw — and
+  the engine's window says `late · …`. The page does not know and does not wait.
+- **The page sends the plan** at a pass's first frame, a second after any change to the score, and with the button. An empty
+  plan clears the engine's.
+- **`markDirty` is WRAPPED** (with `renderZone` and `showPropertyPanel`: three now) — no line of the host's is changed.
+- **A piece with no presets file** has no rows in the panel and every return is raw: the file is the switch.
+- **A variant's row is left out of the pickers** (the return's Sample · a pattern's boxes · the process brick's Source), and `*`
+  plays the captured samples only.
+
+**Proven** (the Decibel piece's 10.8, RUNNING_LOG §35): the engine's half by `sc/process_test.scd` (a plan in two parts, out of
+order; a queue two wide; lengths by `durX`; the fallback); the page's half under a stub window with the piece's score. NOT yet
+through a living engine or by a browser's eye.
+
 ## The lines a stack file must change, per piece
 
-*(The message route, 4.2 — the Decibel piece's 6.2 commit of 2026-10-04. The objects, part 11 — its 6.3 … 6.6 commit, the same day.)* *(The process brick — the Decibel piece's 10.1 commit of 2026-10-05: one more tag, one more key.)*
+*(The message route, 4.2 — the Decibel piece's 6.2 commit of 2026-10-04. The objects, part 11 — its 6.3 … 6.6 commit, the same day.)* *(The process brick — the Decibel piece's 10.1 commit of 2026-10-05: one more tag, one more key.)* *(The processed return — its 10.8 commit of the same day: NO line; a presets file where the page fetches it, `/bank/presets.json`.)*
 
 **The piece's score server (`score/server.js`) — three lines:**
 

@@ -22,6 +22,22 @@
 //       id       comes back in the row as openingId — how the page knows THIS render is done
 //   The answer is the bank's: <bank>/<out>.wav · a row in index.json (kind "processed", with source · effect · args · end) ·
 //   the sample in a buffer, playable at once by /le/play. One LE_RESULT line; an LE_ERROR when nothing was made.
+//       durX     (2026-10-05, the Decibel piece's DEC-22) instead of durMs: the envelope's length as a MULTIPLE OF THE SOURCE'S OWN
+//                length — and of the length the effect makes of it when the args change `rate` (a tape at half speed is twice as long).
+//
+// THE PLAN (the Decibel piece's 10.8 · DEC-21 · 22 — "every return a transformation"): a score may ask for VARIANTS of the samples it
+// captures, <base>~<suffix> (bfl-impulse-1~crush4-perc): one effect under a short envelope. The score is a PLAN; the engine renders
+// each sample's variants RIGHT AFTER ITS CAPTURE, the soonest-needed first — the same in concert and in simulation.
+//   /le/plan        stamp · part · of · rows · [render]
+//       rows     the variants, "|" between them, each  base;suffix;effect;end;atkMs;durX;match;t;capMs;args  (t = the score time of
+//                its first use; args as /le/process takes them). A plan comes in PARTS that share a stamp; it REPLACES the plan
+//                before it when the last part is in, in whatever order they arrive. An empty plan clears it. render 1: then every
+//                planned variant whose sample is in the bank is rendered (as /le/planrender).
+//   /le/planrender  every planned variant whose sample is in the bank, rendered again — the simulation's button.
+//   After a capture (bank.scd captureDone) the sample's planned variants are queued, ordered by t; at most planWidth (2) renders
+//   run at once and each one's end starts the next. A variant is a processed sample like any other — a file, a row (planned: 1),
+//   a buffer. Played before its render is in, a variant falls back (bank.scd sampleFor): the EARLIER render if a buffer holds one
+//   (the take before, or the backup's), else its base RAW — said in the window each time, as "late".
 //
 // THE RENDER IS OFFLINE (NRT): a second scsynth, with no device and no port, plays the source's FILE through the chain into a
 // file, faster than real time — the sandbox's own road for this chain (its build/audition/*.scd), so the living engine's sound
@@ -263,7 +279,9 @@
 	var lim = (floorDb: [-120, -6], capMs: [100, 60000], fadeOutMs: [0, 2000], atkMs: [0, 10000], durMs: [10, 120000], relMs: [0, 120000], curve: [-12, 12], gainDb: [-60, 24], match: [0, 1]);
 	var endMode, srcPath, sf, sr, srcData, srcPeak, parsed, args, argsText, rate = 1, total, lead = 0.02, oscPath, nrtPath, opts, score;
 	var endModes = ["shape", "tail", "perc", "gauss", "quasi", "tri", "expodec", "rexpodec"];
+	var durX = (d[\durX] ? 0).asString.asFloat;
 	lim.keysValuesDo({ |k, r| if(d[k].notNil) { o[k] = d[k].asString.asFloat.clip(r[0], r[1]) } });
+	if(d[\planned].notNil) { o[\planned] = 1 };   // a variant of the plan: its row says so
 	endMode = (d[\end] ? o[\end]).asString;
 	if(endModes.detect({ |m| m == endMode }).isNil) { endMode = "tail" };   // compared by content (§94)
 	case
@@ -290,6 +308,8 @@
 			args = parsed[\args];
 			argsText = args.clump(2).collect({ |p| p[0].asString ++ ":" ++ p[1] }).join(",");
 			args.clump(2).do({ |p| if(p[0] == \rate) { rate = p[1].abs.clip(0.05, 8) } });
+			// durX: the envelope's length as a multiple of the source's own — of what the effect makes of it, when the tape's speed changes it
+			if(durX > 0) { o[\durMs] = (srcData.size / sr / rate * 1000 * durX).clip(lim[\durMs][0], lim[\durMs][1]) };
 			// shape: the object's length and room for the head · tail: the source, then the cap
 			total = if(endMode != "tail") { (o[\durMs] / 1000) + 0.5 } { (srcData.size / sr / rate) + (o[\capMs] / 1000) };
 			File.mkdir(dir +/+ "raw");
@@ -312,6 +332,7 @@
 					self.say("LE_ERROR", "process · " ++ out ++ " — the render was made and could not be banked · " ++ err.errorString);
 					self.say("LE_RESULT", self.json((msg: "processed", name: out, source: src, openingId: id, failed: true)));
 				};
+				if(self[\planNext].notNil) { self.planNext };   // a render has ended: the plan's queue may start its next
 			});
 		};
 	};
@@ -398,6 +419,7 @@
 				category: "processed", scoreTime: 0, lengthMs: lenMs, peakDb: self.db(outPeak), file: rel, raw: "raw/" ++ out ++ ".nrt.wav",
 				openingId: id, windowMs: 0, attackMs: (head / sr * 1000).round(0.1), captured: self.nowIso,
 				kind: "processed", source: src, effect: effect, args: argsText, end: endMode);
+			if(o[\planned].notNil) { row[\planned] = 1 };   // a variant of the plan (below): a page keeps it out of its pickers
 			self[\indexRows] = self[\indexRows].reject({ |r| r[\name].asString == out }).asList;   // a List: add() in place (bank.scd, §84)
 			self[\indexRows].add(row);
 			if(self.indexWrite.not) { self.say("LE_INFO", "the index was NOT written — the sample is saved as " ++ rel) };
@@ -406,8 +428,11 @@
 				Buffer.read(s, dir +/+ rel, action: { |b|
 					if(self[\samples].isNil) { self[\samples] = IdentityDictionary.new };
 					self[\samples][out.asSymbol] = (row: row, buf: b, from: \processed);
+					if(self[\planStale].notNil) { self[\planStale].remove(out.asSymbol) };   // this take's render is in the buffer now
 					if(old.notNil and: { old[\buf].notNil }) { SystemClock.sched(10, { old[\buf].free; nil }) };
 				});
+			} {
+				if(self[\planStale].notNil) { self[\planStale].remove(out.asSymbol) };
 			};
 			self.say("LE_INFO", "processed · " ++ out ++ " ← " ++ src ++ " · " ++ effect ++ " · " ++ endMode ++ " · " ++ lenMs.round(1).asInteger ++ " ms · peak " ++ self.db(outPeak) ++ " dB"
 				++ if(capped) { " · STILL SOUNDING at the cap: faded" } { "" } ++ if(held) { " · held under full scale" } { "" }
@@ -416,5 +441,88 @@
 		};
 	};
 	self
+};
+
+// ---- THE PLAN: the variants a score will ask for, rendered as soon as their sample is captured (the header has the messages) --------
+~le[\planWidth] = 2;   // how many renders may run at once: each is a second scsynth, beside a performance
+
+// /le/plan — one PART of a plan. The parts share a stamp and may arrive in any order (each is its own HTTP request and its own
+// datagram); the plan in force changes only when the last one is in.
+~le[\planTake] = { |self, d|
+	var stamp = (d[\stamp] ? "").asString, part = (d[\part] ? 1).asInteger.max(1), of = (d[\of] ? 1).asInteger.max(1);
+	var rows = List.new, all, render;
+	(d[\rows] ? "").asString.split($|).do({ |line|
+		var f = line.asString.split($;);
+		if(f.size >= 10) {
+			rows.add((base: self.safeName(f[0]), suffix: self.safeName(f[1]), effect: f[2].asString, end: f[3].asString,
+				atkMs: f[4].asString.asFloat, durX: f[5].asString.asFloat, match: f[6].asString.asInteger, t: f[7].asString.asFloat,
+				capMs: f[8].asString.asFloat, args: f[9].asString));
+		};
+	});
+	if(self[\planIn].isNil or: { self[\planIn][\stamp] != stamp }) { self[\planIn] = (stamp: stamp, parts: IdentityDictionary.new, render: false) };
+	self[\planIn][\parts][part] = rows;
+	if((d[\render] ? 0).asInteger > 0) { self[\planIn][\render] = true };
+	if(self[\planIn][\parts].size >= of) {
+		all = List.new;
+		of.do({ |i| all.addAll(self[\planIn][\parts][i + 1] ? []) });
+		render = self[\planIn][\render];
+		self[\planIn] = nil;
+		self[\plan] = all.reject({ |r| (r[\base].size == 0) or: { r[\suffix].size == 0 } }).asArray.sort({ |a, b| a[\t] <= b[\t] });   // soonest-needed first
+		self.say("LE_INFO", "plan · " ++ self[\plan].size ++ " variants of " ++ self[\plan].collect({ |r| r[\base] }).asSet.size ++ " samples"
+			++ if(self[\plan].size == 0) { " — every return plays its sample as it is" } { "" });
+		if(render) { self.planRenderAll };
+	};
+	self
+};
+
+// a variant into the queue (once: a second asking replaces the first). If a buffer already holds this name it is an EARLIER take's
+// render from now until the new one lands — sampleFor (bank.scd) says so when it is played.
+~le[\planAdd] = { |self, r|
+	var out = r[\base] ++ "~" ++ r[\suffix];
+	if(self[\planQueue].isNil) { self[\planQueue] = List.new };
+	if(self[\planStale].isNil) { self[\planStale] = IdentitySet.new };
+	self[\planQueue] = self[\planQueue].reject({ |q| q[\out] == out }).asList;
+	self[\planQueue].add((out: out, row: r));
+	if(self[\samples].notNil and: { self[\samples][out.asSymbol].notNil }) { self[\planStale].add(out.asSymbol) };
+	out
+};
+
+// the next renders, the soonest-needed first, while a slot is free; called when a variant is queued and when any render ends
+~le[\planNext] = { |self|
+	var q, r, m;
+	if(self[\planQueue].notNil and: { self[\planQueue].size > 0 }) {
+		self[\planQueue] = self[\planQueue].asArray.sort({ |a, b| a[\row][\t] <= b[\row][\t] }).asList;
+		while { (self[\planQueue].size > 0) and: { self[\processBusy].size < self[\planWidth] } } {
+			q = self[\planQueue].removeAt(0);
+			r = q[\row];
+			m = (source: r[\base], out: q[\out], effect: r[\effect], args: r[\args], end: r[\end], atkMs: r[\atkMs], durX: r[\durX],
+				match: r[\match], id: "plan", planned: 1);
+			if(r[\capMs] > 0) { m[\capMs] = r[\capMs] };
+			self.processRender(m);
+		};
+	};
+	self
+};
+
+// a sample has just been captured: its planned variants, from THIS take (bank.scd captureDone calls it)
+~le[\planRender] = { |self, base|
+	var b = (base ? "").asString, rows = (self[\plan] ? []).select({ |r| r[\base] == b });
+	if(rows.size > 0) {
+		rows.do({ |r| self.planAdd(r) });
+		self.say("LE_INFO", "plan · " ++ b ++ " — " ++ rows.size ++ if(rows.size == 1) { " variant" } { " variants" } ++ " to render: " ++ rows.collect({ |r| r[\suffix] }).join(" · "));
+		self.planNext;
+	};
+	rows.size
+};
+
+// /le/planrender — every planned variant whose sample is in the bank, again: the simulation's button, and a way to hear a changed
+// preset without a pass through the openings
+~le[\planRenderAll] = { |self|
+	var rows = (self[\plan] ? []), have = rows.select({ |r| self.processFile(r[\base]).notNil }), wait = rows.size - have.size;
+	have.do({ |r| self.planAdd(r) });
+	self.say("LE_INFO", "plan · render all — " ++ have.size ++ " of " ++ rows.size ++ " planned variants queued"
+		++ if(wait > 0) { " · " ++ wait ++ " wait for their sample's capture" } { "" });
+	self.planNext;
+	have.size
 };
 )
