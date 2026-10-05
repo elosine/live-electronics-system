@@ -584,3 +584,9 @@ before and after).
 be started after this build); the default dials, which are the sandbox's or the AI's guess. **Open by design:** the two
 granular voices and his pedals of resonance (parts 2 · 6, by need) · a stereo bank and the `space` stage · a cascade (a stage
 re-rendered re-rendering those made from it — the label already says which are stale).
+
+## §27. A BRICK'S `yOffset` IS THE HOST'S FRACTION OF THE LANE — the process model's 2 drew it a lane too low (2026-10-05, Fable; the Decibel piece's §105, its SWEEP_LIST #5)
+
+- **What:** `score/le_objects.js` `MODELS.elecProcess.yOffset` was 2 (§26's build). The first host, the Decibel composer page, places a zone at `top + (laneHeight − brickHeight) · yOffset` — a fraction, 0 the top of the lane, 1 the bottom. The opening is 0, the return 1; 2 fell a whole lane below, and the composer saw one purple brick and no orange ones. **Fixed: 0.5** — the three bricks stack top · middle · bottom.
+- **For a second host:** the unit of a model's `yOffset` is the host's, not this module's. A host that places zones by rows or pixels maps the three values at its attach line (a seam to name in SEAMS.md when the second host comes; not added now — one host).
+- **Proven once:** the module parses (`node --check`). The composer's eye on it: pending (the piece's §105).

@@ -60,7 +60,7 @@
     const MODELS = {
         elecOpen: { kind: 'open', sign: '◉', color: '#00897B', yOffset: 0, title: 'Mic opening' },
         elecPlay: { kind: 'play', sign: '▶', color: '#8E24AA', yOffset: 1, title: 'Sample — the return' },
-        elecProcess: { kind: 'process', sign: '⟳', color: '#EF6C00', yOffset: 2, title: 'Process — a stage of the chain' },   // le_process.js
+        elecProcess: { kind: 'process', sign: '⟳', color: '#EF6C00', yOffset: 0.5, title: 'Process — a stage of the chain' },   // le_process.js · yOffset is a FRACTION of the lane (0 top · 1 bottom): 2 drew the brick a lane too low (SWEEP_LIST #5)
     };
     const r3 = (x) => Math.round(x * 1000) / 1000;
     const safe = (s) => (s === '*' ? '*' : String(s == null ? '' : s).replace(/[^A-Za-z0-9_~-]/g, '').slice(0, 64));   // a name is a file name (sc/bank.scd); '*' = every sample; ~ = a processed sample, <root>~<n>
