@@ -25,6 +25,12 @@ var dir = thisProcess.nowExecutingPath.dirname;
 });
 "ROLL_TEST ar — 6 rolls:".postln;
 6.do({ |n| var r = ~le.arRoll; ("  " ++ r[\stance] ++ " " ++ r[\offsetMs].round(1).asInteger ++ " ms").postln });
+"ROLL_TEST chainNames — the names a chain plays:".postln;
+~le[\samples] = IdentityDictionary.new; [\p_1, \q_2, \r_3].do({ |k| ~le[\samples].put(k, ()) });
+("  \"a,b,c\" -> " ++ ~le.chainNames("a,b,c")).postln;
+("  \"*\" -> " ++ ~le.chainNames("*")).postln;
+("  \"a, *\" -> " ++ ~le.chainNames("a,*")).postln;
+("  \"\" -> " ++ ~le.chainNames("")).postln;
 "ROLL_TEST done".postln;
 0.exit;
 )

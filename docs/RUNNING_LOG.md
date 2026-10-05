@@ -477,3 +477,9 @@ receives them, and `chainRoll` · `arRoll` print their links: three per three na
 the dials say. The file carries the Decibel piece's dials of 2026-10-05 inline — edit them to a piece's own. Run:
 `sclang.exe sc/roll_test.scd` (no server boots; the engine beside it is untouched). It answered the composer's "are three
 samples played?" without his hands: yes; what he heard as one was a near-unison by design.
+
+## §23. `chainNames` — the star before the scrub (2026-10-05, Fable; the Decibel piece's §94)
+
+`safeName` scrubs a message's name to a file name, and `"*"` is not one: §21's check for it came after the scrub and never saw
+it — an empty chain. The names a chain plays are resolved in one function now, `chainNames(names)`: the star is looked for in the
+raw list and becomes every sample the bank holds; the rest is scrubbed as before. Found by CONTENT: an Array's includes() is identity in SuperCollider and never matches a String. `roll_test.scd` proves the four cases headless.

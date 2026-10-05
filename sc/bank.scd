@@ -316,6 +316,17 @@
 	links.asArray
 };
 
+// the names a chain plays, from the message's "a,b,c": each scrubbed to a file name — except "*", which is EVERY sample the bank
+// holds at this moment (§89 · §94: the scrub turned "*" into "" before the check saw it, and the chain was empty).
+~le[\chainNames] = { |self, names|
+	var raw = (names ? "").asString.split($,).collect({ |x| x.asString.stripWhiteSpace });
+	if(raw.any({ |x| x == "*" })) {   // by content: an Array's includes() is identity, and no two Strings are identical
+		if(self[\samples].notNil) { self[\samples].keys.asArray.collect(_.asString).sort } { [] }
+	} {
+		raw.collect({ |x| self.safeName(x) }).reject({ |x| x.size == 0 })
+	}
+};
+
 // ---- the return: /le/play ---------------------------------------------------------------------------------------------
 //   /le/play … behaviour chain names a,b   the brick's start is the live note; the links roll above, each scheduled from it
 //   /le/play … behaviour arChain names a,b,c   t · dueMs point at the live note; the first link is an ar roll, the rest a chain
@@ -326,11 +337,7 @@
 	var smp = if(self[\samples].notNil) { self[\samples][name.asSymbol] };
 	var beh = (d[\behaviour] ? "").asString, roll, at = due, clipped = false;
 	if((beh == "chain") or: { beh == "arChain" }) {   // §82 · §87: the samples named, rolled as a chain from the live note (arChain: the first by the ar roll)
-		var list = (d[\names] ? name).asString.split($,).collect({ |x| self.safeName(x) }).reject({ |x| x.size == 0 });
-		var links;   // §90: every var before the first statement — the language refused the file when one came after the if below
-		if(list.includes("*")) {   // §89 (DEC-12): "*" = EVERY sample the bank holds now — all players, all impulses so far; the order is I's
-			list = if(self[\samples].notNil) { self[\samples].keys.asArray.collect(_.asString).sort } { [] };
-		};
+		var list = self.chainNames(d[\names] ? name), links;   // §94: the names resolved in one place — "*" before the scrub, see chainNames
 		links = self.chainRoll(list, beh == "arChain");
 		links.do({ |k|
 			var sk = if(self[\samples].notNil) { self[\samples][k[\name].asSymbol] }, when = (due + (k[\atMs] / 1000)).max(0);
