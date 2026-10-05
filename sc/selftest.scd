@@ -8,13 +8,17 @@
 //      no look-ahead the follower reads under a wave's crest, so a 220 Hz tone at +6 settles at -0.1 dBFS, not -0.65.
 //      The ceiling is the clip at full scale. Measured 2026-10-04.)
 //   C  the latency probe measures a delay it is given (512 samples + one block of the server)
-// Each posts one LE_RESULT line with "pass": true | false. Exit 0 when all three pass, 1 otherwise.
+//   D  the ear — a message sent to UDP 57211 arrives with every field it carried, and /le/hello is answered
+//   E  the onset probe — a sound that starts 100 ms after its message is reported about 100 ms after it
+//      (90 … 250 ms passes: with no hardware the server runs on the machine's default device, whose block is not known)
+// Each posts one LE_RESULT line with "pass": true | false. Exit 0 when all five pass, 1 otherwise.
 (
 var dir = PathName(thisProcess.nowExecutingPath).pathOnly;
 (dir +/+ "boot.scd").load;
 ~le.bootEngine(\quiet, { |le|
 	var s = le[\server], sr = s.sampleRate, p, tone, maxDiff = 0, lat = List.new, clickBus, backBus;
 	var inDb, outDb, overDb, settledDb, expect, got, okA, okB, okC;
+	var gotMsg, gotReply, msgTime, heardTime, me, p2, lead, okD, okE;
 
 	SynthDef(\leTestTone, { |out = 0, amp = 0.1, freq = 220|
 		Out.ar(out, SinOsc.ar(freq) * amp);
@@ -64,6 +68,34 @@ var dir = PathName(thisProcess.nowExecutingPath).pathOnly;
 	le.say("LE_RESULT", le.json((test: "C latency probe", clicks: lat.size, expectMs: (expect * 1000).round(0.001),
 		gotMs: if(got.notNil) { (got * 1000).round(0.001) } { nil }, pass: okC)));
 
-	le.leave(if(okA and: { okB } and: { okC }) { 0 } { 1 });
+	// ---- D · the ear: a message arrives with its data; /le/hello is answered ----
+	// ---- E · the onset probe: a sound 100 ms after its message is reported about 100 ms after it ----
+	okD = false; okE = false;
+	if(le.openEar) {
+		le.hear(\onset, { |le, d, time| gotMsg = d; msgTime = time });
+		OSCdef(\leTestReply, { |msg| gotReply = msg }, '/le/hello.reply');
+		p2 = le.addPlayer(\p2, 1);
+		le.onsetOn(\p2);
+		le[\onHeard] = { |name, time, amp| if((name == \p2) and: { heardTime.isNil }) { heardTime = time } };
+		s.sync;
+		me = NetAddr("127.0.0.1", le[\earPort]);
+		me.sendMsg('/le/hello', \nonce, 77);
+		0.3.wait;
+		me.sendMsg('/le/onset', \player, "p2", \lane, 1, \id, "brick_7", \t, 3.25, \dueMs, 100.0);
+		0.1.wait;
+		tone = Synth(\leTestTone, [\out, p2[\bus].index, \amp, -40.dbamp], le[\grpIn]);
+		0.6.wait;
+		tone.free;
+		okD = gotReply.notNil and: { gotReply.indexOf(\nonce).notNil } and: { gotReply[gotReply.indexOf(\nonce) + 1] == 77 }
+			and: { gotMsg.notNil } and: { gotMsg[\player] == \p2 } and: { gotMsg[\lane] == 1 } and: { gotMsg[\id] == \brick_7 }
+			and: { (gotMsg[\t] - 3.25).abs < 0.001 } and: { gotMsg[\dueMs] == 100 };
+		lead = if(heardTime.notNil and: { msgTime.notNil }) { ((heardTime - msgTime) * 1000).round(0.1) } { nil };
+		okE = lead.notNil and: { (lead > 90) and: { lead < 250 } };
+	};
+	le.say("LE_RESULT", le.json((test: "D the ear", port: le[\earPort], helloAnswered: gotReply.notNil,
+		got: if(gotMsg.notNil) { gotMsg.asKeyValuePairs.collect(_.asString).join(" ") } { nil }, pass: okD)));
+	le.say("LE_RESULT", le.json((test: "E onset probe", sentMsAfterMessage: 100, heardMsAfterMessage: lead, pass: okE)));
+
+	le.leave(if(okA and: { okB } and: { okC } and: { okD } and: { okE }) { 0 } { 1 });
 });
 )

@@ -103,7 +103,11 @@ The simulation and the concert differ in ONE place: the input device. The sandbo
   the piece's own tooling (the Decibel piece: its bridge) · (d) the pass-through patch + the mastering chain · (e) verified in the
   piece's running app; the latency the number · (f) `docs/SEAMS.md`'s sound-path row filled from what was proven. The code lives
   in the piece's `electronics/` (its journal D7) and comes here by `git subtree push`.
-- **4.2 The trigger's message — a piece's score → the engine, OSC over UDP through the piece's score server — `todo` (LAID OUT
+- **4.2 The trigger's message — a piece's score → the engine, OSC over UDP through the piece's score server — `doing`: BUILT 2026-10-04 (RUNNING_LOG §11), PROVEN TO THE EDGE OF WEB MIDI — (a) ☑ `sc/boot.scd`
+  the ear, `sc/synths.scd` the onset probe, `sc/session.scd` · (b) ☑ `tools/osc.js` · (c) ☑ `tools/relay.js` · (d) ☑ `score/le_msg.js` · (e)
+  the engine's half ☑ (`selftest.scd` D · E) · the composer page's own playback seen by the engine ☑ · THE SCORE'S LEAD OVER ITS OWN
+  SOUND ☐ — it needs Web MIDI, the composer's Chrome · (f) ☑ `docs/SEAMS.md` the message half and the lines a stack file changes;
+  `docs/TAKE.md` step 2. (LAID OUT
   2026-10-04 in the Decibel piece, its 6.2 — `decibel_TENOR_2026/docs/PLAN.md` 1.1; its RUNNING_LOG §57 · §58 · §59).** *Result when
   done:* a brick's onset in a piece's composer score is seen in the engine as one line, with its data, before its sound arrives; the
   lead measured. *The shape (the piece's D10 — concert and simulation on ONE road):* the browser (an iPad in concert; the composer's

@@ -28,7 +28,9 @@
    ```
    **Never** a force-push and never a history rewrite; if a push is refused, pull first.
 2. **The seams applied** — `docs/SEAMS.md`'s list for this stack, once. *The audio half is written there (4.1): one send per
-   player, one flat return track, three files of the piece's own. The rest as parts 3 · 4 · 7 are built.*
+   player, one flat return track, three files of the piece's own.* **The message half is written there too (4.2): a `message` block in the piece's route table ·
+   three lines in its score server · one tag and one hook line in its composer page — each written out, with where it goes.
+   Restart a score server that was running before its three lines existed.** *The rest as parts 3 · 7 are built.*
 3. ‹the batteries and THE SHIELD run in the piece — before and after›
 4. ‹the commit recorded — where in the piece it is written, and in the piece's journal›
 5. ‹at the piece's lock — what the archive's README says›

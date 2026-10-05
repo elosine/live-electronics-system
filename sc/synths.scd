@@ -16,6 +16,7 @@
 //            The sandbox's reverb and tape sends are not ported — they come with the effects.
 // leMeter1/2 a bus's peak, twenty times a second, to '/le/meter'.
 // leLatency  a click out and a listener in: the seconds between them, to '/le/latency' (latency.scd).
+// leOnset    a rise out of silence on a bus, told ONCE to '/le/heard' — when a player's sound arrives (boot.scd § the onset probe).
 (
 SynthDef(\leIn, { |in = 0, out = 0, amp = 1|
 	Out.ar(out, In.ar(in, 1) * amp);
@@ -59,5 +60,10 @@ SynthDef(\leLatency, { |out = 0, in = 0, amp = 0.1, thresh = 0.02, period = 0.5|
 	var first = Trig1.ar(back.abs > thresh, period * 0.8);
 	Out.ar(out, click * amp);
 	SendReply.ar(first, '/le/latency', t);
+}).add;
+
+SynthDef(\leOnset, { |in = 0, id = 0, thresh = 0.001, hold = 0.25|
+	var amp = Amplitude.ar(In.ar(in, 1), 0.001, 0.05);
+	SendReply.ar(Trig1.ar(amp > thresh, hold), '/le/heard', amp, id);
 }).add;
 )

@@ -16,6 +16,7 @@
 //   grpMeter   the meters, last, so they read what was actually sent
 //
 // THE SERVER listens on UDP 57210, not SuperCollider's usual 57110: an IDE he has open is never touched.
+// THE LANGUAGE listens for a piece's MESSAGES on UDP 57211 (§ the ear, below; the engine plan's 4.2).
 //
 // HOW ~le IS WRITTEN: its functions take the namespace as their first argument and are called  ~le.name(args) ;
 // its DATA is read with brackets,  ~le[\server] . (An Event calls a function stored under a key when the key is used
@@ -25,6 +26,7 @@
 ~le = ~le ? ();
 ~le[\dir] = PathName(thisProcess.nowExecutingPath).pathOnly;
 ~le[\port] = 57210;
+~le[\msgPort] = 57211;
 
 // ---- the line protocol (tools/sc.js reads these lines) ----------------------------------------------------------------
 ~le[\say] = { |self, tag, text| (tag ++ " " ++ text).postln; self };
@@ -144,4 +146,55 @@
 };
 ~le[\peakDb] = { |self, name| self.db(self[\peaks][self[\meterIds][name]] ? 0) };
 ~le[\resetPeaks] = { |self| self[\peaks] = (); self };
+
+// ---- the ear: a piece's messages (the engine plan's 4.2) -------------------------------------------------------------
+// The LANGUAGE listens on UDP 57211 — PINNED, because sclang's own port moves when another sclang is open. A message is
+//     /le/<kind>  name value  name value …
+// and it says what each value is, so a field can be added without breaking a reader. hear(kind, func) hands func the
+// pairs as an Event:  func.(le, data, time, addr)  — `time` is when the language received it, on the clock the onset
+// probe below reports on. /le/hello is answered to its sender with /le/hello.reply, carrying back whatever it brought:
+// the handshake a piece's tools use to ask "is the engine there?" without starting or stopping anything.
+~le[\openEar] = { |self|
+	var port = self[\msgPort];
+	if(self[\earPort].isNil) {
+		if(thisProcess.openUDPPort(port)) {
+			self[\earPort] = port;
+			self.hear(\hello, { |le, data, time, addr|
+				addr.sendMsg('/le/hello.reply', \engine, 1, \mode, le[\mode], \players,
+					le[\players].keys.asArray.sort.collect(_.asString).join(","), *data.asKeyValuePairs);
+			});
+		} {
+			self.say("LE_ERROR", "the engine's message port, UDP " ++ port ++ ", is taken — is another engine running?");
+		};
+	};
+	self[\earPort].notNil
+};
+
+~le[\hear] = { |self, kind, func|
+	OSCdef(("leHear_" ++ kind).asSymbol, { |msg, time, addr|
+		var data = ();
+		msg[1..].pairsDo({ |k, v| data[k.asSymbol] = v });
+		func.value(self, data, time, addr);
+	}, ("/le/" ++ kind).asSymbol, recvPort: self[\earPort]);
+	self
+};
+
+// ---- the onset probe: WHEN a player's sound arrives, told to the language (4.2 e) ------------------------------------
+// One per player, on the player's own bus: a rise out of silence above `thresh` (0.001 = -60 dB) is reported ONCE, to
+// the function stored at ~le[\onHeard] as  (name, time, amp). With a message's arrival time (above) it gives the LEAD:
+// how long before its own sound a message came. Good to about one block of the audio device — the server answers per block.
+~le[\onsetOn] = { |self, name, thresh = 0.001|
+	var p = self[\players][name], id;
+	if(self[\onsetNames].isNil) {
+		self[\onsetNames] = ();
+		OSCdef(\leHeard, { |msg, time|
+			var who = self[\onsetNames][msg[2].asInteger];
+			if(who.notNil and: { self[\onHeard].notNil }) { self[\onHeard].value(who, time, msg[3]) };
+		}, '/le/heard', self[\server].addr);
+	};
+	id = self[\onsetNames].size;
+	self[\onsetNames][id] = name;
+	p[\onset] = Synth(\leOnset, [\in, p[\bus].index, \id, id, \thresh, thresh], self[\grpMeter]);
+	p
+};
 )

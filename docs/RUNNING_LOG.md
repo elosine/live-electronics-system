@@ -227,3 +227,61 @@ His words there (its RUNNING_LOG §56): *"I hear it now, let's go on to 6.2"* �
 engine (`leEcho`, the listening aid of §9). 4.1 is closed by the meters and by the ear. The notes toward 4.2, the message, are in the
 piece's §56: a MIDI port carries the trigger on the notes' own clock but almost no data; OSC carries any data but no clock; a third shape
 sends the data ahead and the trigger by MIDI. Not decided — the talk is next.
+
+## §11. 4.2 BUILT — the message route: the engine's ear on UDP 57211, the OSC encoder, the relay, the page's voice; proven in the Decibel piece to the edge of Web MIDI (2026-10-04, Opus, in the Decibel piece's chat)
+
+**What prompted it** (the piece's RUNNING_LOG §57 … §60; his brief is its sketch pad's DEC-8): *"we're going to need to talk in terms of
+the actual performance engine and then how we simulate it … let's make sure there's correspondence at least"* and *"Browser runs on the
+iPad … and the live electronics runs on a separate laptop."* So the message from a score to the engine is a NETWORK message, in concert
+and in simulation alike (the piece's D10). His word to the layout: *"a, write it"*; to the build: *"build here no clear"*.
+
+**What was built — all of it generic, so all of it here:**
+
+- **The ear** (`sc/boot.scd`): `~le[\msgPort] = 57211` · `~le.openEar` opens that UDP port on the LANGUAGE (pinned: sclang's own port
+  moves when another sclang is open) and answers `/le/hello` with `/le/hello.reply` · `~le.hear(kind, func)` registers `/le/<kind>` and
+  hands `func` the message's NAME, VALUE pairs as an Event, with the time the language received them.
+- **The onset probe** (`sc/synths.scd` `leOnset` · `boot.scd` `~le.onsetOn`): a rise out of silence above −60 dB on a player's bus,
+  told ONCE to the language (`/le/heard`). With a message's arrival time it gives the LEAD — how long before its own sound a message
+  came. Good to about one block of the audio device.
+- **The session** (`sc/session.scd`): shows `/le/onset` as one line; when that player's sound then arrives, a second line with the ms
+  between them, and one `LE_RESULT` line for a tool. New: `LE_SECONDS` (a bounded run) and `LE_MODE=quiet` (no hardware).
+- **The OSC encoder** (`tools/osc.js`): encode · decode · `send` over node's own `dgram`, about a hundred lines, no dependency. Its
+  self-test compares against bytes written out by hand from the OSC 1.0 specification.
+- **The relay** (`tools/relay.js`): what a piece's score server mounts at `/api/elec` — a page's `{ kind, data }` becomes `/le/<kind>`
+  with its pairs. The address comes ONLY from the piece's route table, never from a request. An onset is answered at once (UDP gives no
+  receipt, and a score must not wait on one); a `hello` waits 400 ms for the engine's answer.
+- **The page's voice** (`score/le_msg.js`): `LE.send(kind, data)` — it never throws and never waits · `LE.hello()` · `LE.noteOn(…)`,
+  THE TEST HOOK: a note the page plays on a player's MIDI port becomes `/le/onset`, while the piece's table says `testOnsets`.
+
+**The message's form, and why:** `/le/onset  player bcl  lane 1  id wc-2  t 5.0  dueMs 98.6` — NAME, VALUE pairs, not positions. A
+positional message breaks every reader when a field is added; the capture (4.3) will add a length and a category, the playback a
+sample's name. The pairs cost a few bytes and buy that.
+
+**The numbers** (the piece's `probes/elec_message.json`; its §60):
+- `selftest.scd`: D the ear — every field back, the hello answered · E the onset probe — a tone started 100 ms after its message is
+  reported 118.0 ms after it (the server on the machine's default device; 90 … 250 passes).
+- `/le/hello` and back: 0.71 ms through the piece's score server · 0.5 ms asked from the page.
+- The composer page's own playback, through its one hook line: the engine shows `onset · bcl · lane 1 · brick wc-2 · at 5.0 s · due in
+  99.0 ms` — the page schedules a note up to 100 ms ahead, and the message leaves at that moment.
+- A real note on the ReaRoute input, paired with a message sent before it: `heard · bcl · its sound arrived 536.6 ms after its message`
+  (that lead is PowerShell starting — the tool's own note, not a score's).
+
+**NOT MEASURED, and why:** the score's lead over ITS OWN sound. The proof drove the composer page in the desktop app's browser pane,
+which has no Web MIDI: the hook fired and the message arrived, but the note went to a stub and made no sound. The measure needs the
+composer's Chrome on a score server that has the route. His engine window writes it down when it happens (the piece's `tools/elec.js
+start` appends each pairing to `probes/elec_message_log.jsonl`). Expected, NOT claimed: the 0 … 100 ms the page schedules ahead, plus
+the sampler and one DAW block.
+
+**Rejected:** a MIDI port as the trigger — no concert counterpart · a WebSocket — a dependency, for a speed the messages do not need ·
+a shared clock — the crop (4.3b) finds the attack, so a message need only be early · positional OSC arguments — above.
+
+**Two faults met in the build** (the machine's, kept for the next builder): a doubled backslash typed into a shell heredoc reached
+the file as ONE, so a splice script wrote `~le[msgPort]` for `~le[\msgPort]` and sclang stopped at the parse with no `LE_` line at all
+(the runner's only sign was its timeout, exit 4) — **a file that carries backslashes is written by the file tool, never through the
+shell** · a shell command over about 8 KB fails with a false "matching quote" error.
+
+**Open, noted for the performance module (not now — his word, DEC-8):** in concert there are several tablets, each with its own
+clock and playhead — WHICH page sends a message, and how a duplicate from a second page is ignored, is that module's question. The
+message's `id` is there so the engine can tell.
+
+`docs/SEAMS.md` has the message half and the first rows of "the lines a stack file must change"; `docs/TAKE.md` step 2 names them.
