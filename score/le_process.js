@@ -66,6 +66,72 @@
         { key: 'jpverb', label: 'JPverb — a reverb with a decay per band', dials: [D('jpMix', 'mix', 0, 1, 0.05, 0.6), D('jpT60', 'time', 0.1, 20, 0.1, 2, 's'), D('jpSize', 'size', 0.5, 5, 0.1, 1.2), D('jpDamp', 'damping', 0, 1, 0.05, 0.3), D('jpLow', 'low ×', 0, 2, 0.05, 1), D('jpMid', 'mid ×', 0, 2, 0.05, 1), D('jpHigh', 'high ×', 0, 2, 0.05, 1)] },
     ];
     // how a render ends and how loud it is — a new brick's
+    // THE HINTS (§108, his ask: "I hover the mouse and it tells me what it does and … the useful range") — by control name:
+    // [what it does, the usual range]; the full range is read off the dial itself. Shown as the title of the label, the slider and the box.
+    const HINTS = {
+        _mix: ['how much of the effect: 0 is none, 1 is the effect alone', '1 for a stage of its own'],
+        rate: ['tape speed: 2 is an octave up and half the length, 0.5 an octave down and twice the length', '0.25 … 2'],
+        rev: ['the direction the sample is read'],
+        noise: ['pink noise that follows the sample\'s own loudness — a breath under it', '0.1 … 0.5'],
+        noiseCut: ['the noise is low-passed here: lower is darker', '2000 … 8000'],
+        resDcy: ['how long the four bands ring after each sound', '0.2 … 1.5'],
+        rlo: ['the band at 110 Hz: how loud it rings', '0 … 1'], rlomid: ['the band at 440 Hz: how loud it rings', '0 … 1'],
+        rhimid: ['the band at 1600 Hz: how loud it rings', '0 … 1'], rhi: ['the band at 5200 Hz: how loud it rings', '0 … 1'],
+        cresFreq: ['the pitch of the one ringing partial', '100 … 2000'],
+        cresDcy: ['how long it rings: near 1 is almost endless', '0.5 … 0.95'],
+        driveType: ['the shaper: tanh is soft · sine bends · crossover leaves a gap at zero · fold folds the wave back · bitcrush lowers the sample rate · disintegrate drops bits of the wave'],
+        drive: ['gain into the shaper: more is harder, denser', '2 … 20'],
+        driveArg: ['the shaper\'s character — it means something different per shaper: the fold\'s depth, the crush\'s rate, the gap\'s width', '0.2 … 0.8'],
+        rmFreq: ['the carrier: the result is the sum and the difference of every partial with it — low is a tremolo, high is bells', '30 … 1000'],
+        drmFreq: ['the diode ring\'s carrier: the same arithmetic, with grit', '30 … 800'],
+        fsHz: ['every partial moved by this many Hz: the harmonics stop lining up — small is a chorus, large is metal', '−300 … 300'],
+        combTime: ['the delay between the comb\'s teeth: the pitch is 1 ÷ delay — 0.012 s rings near 83 Hz, 0.002 s near 500 Hz', '0.002 … 0.03'],
+        combFb: ['how long the comb rings, in seconds', '0.3 … 2'],
+        filtType: ['the model: MoogFF and Moog ladder are round; LPF18 and RLPFD can distort (the distortion dial)'],
+        cut: ['the cutoff: above it the sound is taken away', '200 … 5000'],
+        res: ['resonance: a peak at the cutoff; near 3.9 it whistles', '0.3 … 2.5'],
+        filtDist: ['the filter\'s own distortion (LPF18 and RLPFD only)', '0.2 … 0.8'],
+        hpf: ['a high-pass after the filter: below it the sound is taken away', '20 … 200'],
+        stresTime: ['the string\'s length as a delay: the pitch is 1 ÷ delay — 0.003 s is near 333 Hz', '0.001 … 0.01'],
+        stresRes: ['how long the string rings: near 0.99 almost forever', '0.8 … 0.98'],
+        diffTime: ['the size of the smear, in seconds — short blurs the attack, long is a small room with no tail', '0.005 … 0.03'],
+        diffGain: ['how much is fed back through the smear', '0.4 … 0.8'],
+        smear: ['the spectrum blurred across this many bins: the pitch goes, the colour stays', '4 … 12'],
+        gate: ['only the bins this far above the rest survive: higher keeps less', '1 … 10'],
+        freezeAtMs: ['the moment the spectrum is caught and held, from the sample\'s start', '20 … 200'],
+        revTime: ['the reverb\'s decay, in seconds', '1 … 6'], revDamp: ['the high end dies faster as this rises', '0.2 … 0.7'], revRoom: ['the room\'s size', '10 … 60'],
+        ghTime: ['the delay before each echo, in seconds', '0.05 … 1'], ghSize: ['the space\'s size', '0.5 … 3'],
+        ghFb: ['how much comes round again: near 1 is endless', '0.5 … 0.9'], ghDiff: ['how smeared each echo is', '0.5 … 0.9'],
+        ghDamp: ['the high end dies faster as this rises', '0.1 … 0.5'],
+        jpT60: ['the decay to −60 dB, in seconds', '1 … 8'], jpSize: ['the space\'s size', '0.8 … 3'], jpDamp: ['the high end dies faster as this rises', '0.2 … 0.6'],
+        jpLow: ['the low band\'s decay, times this: 2 is twice as long', '0.5 … 1.5'], jpMid: ['the mid band\'s decay, times this', '0.5 … 1.5'], jpHigh: ['the high band\'s decay, times this', '0.5 … 1.5'],
+        ovrBuf: ['the forced buffer: how often a new slice is taken, in ms', '50 … 500'],
+        ovrDiv: ['mini-buffers per forced buffer — the slice kept is 1 ÷ this of it; the pitch is divisor ÷ buffer ms × 1000 Hz: 24 ÷ 120 ms is 200 Hz', '4 … 64'],
+        ovrSmooth: ['the share of each slice crossfaded at the join: 0 clicks, 0.5 is soft', '0.05 … 0.25'],
+        odDrive: ['gain into the soft clip: the mids first, the lows less', '2 … 15'],
+        odTone: ['the tone after the clip: lower is darker', '1500 … 5000'],
+        fzGain: ['gain into the hard clip: everything flattens', '20 … 100'],
+        fzBias: ['an offset before the clip, so one side clips first: 0 is even, far from 0 is gated and spitty', '0.1 … 0.5'],
+        fzTone: ['the tone after the fuzz: lower is darker', '2000 … 6000'],
+        ocOctave: ['how much is rectified: 1 is the octave above, 0 is a plain fuzz', '0.5 … 1'],
+        ocGain: ['gain into the hard clip', '10 … 60'], ocTone: ['the tone after the fuzz: lower is darker', '2000 … 6000'],
+        cabLow: ['below this the speaker gives nothing', '60 … 150'], cabHigh: ['above this the speaker rolls off, steeply', '3000 … 6000'],
+        cabPres: ['the presence at 2.5 kHz, in dB: cut for warmth, boost for bite', '0 … 6'],
+        crBits: ['the bit depth: 16 is clean, 8 is grainy, 4 is a buzz, 2 is a square', '3 … 10'],
+        crRate: ['the sample rate: below the sound\'s highest partial, mirror tones appear', '2000 … 16000'],
+        chDrive: ['gain into the polynomials: past 1 the wave clips', '0.5 … 1.5'],
+        ch2: ['the 2nd harmonic: an octave up', '0 … 0.6'], ch3: ['the 3rd harmonic: an octave and a fifth up', '0 … 0.6'],
+        ch4: ['the 4th harmonic: two octaves up', '0 … 0.4'], ch5: ['the 5th harmonic: two octaves and a third up', '0 … 0.4'],
+        sqRatio: ['the pitch ratio: 2 is an octave up, each chunk squeezed to half its length', '1.5 … 4'],
+        sqChunks: ['zero crossings per chunk: more is smoother, fewer is rougher', '1 … 8'],
+        wlDrop: ['how many wave cycles are dropped', '10 … 30'], wlOf: ['out of how many', '20 … 60'],
+        wlMode: ['which cycles go: the first ones of each group, or random ones'],
+    };
+    const hintOf = (d) => {
+        const h = HINTS[d.key] || (/Mix$/.test(d.key) ? HINTS._mix : null);
+        return (h ? h[0] : d.label) + (d.options ? '' : ' — ' + d.min + ' … ' + d.max + (d.unit ? ' ' + d.unit : '')) + (h && h[1] ? ' · usually ' + h[1] : '');
+    };
+
     const END = { end: 'shape', atkMs: 2, durMs: 600, relMs: 600, curve: -4, floorDb: -60, capMs: 8000, gainDb: 0, match: 1 };
     const RANGE = { atkMs: [0, 10000], durMs: [10, 120000], relMs: [0, 120000], curve: [-12, 12], floorDb: [-120, -6], capMs: [100, 60000], gainDb: [-60, 24], match: [0, 1] };
     const clamp = (k, v) => Math.max(RANGE[k][0], Math.min(RANGE[k][1], v));
@@ -182,8 +248,8 @@
             const tiny = (t) => el('span', { textContent: t, style: 'font-size:10px;color:#888;white-space:nowrap' });
             const pair = (...kids) => el('span', { style: 'display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;' + small }, kids);
             const btn = (t, fn, title) => { const b = el('button', { type: 'button', textContent: t, title: title || '', style: small }); b.addEventListener('click', fn); return b; };
-            const num = (obj, key, min, max, step, width) => {
-                const n = el('input', { type: 'number', value: obj[key] == null ? '' : String(obj[key]), min: String(min), max: String(max), step: String(step), style: 'width:' + (width || 64) + 'px' });
+            const num = (obj, key, min, max, step, width, title) => {
+                const n = el('input', { type: 'number', value: obj[key] == null ? '' : String(obj[key]), min: String(min), max: String(max), step: String(step), style: 'width:' + (width || 64) + 'px', title: title || '' });
                 n.addEventListener('change', () => { const v = +n.value; if (n.value === '' || !Number.isFinite(v)) { n.value = obj[key] == null ? '' : String(obj[key]); return; } commit(() => { obj[key] = Math.max(min, Math.min(max, v)); }); });
                 return n;
             };
@@ -194,6 +260,20 @@
                 return s;
             };
             const text = (value, write, width) => { const n = el('input', { type: 'text', value: value || '', style: 'width:' + (width || 150) + 'px' }); n.addEventListener('change', () => write(n)); return n; };
+            // §108: a SLIDER beside each dial's box — while it is dragged the box follows and nothing is rebuilt; at its release ONE commit
+            // (one undo step, the brick redrawn). Frequencies and times (a range of 50× or more) slide on a LOG scale, so the low end has room.
+            const slider = (obj, key, d, box) => {
+                const logish = d.min > 0 && d.max / d.min >= 50;
+                const dec = Math.max(0, -Math.floor(Math.log10(d.step) + 1e-9));
+                const toT = (v) => Math.round(logish ? 1000 * Math.log(v / d.min) / Math.log(d.max / d.min) : 1000 * (v - d.min) / (d.max - d.min));
+                const fromT = (t) => { const v = logish ? d.min * Math.pow(d.max / d.min, t / 1000) : d.min + (d.max - d.min) * t / 1000; return +Math.min(d.max, Math.max(d.min, Math.round(v / d.step) * d.step)).toFixed(dec); };
+                const now = Math.min(d.max, Math.max(d.min, Number.isFinite(+obj[key]) ? +obj[key] : d.def));
+                const s = el('input', { type: 'range', min: '0', max: '1000', step: '1', value: String(toT(now)), style: 'width:110px;vertical-align:middle;margin:0', title: hintOf(d) });
+                const before = obj[key];
+                s.addEventListener('input', () => { const v = fromT(+s.value); obj[key] = v; box.value = String(v); });
+                s.addEventListener('change', () => { const v = fromT(+s.value); obj[key] = before; commit(() => { obj[key] = v; }); });
+                return s;
+            };
 
             // THE SOURCE — any sample of the bank, or a stage placed and not yet rendered
             const srcs = this.index.map((r) => r.name).filter((n) => n !== e.out).sort(byName).map((n) => {
@@ -217,9 +297,13 @@
             if (fx) {
                 for (const d of fx.dials) {
                     if (e.args[d.key] === undefined) e.args[d.key] = d.def;
-                    sec.appendChild(rowEl(d.label, d.options
-                        ? pick(e.args[d.key], d.options, (v) => { e.args[d.key] = +v; })
-                        : pair(num(e.args, d.key, d.min, d.max, d.step), tiny(d.unit))));
+                    const hint = hintOf(d);
+                    let control;
+                    if (d.options) { control = pick(e.args[d.key], d.options, (v) => { e.args[d.key] = +v; }); control.title = hint; }
+                    else { const box = num(e.args, d.key, d.min, d.max, d.step, 64, hint); control = pair(slider(e.args, d.key, d, box), box, tiny(d.unit)); }
+                    const row = rowEl(d.label, control);
+                    if (row.firstChild) row.firstChild.title = hint;   // the label too: hover anywhere on the row
+                    sec.appendChild(row);
                 }
                 const more = Object.keys(e.args).filter((k) => !fx.dials.some((d) => d.key === k));
                 if (more.length) sec.appendChild(note('also set, from the box below: ' + more.map((k) => k + ' ' + e.args[k]).join(' · ')));
@@ -228,17 +312,18 @@
             // HOW IT ENDS · HOW LOUD
             sec.appendChild(rowEl('Ends by', pick(e.end, [['shape', 'shape — an envelope; its length is the object\'s'], ['tail', 'tail — it rings out']], (v) => { e.end = v; })));
             if (e.end === 'shape') {
-                sec.appendChild(rowEl('', pair(tiny('attack'), num(e, 'atkMs', 0, 10000, 1, 52), tiny('length'), num(e, 'durMs', 10, 120000, 10, 64), tiny('ms'))));
-                sec.appendChild(rowEl('', pair(tiny('release'), num(e, 'relMs', 0, 120000, 10, 64), tiny('ms · curve'), num(e, 'curve', -12, 12, 0.5, 52))));
+                sec.appendChild(rowEl('', pair(tiny('attack'), num(e, 'atkMs', 0, 10000, 1, 52, 'the rise from silence, in ms — 0 … 10000 · usually 1 … 30'), tiny('length'), num(e, 'durMs', 10, 120000, 10, 64, 'the whole object\'s length, in ms — 10 … 120000; the release is inside it'), tiny('ms'))));
+                sec.appendChild(rowEl('', pair(tiny('release'), num(e, 'relMs', 0, 120000, 10, 64, 'the fall at the end, in ms — 0 … the length; as long as the length = a struck shape'), tiny('ms · curve'), num(e, 'curve', -12, 12, 0.5, 52, 'the shape of the fall: −4 falls fast first (a struck sound), 0 is a straight line, above 0 holds then drops — −12 … 12'))));
                 sec.appendChild(note('a release as long as the length = a struck shape, falling from the attack · curve −4 falls fast first, 0 is a straight line'));
             } else {
-                sec.appendChild(rowEl('', pair(tiny('until'), num(e, 'floorDb', -120, -6, 1, 52), tiny('dB under its peak · at most'), num(e, 'capMs', 100, 60000, 100, 64), tiny('ms past the source'))));
+                sec.appendChild(rowEl('', pair(tiny('until'), num(e, 'floorDb', -120, -6, 1, 52, 'the tail ends where it falls this far under its own peak — −120 … −6 · usually −60'), tiny('dB under its peak · at most'), num(e, 'capMs', 100, 60000, 100, 64, 'if it never falls that far (a freeze), it is cut and faded this long past the source — 100 … 60000 ms'), tiny('ms past the source'))));
             }
             const match = el('input', { type: 'checkbox', checked: +e.match > 0, style: 'margin:0 3px 0 0;vertical-align:middle' });
             match.addEventListener('change', () => commit(() => { e.match = match.checked ? 1 : 0; }));
             const matchLabel = el('label', { style: small }, [match]);
             matchLabel.appendChild(doc.createTextNode('peak as its source\'s'));
-            sec.appendChild(rowEl('Level', pair(matchLabel, tiny('then'), num(e, 'gainDb', -60, 24, 0.5, 52), tiny('dB'))));
+            matchLabel.title = 'ticked: the render\'s peak is set to its source\'s, so a chain neither fades nor runs hot · unticked: as rendered';
+            sec.appendChild(rowEl('Level', pair(matchLabel, tiny('then'), num(e, 'gainDb', -60, 24, 0.5, 52, 'then this much on top, in dB — −60 … 24'), tiny('dB'))));
 
             // RENDER · LISTEN
             sec.appendChild(rowEl('', pair(

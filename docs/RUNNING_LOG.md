@@ -602,3 +602,9 @@ re-rendered re-rendering those made from it — the label already says which are
 ## §29. `none` — the catalogue's first row is a pass-through (2026-10-05, Fable; the Decibel piece's §107)
 
 - **What:** `score/le_process.js` `EFFECTS` gains `none` (no dials) at the top. Picking it clears a brick's dials; a render of it sends no args, so the chain passes the source (every mix at 0) under the END stage, peak matched. The composer's ask was a reset; the row is also a use — the plain sample re-shaped. The engine's code is untouched.
+
+## §30. The process brick's dials: a slider each, log-scaled where the range is wide, and a hint table (2026-10-05, Fable; the Decibel piece's §108)
+
+- **What:** `score/le_process.js` — `slider()` beside `num()` in the panel: live while dragged (no rebuild), one commit at release; a log scale when `max / min ≥ 50`, else linear; rounded to the dial's step. `HINTS` by control name — [what it does, the usual range]; `hintOf(d)` composes it with the dial's full range and puts it on the label, the slider and the box. The END stage's boxes carry hints of their own.
+- **For a second host:** nothing here is the host's — the panel helpers (`el · rowEl · note · commit`) come in from LEObjects as before.
+- **Proven:** parses; the arithmetic checked in node at the ends and the middle of six dial shapes. Not seen in a browser.
