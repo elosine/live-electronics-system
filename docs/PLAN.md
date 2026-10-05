@@ -121,9 +121,25 @@ The simulation and the concert differ in ONE place: the input device. The sandbo
   and one hook line where its playback emits a note · (e) verified in the piece's running app; the lead over the note's own sound
   (which the engine hears through 4.1) the number · (f) `docs/SEAMS.md`: the message half of the sound-path row, the composer-score
   row's first entry, and the first rows of "the lines a stack file must change"; `docs/TAKE.md`.
-- **4.3 the capture to a bank · 4.3b the crop (the recording trimmed to the attack, reliably — the composer's word, DEC-8) · 4.4 the
-  playback from the bank · the sample index** — their first runs are the Decibel piece's 6.3 · 6.3b · 6.4 · 6.5; *each to be laid
-  out when we discuss it.* Where the index sits (here, or part 11) is open.
+- **4.3 The capture to a bank · 4.3b the crop · 4.4 the playback from the bank · the sample index — `todo` (LAID OUT 2026-10-04 in the
+  Decibel piece as ONE build, the first object end to end — its PLAN.md 1.1, 6.3 … 6.6; its RUNNING_LOG §61 · §62).** *Result when done:*
+  a brick in a piece's score opens a window on a player; the engine records it, crops it to the attack, saves it under a name, writes its
+  row; a second brick plays it back where it is placed; the composer hears the note, then the sample. **The generic forms:**
+  - **4.3 the capture:** `/le/open  player · id · name · category · t · length · dueMs` → record the player's bus from NOW to the window's
+    end (`dueMs/1000 + length` s — early is right, the crop finds the attack) → `<bank>/raw/<id>.wav`. **The bank's folder comes from the
+    engine's start (`LE_BANK`), never from a message** — the relay's rule for the address, again. Lines: `open · …`, `captured · …`.
+  - **4.3b the crop** (sclang, on the recording's samples): the attack = the first rise above −30 dB below the peak and above −50 dBFS,
+    5 ms of pre-roll · the end = below −45 dB below the peak for 50 ms, or the window's end · 2 / 10 ms fades. Defaults of the engine's,
+    overridable per piece; **the composer's ear tunes them.** → `<bank>/<name>.wav`; no attack → reported, not saved. A self-test case: a
+    synthetic attack cropped to within 2 ms.
+  - **the index** — `<bank>/index.json`, a row per sample (`id · name · player · lane · category · scoreTime · lengthMs · peakDb · file ·
+    raw · openingId · captured`), written by the engine after each crop; a name taken twice replaces its row and file. **Where it sits —
+    ANSWERED: in the piece's bank folder; the SCHEMA is the engine's** (this file, and `docs/SEAMS.md`). The piece's page reads it over its
+    own server.
+  - **4.4 the playback:** the index's samples loaded into buffers at the session's start and at each `captured`; `/le/play  name · id · t ·
+    dueMs` → `leSample` to the master at UNITY, **scheduled on the engine's clock `dueMs` later** — it lands where the brick is, with no
+    clock shared. The listening aid (`leEcho`) is retired by it.
+  - **The first run is the Decibel piece's 6.3 … 6.6; the code comes here by `git subtree push`.**
 
 ## 5. The first sound — `todo`
 
@@ -184,7 +200,7 @@ record and deviations live in each piece's repo, not here. *Each run laid out th
 This repo's RUNNING_LOG and device sheets; what the engine teaches goes to the protocol's v2 (the home's 10.3) and to the home's
 INDEX (the module manifest, 9.11 — the engine its first member). *Kept as the work happens; no laying out needed.*
 
-## 11. The composer-score objects for the electronics — `todo`
+## 11. The composer-score objects for the electronics — `doing` (the first two members laid out 2026-10-04 in the Decibel piece — its PLAN.md 1.1, 6.3 · 6.5; its RUNNING_LOG §62)
 
 ***Why:*** the live instruments have bricks, meta shapes and curves; the electronics need their own family (LG-351).
 Objects that live on a lane, interact with the MIDI, are saved in the score and read by the extractor. The trigger of 5 is the
