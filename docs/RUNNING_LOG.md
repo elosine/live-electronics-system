@@ -455,3 +455,10 @@ In the piece a first take of any name wrote its file and never its row; a re-tak
 by name and then called `add` without taking the result: after `reject` the collection is exactly full unless a row was removed,
 and `add` on a full Array returns a new one. Fixed by making the rows a List (`.asList`) before the add. The `try` of §16 stays —
 it names a real exception when one comes.
+
+## §20. THE THIRD BEHAVIOUR — `arChain`: one sample around the live note, the rest chained after it; the bands at the composer's ear (2026-10-05, Fable; the Decibel piece's §87, DEC-11)
+
+`chainRoll(names, arFirst)`: with `arFirst` the first link is the ar roll against the live note (before · after · lazy · unison ·
+a miss), the rest follow the previous link as the chain does. `/le/play … behaviour arChain names a,b,c`, `t` · `dueMs` at the
+live note; the page sends it from the region's start, 400 ms ahead. The bands are the piece's dials (LE_AR), not the engine's
+defaults: this piece widened its after band ×1.5 and pushed the rest out — the defaults stay for the next piece's ear.

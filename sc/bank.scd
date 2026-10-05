@@ -287,24 +287,28 @@
 // (G) have no "before"; the ranges and the draw are ar's (B); no miss. H: whom a link listens to (1 = the previous, always;
 // 0 = the live note; between = a coin per link). I: the order shuffled at every roll (his word) or as named.
 ~le[\chainDefaults] = (after: 0.70, lazy: 0.20, unison: 0.10, before: 0.0, follow: 1.0, shuffle: 1);
-~le[\chainRoll] = { |self, names|
+~le[\chainRoll] = { |self, names, arFirst = false|
 	var o = self[\chainDefaults].copy, a = self[\arDefaults].copy, order, links = List.new, prevAt = 0;
 	if(self[\chainOpts].notNil) { o.putAll(self[\chainOpts]) };
 	if(self[\arOpts].notNil) { a.putAll(self[\arOpts]) };
 	order = if(o[\shuffle] > 0.5) { names.scramble } { names };
-	order.do({ |name|
-		var u = 1.0.rand, draw = { |lo, hi| lo + ((hi - lo) * (1.0.rand ** a[\skew])) }, usePrev, ref, stance, off, at;
-		usePrev = (links.size > 0) and: { 1.0.rand < o[\follow] };
-		ref = if(usePrev) { prevAt } { 0 };
-		stance = case { u < o[\before] } { \before }
-			{ u < (o[\before] + o[\after]) } { \after }
-			{ u < (o[\before] + o[\after] + o[\lazy]) } { \lazy }
-			{ true } { \unison };
-		off = switch(stance,
-			\before, { draw.(a[\beforeLo], a[\beforeHi]).neg },
-			\after,  { draw.(a[\afterLo], a[\afterHi]) },
-			\lazy,   { draw.(a[\lazyLo], a[\lazyHi]) },
-			\unison, { draw.(a[\unisonLo], a[\unisonHi]) * [1, -1].choose });
+	order.do({ |name, i|
+		var u = 1.0.rand, draw = { |lo, hi| lo + ((hi - lo) * (1.0.rand ** a[\skew])) }, usePrev, ref, stance, off, at, first;
+		if((i == 0) and: { arFirst }) {   // arChain (DEC-11): the first sample anticipates or reacts to the LIVE note — the ar roll, its miss included
+			first = self.arRoll; stance = first[\stance]; off = first[\offsetMs]; usePrev = false; ref = 0;
+		} {
+			usePrev = (links.size > 0) and: { 1.0.rand < o[\follow] };
+			ref = if(usePrev) { prevAt } { 0 };
+			stance = case { u < o[\before] } { \before }
+				{ u < (o[\before] + o[\after]) } { \after }
+				{ u < (o[\before] + o[\after] + o[\lazy]) } { \lazy }
+				{ true } { \unison };
+			off = switch(stance,
+				\before, { draw.(a[\beforeLo], a[\beforeHi]).neg },
+				\after,  { draw.(a[\afterLo], a[\afterHi]) },
+				\lazy,   { draw.(a[\lazyLo], a[\lazyHi]) },
+				\unison, { draw.(a[\unisonLo], a[\unisonHi]) * [1, -1].choose });
+		};
 		at = ref + off;
 		links.add((name: name, stance: stance, offsetMs: off.round(0.1), atMs: at.round(0.1), ref: if(usePrev) { "previous" } { "live" }));
 		prevAt = at;
@@ -314,14 +318,15 @@
 
 // ---- the return: /le/play ---------------------------------------------------------------------------------------------
 //   /le/play … behaviour chain names a,b   the brick's start is the live note; the links roll above, each scheduled from it
+//   /le/play … behaviour arChain names a,b,c   t · dueMs point at the live note; the first link is an ar roll, the rest a chain
 //   /le/play … behaviour ar   the brick's centre is the live note (t · dueMs point at it); the roll above moves the sample
 ~le[\samplePlay] = { |self, d|
 	var s = self[\server], name = self.safeName(d[\name]), due = ((d[\dueMs] ? 0).asFloat / 1000).clip(0, 5);
 	var smp = if(self[\samples].notNil) { self[\samples][name.asSymbol] };
 	var beh = (d[\behaviour] ? "").asString, roll, at = due, clipped = false;
-	if(beh == "chain") {   // §82: the samples named, rolled as a chain from the live note; a missing one is said and skipped
+	if((beh == "chain") or: { beh == "arChain" }) {   // §82 · §87: the samples named, rolled as a chain from the live note (arChain: the first by the ar roll)
 		var list = (d[\names] ? name).asString.split($,).collect({ |x| self.safeName(x) }).reject({ |x| x.size == 0 });
-		var links = self.chainRoll(list);
+		var links = self.chainRoll(list, beh == "arChain");
 		links.do({ |k|
 			var sk = if(self[\samples].notNil) { self[\samples][k[\name].asSymbol] }, when = (due + (k[\atMs] / 1000)).max(0);
 			if(sk.isNil) { self.say("LE_INFO", "chain · " ++ k[\name] ++ " — no such sample in the bank") } {
@@ -332,7 +337,7 @@
 					++ k[\offsetMs].round(1).asInteger ++ " ms after the " ++ k[\ref]);
 			};
 		});
-		self.say("LE_RESULT", self.json((msg: "play", behaviour: "chain", id: (d[\id] ? "").asString, dueMs: (due * 1000).round(0.1),
+		self.say("LE_RESULT", self.json((msg: "play", behaviour: beh, id: (d[\id] ? "").asString, dueMs: (due * 1000).round(0.1),
 			links: links.collect({ |k| k[\name].asString ++ ":" ++ k[\stance] ++ ":" ++ k[\atMs] }).join(","))));
 	} {
 		if(smp.isNil) {
