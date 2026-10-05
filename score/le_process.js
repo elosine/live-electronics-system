@@ -33,12 +33,23 @@
     const O = (key, label, options, def) => ({ key, label, options, def });
 
     // THE CATALOGUE — the chain's stages in the order the chain runs them (sc/process.scd); `on` is what the stage needs besides its dials
+    // Grown 2026-10-05 by audition (the Decibel piece's DEC-17 · §106): `override`, and after `drive` the pedals and the shredders — the
+    // dials PROVISIONAL until he has heard each on a brick; the knobs are shaped after.
     const EFFECTS = [
         { key: 'tape', label: 'tape — speed and direction', dials: [D('rate', 'speed ×', 0.05, 8, 0.01, 0.5), O('rev', 'direction', [[0, 'forward'], [1, 'reversed']], 0)] },
         { key: 'noise', label: 'noise bed — follows the sample\'s envelope', dials: [D('noise', 'amount', 0, 1, 0.05, 0.5), D('noiseCut', 'cutoff', 200, 16000, 100, 8000, 'Hz')] },
+        { key: 'override', label: 'buffer override — a mini-buffer repeated: a stutter, or a pitch (divisor ÷ forced buffer)', dials: [D('ovrMix', 'mix', 0, 1, 0.05, 1), D('ovrBuf', 'forced buffer', 10, 4000, 1, 250, 'ms'), D('ovrDiv', 'divisor', 1, 256, 1, 8), D('ovrSmooth', 'smoothing', 0, 0.5, 0.01, 0.1)] },
         { key: 'resonator', label: 'resonator bank — four ringing bands', dials: [D('resMix', 'mix', 0, 1, 0.05, 1), D('resDcy', 'decay', 0.02, 3, 0.02, 0.6, 's'), D('rlo', '110 Hz', 0, 1, 0.05, 0.5), D('rlomid', '440 Hz', 0, 1, 0.05, 0.5), D('rhimid', '1600 Hz', 0, 1, 0.05, 0.5), D('rhi', '5200 Hz', 0, 1, 0.05, 0.5)] },
         { key: 'cres', label: 'complex resonator — one ringing partial', dials: [D('cresMix', 'mix', 0, 1, 0.05, 1), D('cresFreq', 'pitch', 20, 8000, 1, 300, 'Hz'), D('cresDcy', 'decay', 0.01, 0.99, 0.01, 0.6)] },
         { key: 'drive', label: 'drive — six shapers', dials: [D('shapeMix', 'mix', 0, 1, 0.05, 1), O('driveType', 'shaper', [[0, 'tanh'], [1, 'sine'], [2, 'crossover'], [3, 'fold'], [4, 'bitcrush'], [5, 'disintegrate']], 0), D('drive', 'drive', 1, 40, 0.5, 8), D('driveArg', 'character', 0.05, 1, 0.05, 0.5)] },
+        { key: 'overdrive', label: 'overdrive — a pedal, soft', dials: [D('odMix', 'mix', 0, 1, 0.05, 1), D('odDrive', 'drive', 1, 40, 0.5, 4), D('odTone', 'tone', 500, 8000, 50, 3000, 'Hz')] },
+        { key: 'fuzz', label: 'fuzz — a pedal, hard and lopsided', dials: [D('fzMix', 'mix', 0, 1, 0.05, 1), D('fzGain', 'fuzz', 2, 200, 1, 30), D('fzBias', 'bias', -1, 1, 0.05, 0.3), D('fzTone', 'tone', 500, 8000, 50, 4000, 'Hz')] },
+        { key: 'octave', label: 'octave fuzz — rectified, the octave above', dials: [D('ocMix', 'mix', 0, 1, 0.05, 1), D('ocOctave', 'octave', 0, 1, 0.05, 1), D('ocGain', 'fuzz', 2, 200, 1, 20), D('ocTone', 'tone', 500, 8000, 50, 4000, 'Hz')] },
+        { key: 'cab', label: 'cabinet — a guitar speaker\'s voicing, after a pedal', dials: [D('cabMix', 'mix', 0, 1, 0.05, 1), D('cabLow', 'low cut', 40, 300, 5, 100, 'Hz'), D('cabHigh', 'high roll-off', 2000, 12000, 100, 4500, 'Hz'), D('cabPres', 'presence', -12, 12, 0.5, 3, 'dB')] },
+        { key: 'crush', label: 'crush — bit depth and sample rate', dials: [D('crMix', 'mix', 0, 1, 0.05, 1), D('crBits', 'bits', 2, 16, 1, 8), D('crRate', 'rate', 500, 48000, 100, 12000, 'Hz')] },
+        { key: 'cheby', label: 'cheby — harmonics by Chebyshev polynomials', dials: [D('chMix', 'mix', 0, 1, 0.05, 1), D('chDrive', 'drive', 0.1, 4, 0.1, 1), D('ch2', '2nd', 0, 1, 0.05, 0.5), D('ch3', '3rd', 0, 1, 0.05, 0.3), D('ch4', '4th', 0, 1, 0.05, 0), D('ch5', '5th', 0, 1, 0.05, 0.2)] },
+        { key: 'squiz', label: 'squiz — chopped and squeezed up in pitch', dials: [D('sqMix', 'mix', 0, 1, 0.05, 1), D('sqRatio', 'ratio', 1, 16, 0.1, 2), D('sqChunks', 'chunks', 1, 32, 1, 1)] },
+        { key: 'waveloss', label: 'waveloss — wave cycles dropped', dials: [D('wlMix', 'mix', 0, 1, 0.05, 1), D('wlDrop', 'drop', 0, 100, 1, 20), D('wlOf', 'of every', 1, 100, 1, 40), O('wlMode', 'which', [[1, 'the first ones'], [2, 'at random']], 2)] },
         { key: 'ring', label: 'ring modulation — a sine carrier', dials: [D('rmMix', 'mix', 0, 1, 0.05, 1), D('rmFreq', 'carrier', 20, 8000, 1, 300, 'Hz')] },
         { key: 'diode', label: 'diode ring modulation — the circuit, gritty', dials: [D('drmMix', 'mix', 0, 1, 0.05, 1), D('drmFreq', 'carrier', 10, 6000, 1, 180, 'Hz')] },
         { key: 'shift', label: 'frequency shift — detunes, inharmonic', dials: [D('fsMix', 'mix', 0, 1, 0.05, 1), D('fsHz', 'shift', -1200, 1200, 1, 120, 'Hz')] },

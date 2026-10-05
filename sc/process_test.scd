@@ -6,6 +6,8 @@
 //                                                                                the player's held last value once kept a tail from ending)
 //     t-src~3   t-src~1 through GREYHOLE, ended by its tail                     (a render OF a render; a ~ name as a source; an sc3-plugins stage)
 //     t-src~4   t-src   through the FREEZE, a shape of 1.5 s                    (the held spectrum still sounds a second after the source)
+//     t-src~5   t-src   through BUFFER OVERRIDE, a shape of 800 ms             (DEC-17, §106: the mini-buffer machinery compiles and renders)
+//     t-src~6   t-src   through FUZZ INTO A CABINET, ended by its tail         (two of the new stages in ONE brick, by the JSON road)
 //   "C:/Program Files/SuperCollider-3.14.1/sclang.exe" electronics/sc/process_test.scd
 // A living engine beside it is untouched: nothing here opens a port or a device; the renderer is a second scsynth in NRT mode.
 // It ends PROCESS_TEST PASS (exit 0) or PROCESS_TEST FAIL (exit 1) and names each check.
@@ -25,7 +27,7 @@ src = FloatArray.fill(n, { |i|
 rowOf = { |name| ~le[\indexRows].detect({ |r| r[\name].asString == name }) };
 check = { |what, ok, detail| ("  " ++ if(ok) { "ok   " } { "FAIL " } ++ what ++ " — " ++ detail).postln; if(ok.not) { fails.add(what) } };
 fork {
-	var r1, r2, r3, r4, f4, d4, held, srcDb = ~le.db(src.abs.maxItem), t0 = Main.elapsedTime;
+	var r1, r2, r3, r4, r5, r6, f4, d4, held, srcDb = ~le.db(src.abs.maxItem), t0 = Main.elapsedTime;
 	waitFor = { |name, secs = 30|
 		var t = 0;
 		while { rowOf.(name).isNil and: { t < secs } } { 0.25.wait; t = t + 0.25 };
@@ -65,7 +67,18 @@ fork {
 		held = if(d4.notNil and: { d4.size > (1.1 * sr) }) { (d4.copyRange((0.6 * sr).asInteger, (1.1 * sr).asInteger).abs.maxItem / d4.abs.maxItem).ampdb.round(0.1) } { -999 };
 		check.("~4 the freeze holds", held > -30, "0.6 … 1.1 s into it, " ++ held ++ " dB under its peak (the source ended at 0.35 s)");
 	};
-	check.("the index on disk holds the four", ~le.indexRowsOf(tmp).size == 4, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
+	// DEC-17 (§106): buffer override — the mini-buffer machinery (a LocalBuf, two readers, the crossfade) compiles and renders under a
+	// shape; and a pedal stack — fuzz into the cabinet in ONE brick (two mixes up by the JSON road), ringing out. The sc3-plugins
+	// shredders (Squiz · WaveLoss) are covered by "the chain is whole". What they SOUND like is his, on a brick (D13).
+	~le.processRender((source: 't-src', out: 't-src~5', effect: 'override', args: 'ovrMix:1,ovrBuf:120,ovrDiv:24,ovrSmooth:0.1', end: 'shape', atkMs: 2, durMs: 800, relMs: 100, curve: -2, id: 'test-5'));
+	~le.processRender((source: 't-src', out: 't-src~6', effect: 'fuzz', args: 'fzMix:1,fzGain:60,fzBias:0.3,cabMix:1', end: 'tail', capMs: 3000, id: 'test-6'));
+	r5 = waitFor.("t-src~5");
+	r6 = waitFor.("t-src~6");
+	check.("~5 buffer override · shape", r5.notNil and: { File.exists(tmp +/+ "t-src~5.wav") }, if(r5.notNil) { r5[\lengthMs].asString ++ " ms · peak " ++ r5[\peakDb] ++ " dB" } { "no row" });
+	if(r5.notNil) { check.("~5 is its envelope, at the source's peak", ((r5[\lengthMs] - 800).abs < 0.5) and: { (r5[\peakDb] - srcDb).abs < 0.3 }, r5[\lengthMs].asString ++ " ms · " ++ r5[\peakDb] ++ " dB (the source " ++ srcDb ++ ")") };
+	check.("~6 fuzz into a cabinet, one brick · tail", r6.notNil and: { File.exists(tmp +/+ "t-src~6.wav") }, if(r6.notNil) { r6[\lengthMs].asString ++ " ms · peak " ++ r6[\peakDb] ++ " dB · args " ++ r6[\args] } { "no row" });
+	if(r6.notNil) { check.("~6 carries both stages and ends before the cap", r6[\args].asString.contains("fzMix") and: { r6[\args].asString.contains("cabMix") } and: { r6[\lengthMs] < 3000 }, r6[\args].asString ++ " · " ++ r6[\lengthMs] ++ " ms") };
+	check.("the index on disk holds the six", ~le.indexRowsOf(tmp).size == 6, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
 	// what a chain's "*" plays: every CAPTURED sample — a render does not join it (bank.scd chainNames)
 	~le[\samples].put('t-src', (row: (name: "t-src")));
 	if(r1.notNil) { ~le[\samples].put('t-src~1', (row: r1)) };

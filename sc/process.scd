@@ -36,6 +36,9 @@
 //   5 No tanh, no limiter at the end: the render is floating point and the language sets the level. A DC blocker instead, and
 //     the player is shut at its buffer's end (it holds its last value otherwise — a tail would never fall silent).
 //   Added: `rate` (the synth's own — a tape's speed) and `rev` (1 = read backwards).
+//   ADDED 2026-10-05 (the Decibel piece's DEC-17 · RUNNING_LOG §106; the engine's §28) — nine stages, each a mix at 0 like the rest:
+//   `override` (after Destroy FX's Buffer Override — from how it works, not its code) right after the noise bed; after `drive` the
+//   pedals `overdrive` · `fuzz` · `octave` and a speaker `cab`, then `crush` (a true bit depth) · `cheby` · `squiz` · `waveloss`.
 // The sc3-plugins stages are looked up BY NAME when the synth is built: one that is not installed is left out of the graph and
 // named once (~le[\processMissing]) — the file still loads.
 (
@@ -59,8 +62,20 @@
 			revTime = 2, revDamp = 0.4, revRoom = 22, revMix = 0,
 			ghTime = 0.4, ghDamp = 0.2, ghSize = 1, ghDiff = 0.7, ghFb = 0.7, ghModDepth = 0.1, ghModFreq = 2, ghMix = 0,
 			jpT60 = 2, jpDamp = 0.3, jpSize = 1.2, jpEarly = 0.7, jpModDepth = 0.1, jpModFreq = 2, jpLow = 1, jpMid = 1, jpHigh = 1, jpMix = 0,
-			noise = 0, noiseCut = 8000, amp = 1, lag = 0.04|
+			noise = 0, noiseCut = 8000,
+			ovrMix = 0, ovrBuf = 250, ovrDiv = 8, ovrSmooth = 0.1,
+			odMix = 0, odDrive = 4, odTone = 3000,
+			fzMix = 0, fzGain = 30, fzBias = 0.3, fzTone = 4000,
+			ocMix = 0, ocOctave = 1, ocGain = 20, ocTone = 4000,
+			cabMix = 0, cabLow = 100, cabHigh = 4500, cabPres = 3,
+			crMix = 0, crBits = 8, crRate = 12000,
+			chMix = 0, chDrive = 1, ch2 = 0.5, ch3 = 0.3, ch4 = 0, ch5 = 0.2,
+			sqMix = 0, sqRatio = 2, sqChunks = 1,
+			wlMix = 0, wlDrop = 20, wlOf = 40, wlMode = 2,
+			amp = 1, lag = 0.04|
 			var sig, play, dry, pre, soft, bank, shaped, filtered, chainA, chainF, specA, specF, frz, wet, back;
+			var ovrBufL, ovrFrames, wr, ovrTrig, startPos, miniSamps, fadeSamps, period, ph, firstRep, gA, rdA, rdB, ovr;
+			var od, fz, oc, cabSig, cr, chx, chx2, ch;
 			var mix = { |a, b, m| XFade2.ar(a, b, (m.lag(lag) * 2 - 1).clip(-1, 1)) };
 			// a stage whose class is not installed is left out: `otherwise` stands in its place
 			var opt = { |name, f, otherwise|
@@ -75,6 +90,28 @@
 			sig = play * (1 - Done.kr(play));
 			// the noise bed follows the sample's own envelope: it breathes with the material
 			sig = sig + (LPF.ar(PinkNoise.ar(1), noiseCut.lag(lag).clip(200, 16000)) * Amplitude.kr(sig, 0.01, 0.2) * noise.lag(lag) * 3);
+
+			// --- buffer override (DEC-17): the sound is cut into FORCED buffers (ovrBuf ms); of each, only the FIRST mini-buffer
+			//     (a 1/ovrDiv of it) is kept and repeated until the next forced buffer begins — a stutter, and a PITCH when the
+			//     mini-buffer is short (a repeat every 1/f s sounds at f: ovrDiv / ovrBuf · 1000 Hz). The joins are crossfaded by
+			//     ovrSmooth of the mini-buffer, the repeat shortened by the fade, as the original does it. After Destroy FX's Buffer
+			//     Override (Sophia Poirier, GPL) — written from how it works, not from its code. The LFOs and the MIDI pitch: later.
+			ovrBufL = LocalBuf(SampleRate.ir * 4.5).clear;   // the input, written round and round; a forced buffer is at most 4 s
+			ovrFrames = BufFrames.ir(ovrBufL);
+			wr = Phasor.ar(0, 1, 0, ovrFrames);
+			BufWr.ar(sig, ovrBufL, wr, 1);
+			ovrTrig = Impulse.ar(1000 / ovrBuf.lag(lag).clip(10, 4000));   // the forced buffer begins; Impulse fires at its first sample too
+			startPos = Latch.ar(wr, ovrTrig);
+			miniSamps = (ovrBuf.lag(lag).clip(10, 4000) / 1000 * SampleRate.ir / ovrDiv.lag(lag).clip(1, 256)).max(8);
+			fadeSamps = (miniSamps * ovrSmooth.lag(lag).clip(0, 0.5)).max(1);
+			period = (miniSamps - fadeSamps).max(4);
+			ph = Phasor.ar(ovrTrig, 1, 0, period);
+			firstRep = Sweep.ar(ovrTrig, SampleRate.ir) < period;   // the first pass: the mini-buffer is being written — no tail yet to fade from
+			gA = (ph / fadeSamps).clip(0, 1).max(firstRep);
+			rdA = BufRd.ar(1, ovrBufL, (startPos + ph - 1).wrap(0, ovrFrames), 1, 1);              // the mini-buffer's head, fading in
+			rdB = BufRd.ar(1, ovrBufL, (startPos + ph + period - 1).wrap(0, ovrFrames), 1, 1);     // its tail, fading out under the head
+			ovr = (rdA * gA.sqrt) + (rdB * (1 - gA).sqrt * (1 - firstRep));
+			sig = mix.(sig, ovr, ovrMix);
 
 			// --- resonator bank: four ringing bands -----------------------------------------------------------------
 			bank = Ringz.ar(sig, [110, 440, 1600, 5200], resDcy.lag(lag).clip(0.02, 3.0)) * [rlo.lag(lag), rlomid.lag(lag), rhimid.lag(lag), rhi.lag(lag)];
@@ -92,6 +129,30 @@
 				opt.(\Disintegrator, { |c| c.ar(dry, driveArg.lag(lag).clip(0, 1), 0.0) }, soft)
 			]);
 			sig = mix.(dry, LPF.ar(shaped, 7000) * 0.8, shapeMix);
+			// --- the pedals (DEC-17): overdrive · fuzz · octave fuzz, then a speaker cabinet — each alone, or stacked by the JSON box ---
+			od = (HPF.ar(sig, 720) + (LPF.ar(sig, 720) * 0.35)) * odDrive.lag(lag).clip(1, 40);   // the lows driven less, as the Tube Screamer's clipping stage does
+			sig = mix.(sig, LPF.ar(od.tanh, odTone.lag(lag).clip(500, 8000)) * 0.5, odMix);
+			fz = ((sig * fzGain.lag(lag).clip(2, 200)) + fzBias.lag(lag).clip(-1, 1)).clip(-1, 1);   // a biased hard clip: one side clips first, as a transistor fuzz does
+			sig = mix.(sig, LPF.ar(HPF.ar(fz, 40), fzTone.lag(lag).clip(500, 8000)) * 0.5, fzMix);
+			oc = (sig * (1 - ocOctave.lag(lag).clip(0, 1))) + (HPF.ar(sig.abs, 30) * ocOctave.lag(lag).clip(0, 1) * 2);   // rectified: the octave above appears
+			sig = mix.(sig, LPF.ar((oc * ocGain.lag(lag).clip(2, 200)).clip(-1, 1), ocTone.lag(lag).clip(500, 8000)) * 0.5, ocMix);
+			cabSig = HPF.ar(sig, cabLow.lag(lag).clip(40, 300));
+			cabSig = BPeakEQ.ar(cabSig, cabLow.lag(lag).clip(40, 300) * 1.4, 1.5, 3);                 // the cabinet's low thump
+			cabSig = BPeakEQ.ar(cabSig, 2500, 1.0, cabPres.lag(lag).clip(-12, 12));                    // presence
+			cabSig = LPF.ar(LPF.ar(cabSig, cabHigh.lag(lag).clip(2000, 12000)), cabHigh.lag(lag).clip(2000, 12000) * 1.3);   // a speaker's roll-off, steep
+			sig = mix.(sig, cabSig, cabMix);
+			// --- crush: a TRUE bit depth, and the sample rate (the `drive` stage's "bitcrush" is the rate alone) -------------------------
+			cr = Latch.ar(sig, Impulse.ar(crRate.lag(lag).clip(500, 48000))).round(2.pow(1 - crBits.lag(lag).clip(2, 16)));
+			sig = mix.(sig, cr, crMix);
+			// --- cheby: Chebyshev waveshaping — each polynomial adds exactly its harmonic of a sine; the even ones without their offset
+			//     (T2(0) = -1, T4(0) = 1 would leave a constant under silence, and a tail would never end) ------------------------------
+			chx = (sig * chDrive.lag(lag).clip(0.1, 4)).clip(-1, 1); chx2 = chx * chx;
+			ch = chx + (chx2 * 2 * ch2.lag(lag).clip(0, 1)) + (((chx2 * 4) - 3) * chx * ch3.lag(lag).clip(0, 1))
+				+ (chx2 * (chx2 - 1) * 8 * ch4.lag(lag).clip(0, 1)) + ((((chx2 * 16) - 20) * chx2 + 5) * chx * ch5.lag(lag).clip(0, 1));
+			sig = mix.(sig, ch * 0.4, chMix);
+			// --- squiz · waveloss: two shredders from sc3-plugins (chopped and squeezed up in pitch · wave cycles dropped) ---------------
+			sig = opt.(\Squiz, { |c| mix.(sig, c.ar(sig, sqRatio.lag(lag).clip(1, 16), sqChunks.clip(1, 32), 0.1), sqMix) }, sig);
+			sig = opt.(\WaveLoss, { |c| mix.(sig, c.ar(sig, wlDrop.clip(0, wlOf.clip(1, 100)), wlOf.clip(1, 100), wlMode.clip(1, 2)), wlMix) }, sig);
 			// --- ring modulation · the diode ring · frequency shift ---------------------------------------------------
 			sig = mix.(sig, sig * SinOsc.ar(rmFreq.lag(lag).clip(20, 8000)), rmMix);
 			sig = opt.(\DiodeRingMod, { |c| mix.(sig, c.ar(sig, SinOsc.ar(drmFreq.lag(lag).clip(10, 6000))), drmMix) }, sig);
