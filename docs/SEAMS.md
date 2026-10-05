@@ -1,6 +1,6 @@
 # SEAMS — where the engine plugs into a piece's stack
 
-> **Filled as each seam is made** (`docs/PLAN.md` parts 3 · 4 · 7). The sound path's audio half was written at 4.1, 2026-10-04; its message half, and the first lines a stack file must change, at 4.2 the same day.
+> **Filled as each seam is made** (`docs/PLAN.md` parts 3 · 4 · 7 · 11). The sound path's audio half was written at 4.1, 2026-10-04; its message half, and the first lines a stack file must change, at 4.2 the same day; **the bank and the first two composer-score objects at 4.3 … 4.4 · part 11, the same day (RUNNING_LOG §14).**
 >
 > **The rule (CLAUDE.md, `#6 §806`):** the engine's code is ADDITIVE — new files, registry rows, one hook line each. **Every line a
 > stack file must change is listed HERE**, so a piece applies the list once at the take (`docs/TAKE.md`). A change not on this
@@ -10,8 +10,8 @@
 
 | Seam | What the engine adds | What the piece's stack must provide | Where it was proven |
 |---|---|---|---|
-| **The composer score** | a mixin file per object family (part 11) | one `<script>` tag in `composer.html`; the hook the mixin attaches to | **the first file: `score/le_msg.js`, the page's voice** — the Decibel piece's 6.2, 2026-10-04 (RUNNING_LOG §11); the object families: ‹part 11› |
-| **The sound path** | the engine itself — SuperCollider, real-time: `sc/` · `tools/sc.js` · the message: `tools/osc.js` · `tools/relay.js` (part 4) | **audio:** one send per player to an engine input; ONE FLAT RETURN TRACK — below · **message:** three lines in its score server; a `message` block in its route table — below | the engine's half: `selftest.scd`, 2026-10-04 · **the crossing: the Decibel piece's 6.1, 2026-10-04 — unity; two DAW blocks** (RUNNING_LOG §8) · **the message: its 6.2, the same day — to the edge of Web MIDI** (RUNNING_LOG §11) |
+| **The composer score** | a mixin file per object family (part 11): **`score/le_msg.js`** the page's voice · **`score/le_objects.js`** the mic opening and the return | two `<script>` tags in `composer.html`; two lines — `LEObjects.attach(…)` and `LEObjects.tick(…)` | the voice: the Decibel piece's 6.2, 2026-10-04 (RUNNING_LOG §11) · **the first two objects: its 6.3 … 6.5, the same day (RUNNING_LOG §14)** |
+| **The sound path** | the engine itself — SuperCollider, real-time: `sc/` · `tools/sc.js` · the message: `tools/osc.js` · `tools/relay.js` (part 4) · **the bank: `sc/bank.scd`** | **audio:** one send per player to an engine input; ONE FLAT RETURN TRACK — below · **message:** three lines in its score server; a `message` block in its route table — below · **the bank:** a folder, given at the engine's start — below | the engine's half: `selftest.scd`, 2026-10-04 · **the crossing: the Decibel piece's 6.1, 2026-10-04 — unity; two DAW blocks** (RUNNING_LOG §8) · **the message: its 6.2, the same day — to the edge of Web MIDI** (RUNNING_LOG §11) · **the bank: its 6.3 … 6.5 — a rack note captured, cropped, indexed, returned at unity** (RUNNING_LOG §14) |
 | **The notation** | a rules row + a drawn or animated kind + its edge class per glyph (parts 7 · 12) | `notation/registry/rules.json` · `page_rules.json` · the render's kind table · the extractor's event emit | ‹part 7› |
 
 ## The sound path — the audio half (4.1)
@@ -22,6 +22,10 @@
 |---|---|---|
 | **live** (`\live`) | microphones → the interface → the engine's hardware inputs | the engine's master → the interface → the PA. No DAW. |
 | **simulated** (`\sim`) | the piece's sampled players in its Reaper rack → ReaRoute → the same inputs | the engine's master → ReaRoute → ONE FLAT TRACK in the rack |
+
+**THE ENGINE RETURNS WHAT IT MAKES** (since 4.4): a sample played back, later an effect — never a player's own sound by itself.
+The player is already heard in the room (in the simulation: in the rack), and a straight copy two DAW blocks behind only colours
+it. A pass-through exists as a ROUTE CHECK alone (`LE_PASS` · `LE_ECHO`, below).
 
 **What the machine must have (once per machine, his hand):** ReaRoute — an option of Reaper's installer ("ReaRoute ASIO driver") — and
 Reaper's audio system on ASIO. `node electronics/tools/sc.js devices` says whether SuperCollider sees it.
@@ -56,13 +60,20 @@ which track is which player, a job for its DAW control, a tool that runs the che
 | | |
 |---|---|
 | `node electronics/tools/sc.js devices` | what SuperCollider can open; whether ReaRoute is there |
-| `… sc.js run electronics/sc/selftest.scd` | the engine's own test — no hardware, no sound; exit 0 = all pass |
+| `… sc.js run electronics/sc/selftest.scd` | the engine's own test — no hardware, no sound; exit 0 = all SEVEN pass |
 | `… sc.js run electronics/sc/check_route.scd LE_IN=0 LE_SECONDS=10` | one player passed through; reports the loudest in and out |
 | `… sc.js run electronics/sc/latency.scd LE_OUT=0 LE_IN=2` | the round trip, in ms |
-| `… sc.js run electronics/sc/session.scd LE_PLAYERS=name:0,… [LE_ECHO=1]` | the engine up and listening; `LE_ECHO` returns each player that many seconds LATER — a listening aid (a straight pass-through is two DAW blocks behind and is not heard as a second sound) |
+| `… sc.js run electronics/sc/session.scd LE_PLAYERS=name:0,… LE_BANK=<folder> [LE_CROP=…]` | THE ENGINE, up and listening: the players' microphones, the bank, the messages. `LE_ECHO=1` / `LE_PASS=1` are route checks (each player returned a second later / straight); `LE_SECONDS=n` a tool's bounded run; `LE_MODE=quiet` no hardware |
 
 **While an engine is up** (his own window): a file that boots a server is REFUSED by `tools/sc.js`, and a piece must not list the
 audio devices (it loads ReaRoute beside the live client). The runner removes only the server its own run started (RUNNING_LOG §9).
+
+**AN ENGINE IS A SERVER WITH ITS LANGUAGE** (RUNNING_LOG §14). On Windows the language starts its server through a `cmd /c` wrapper,
+and a window closed by its X took the language and LEFT THE SERVER — holding the port and the audio device, reachable by nothing,
+and every later start refused. Two things since: **(1)** a piece's start tool ends its engine on `SIGHUP` (the window's close),
+`SIGINT`, `SIGTERM`, `SIGBREAK` — the Decibel piece's `tools/elec.js start` is the model; **(2)** `tools/sc.js` looks up each
+server's OWNER (the sclang above the wrapper): a server whose owner is gone is removed before a start (`sweepOrphans`), and only a
+server with a LIVING owner counts as "the engine is up". A living engine is never touched.
 
 The line protocol every script speaks is at the top of `tools/sc.js`; the namespace and its one trap at the top of `sc/boot.scd`.
 
@@ -83,28 +94,31 @@ sclang's own port moves when another sclang is open, so it cannot be the address
 pairs — it says what each value is, so a field can be added without breaking a reader:
 
 ```
-/le/onset  player bcl  lane 1  id wc-2  t 5.0  dueMs 98.6
+/le/open   player bcl  lane 1  id zn-2  name bcl-A  category attack  t 4.9  lengthMs 500  dueMs 89.3
+/le/play   name bcl-A  id zn-3  lane 1  t 8  dueMs 85.9
 ```
 
 A patch registers a kind with `~le.hear(kind, { |le, data, time, addr| … })` and gets the pairs as an Event, and the time the
 language received them. `/le/hello` is answered to its sender with `/le/hello.reply` — "is the engine there?", asked without
 starting or stopping anything.
 
-**The kinds so far:** `hello` · `onset` (player · lane · id · `t` the score's seconds · `dueMs` how far ahead of the note's own
-start the message left). `sc/session.scd` shows an onset as ONE LINE and, when that player's sound then arrives on its input (the
-onset probe, `~le.onsetOn`), a second line with the milliseconds between them.
+**The kinds so far:**
 
-**Why the timing need not be exact.** A message is sent AHEAD of what it announces (a composer page schedules its notes about
-100 ms ahead; a mic opening will open before its notated moment and run long), and a capture is cropped to the attack afterwards
-(4.3b). So a message need only be EARLY. No clock is shared between the browser and the engine.
+| kind | fields | what the engine does |
+|---|---|---|
+| `hello` | anything | answers `/le/hello.reply` to the sender, with its mode and players |
+| `open` | player · lane · id · name · category · `t` the score's seconds · `lengthMs` the window · `dueMs` how far ahead of the window's start the message left | THE MIC OPENING — the bank, below |
+| `play` | name · id · lane · t · `dueMs` | THE RETURN — the bank, below |
+| `onset` | player · lane · id · t · dueMs | A ROUTE CHECK (4.2's proof): shown as one line; when that player's sound then arrives, a second line with the ms between them. No page sends it any more |
+
+**Why the timing need not be exact.** A message is sent AHEAD of what it announces (a composer page schedules about 100 ms
+ahead; a mic opening opens before its notated moment and runs long), and a capture is cropped to the attack afterwards. So a
+message need only be EARLY. No clock is shared between the browser and the engine: a return says how far ahead it left (`dueMs`)
+and the engine schedules it on its own clock that much later.
 
 **Rejected** (the Decibel piece's RUNNING_LOG §57 · §58): a MIDI port as the trigger — it rides the notes' own clock, but a
 loopback MIDI port has no concert counterpart, and a MIDI message holds two numbers and no names · a WebSocket — a dependency the
 pieces' stacks refuse, for a speed sparse messages do not need (an HTTP POST on localhost is under a millisecond).
-
-**What a piece's stack must provide — the whole list:** (1) in its route table, a `message` block and, per player, the name the
-page will send · (2) three lines in its score server · (3) one tag and one hook line in its composer page. All are written out
-under "The lines a stack file must change", below.
 
 **What the engine gives a piece:**
 
@@ -113,19 +127,102 @@ under "The lines a stack file must change", below.
 | `node electronics/tools/osc.js selftest` | the OSC encoder against bytes written out by hand |
 | `node electronics/tools/osc.js send /le/hello` | one message to the engine; prints its answer (safe beside a live engine) |
 | `electronics/tools/relay.js` | the score server's handler: `require(…)({ configFile })` → `(req, res)`. `POST { kind, data }` → `/le/<kind>`; `GET` → what the page needs; the address comes ONLY from the piece's table, never from a request |
-| `electronics/score/le_msg.js` | the page's voice: `LE.send(kind, data)` · `LE.hello()` · `LE.noteOn(…)`, the test hook |
+| `electronics/score/le_msg.js` | the page's voice: `LE.send(kind, data)` · `LE.hello()` · `LE.playerOf(port)` |
 | `… sc.js run electronics/sc/session.scd … LE_SECONDS=20` | a bounded run for a piece's proof; `LE_MODE=quiet` for the messages alone, no hardware |
 | `electronics/sc/selftest.scd` — D · E | the ear and the onset probe, proven with no hardware |
 
 **Proven** (the Decibel piece's 6.2, 2026-10-04 — RUNNING_LOG §11): `/le/hello` answered through the score server in 0.71 ms and
-from the page in 0.5 ms · the composer page's OWN playback, through its hook, shown by the engine as
-`onset · bcl · lane 1 · brick wc-2 · at 5.0 s · due in 99.0 ms` · a real note on the engine's ReaRoute input paired with its
-message. **The score's lead over its own sound, measured on the composer's Chrome the same day: 114.2 ms** — the message left 92.8 ms ahead
-of the note's own start, and the sound reached the engine 21.4 ms after that start (one note; RUNNING_LOG §12).
+from the page in 0.5 ms · a real note on the engine's ReaRoute input paired with its message. **The score's lead over its own sound,
+measured on the composer's Chrome the same day: 114.2 ms** — the message left 92.8 ms ahead of the note's own start, and the sound
+reached the engine 21.4 ms after that start (one note; RUNNING_LOG §12).
+
+## The sound path — the bank (4.3 · 4.3b · 4.4 · the index)
+
+**The shape.** `sc/bank.scd`, loaded by `boot.scd`. A session calls `~le.bankOn(folder, cropOpts)` then `~le.bankHear`
+(`session.scd` does, when it is given `LE_BANK`).
+
+| step | what happens | what is left |
+|---|---|---|
+| `/le/open` | the player's bus is recorded FROM THE MESSAGE to the window's end (`dueMs` + `lengthMs`) — the recorder starts in the same breath as its buffer is made, no round trip | `<bank>/raw/<id>.wav` — the whole recording, kept for a re-crop |
+| the crop | in the LANGUAGE, on the recording's samples (the engine is whole without a piece's server) | `<bank>/<name>.wav` — mono, 24-bit, the engine's sample rate |
+| the index | a row written after each crop; a name taken twice REPLACES its row and its file — the latest take wins | `<bank>/index.json` |
+| the buffer | the sample is loaded at once; every sample of the index at the session's start | — |
+| `/le/play` | `leSample` to the master at UNITY, `dueMs` from the message's arrival, on the engine's clock (a time-stamped bundle) | the sound |
+
+**The crop's rule** — each number a DEFAULT of the engine's, overridden by the piece (`LE_CROP=attackDb=-30,endDb=-45,…` at the
+engine's start); **the composer's ear tunes them:**
+
+| | default | |
+|---|---|---|
+| `attackDb` | −30 | THE ATTACK: the first sample above this, under the recording's peak … |
+| `floorDb` | −50 | … AND above this, in dBFS — silence is not an attack. A recording whose peak is under it is REPORTED (`nothing to crop`), and nothing is saved under the name |
+| `preMs` | 5 | the sample starts this long before the attack |
+| `endDb` · `holdMs` | −45 · 50 | THE END: where the level falls under `endDb` below the peak and stays there `holdMs` — or the recording's end |
+| `fadeInMs` · `fadeOutMs` | 2 · 10 | |
+
+The level is read in steps of one millisecond (the loudest sample of each); the attack is then found to the sample inside its step.
+
+**The index's schema** (the engine's; the FILE is the piece's):
+
+```
+{ "schema": 1, "samples": [ { "id", "name", "player", "lane", "category", "scoreTime", "lengthMs", "peakDb",
+                              "file", "raw", "openingId", "windowMs", "attackMs", "captured" } ] }
+```
+
+`file` · `raw` are relative to the bank's folder, forward slashes. **`attackMs`** is where in the raw recording the attack was found —
+how early the window opened before the sound; kept for the composer and for the paper. A JSON file read by the language comes
+back all strings: `~le.indexRead` makes the schema's numbers numbers again. An index that cannot be read is NEVER written over.
+
+**A name is a file name:** `~le.safeName` (and the page's twin) keeps letters, digits, `-` and `_` and drops the rest — nothing a
+message carries can write outside the bank's folder. **The folder itself never comes from a message** (the relay's rule for the
+address, again): it is given at the engine's start.
+
+**What the engine says** (each one `LE_INFO` line; a tool reads the `LE_RESULT` twin):
+`open · bcl · bcl-A · 500 ms` → `captured · bcl-A · raw · 589 ms · peak -41.2 dB` → `cropped · bcl-A · 2476 ms of 4000 · the attack at
+575 ms · peak -41.2 dB` (or `nothing to crop · bcl-A — …`) · `play · bcl-A · in 86 ms · 2476 ms long` (or `play · x — no such sample
+in the bank`). `LE_RESULT` carries `"msg": "captured"` with the index's row, or `"msg": "play"`.
+
+**What a piece's stack must provide — the whole list:** (1) a folder for its samples, and in its route table where it is and any
+crop number it overrides · (2) its start tool passes them (`LE_BANK` · `LE_CROP`) · (3) `raw/` in its `.gitignore`; the cropped
+samples and the index are the piece's to commit · (4) its score server already serves the folder to the page, if the folder sits
+under a served path (the Decibel piece: `bank/samples/` under `/bank/`). **No line of a stack file changes.**
+
+**Proven** (RUNNING_LOG §14): `selftest.scd` F — a synthetic attack found 0.16 ms from where it was put · G — a window opened by
+message on a private bus: recorded (0.500 s for 100 + 400 ms), cropped, indexed, loaded, returned at the captured peak to 0.0 dB ·
+**in the Decibel piece's rack: a bass clarinet note, 2476 ms kept of a 4000 ms window, the attack found 575 ms in, captured at
+−41.2 dB and back on the return track at −41.22 dB.**
+
+## The composer score — the objects (part 11: the first two)
+
+**The shape.** `score/le_objects.js`. The two objects are **ZONES WITH A MODEL OF THEIR OWN** — the stack's composer tests an object's
+TYPE by name in some 250 places and has no registry, while a zone already draws on a lane, selects, moves, resizes, duplicates,
+saves, undoes and has a panel, and its MODEL is tested in a handful of places. The file adds only what the model means.
+
+| | `midiModel` | `zoneFunction` | carries | the key (the piece's) | played through |
+|---|---|---|---|---|---|
+| **the mic opening** | `elecOpen` | `elec` | `elec: { name, category, player }` | over the selected note: 100 ms before it, 500 ms long; or at the playhead | `/le/open` |
+| **the return** | `elecPlay` | `elec` | `elec: { name }` | at the playhead: the selected opening's sample, else the nearest opening's before it | `/le/play` |
+
+- **`zoneFunction: 'elec'`, not the stack's `midiPreview`** — a zone of that function is offered the MIDI models' panel rows and
+  their mute / solo; these have their own section instead.
+- **The label** says what the brick is: `◉ bcl-A` · `▶ bcl-A`, and what is missing: `— no microphone on this lane` · `— not captured yet`.
+- **The panel section** (appended under the zone's own rows): the opening's name · category · window in ms · player (read from
+  the lane) · what the bank holds of it; the return's sample, picked from the index. A rename of an opening carries its returns.
+- **A return is as long as its sample** — read from the index at the page's load, at a gesture, and a moment after each opening
+  the page has played through.
+- **The tick is the file's own, beside the MIDI playback and not inside it:** in concert the page is on a tablet and has no MIDI.
+  Each brick's message leaves once, ahead of its start by the look-ahead (0.1 s), with `dueMs`. An opening the playhead STARTS
+  INSIDE still opens, for what is left of its window. A brick on a silenced part sends nothing.
+- **`renderZone` and `showPropertyPanel` are WRAPPED** — the way the stack's own mixins go in; no line of theirs is changed.
+- **A lane is one of the engine's players by the MIDI port of its instrument**, which the piece's route table lists per player.
+
+**Proven** (the Decibel piece's 6.3 … 6.5, RUNNING_LOG §14): the keys by the browser's real input; the panel, the rename and its
+undo; a save's round trip; the page's own playback — `open` 89.3 ms and `play` 85.9 ms ahead — shown by the engine and returned
+through the rack; the notation's extractor unmoved by the two models.
 
 ## The lines a stack file must change, per piece
 
-*(First entries: the message route, 4.2 — proven in the Decibel piece's 6.2 commit of 2026-10-04, its RUNNING_LOG §60.)*
+*(The message route, 4.2 — the Decibel piece's 6.2 commit of 2026-10-04. The objects, part 11 — its 6.3 … 6.6 commit, the same day.)*
 
 **The piece's score server (`score/server.js`) — three lines:**
 
@@ -135,21 +232,27 @@ of the note's own start, and the sound reached the engine 21.4 ms after that sta
 | 2 | `if (url === '/api/elec') return elecRelay(req, res);` | the first of the API routes |
 | 3 | `if (url.startsWith('/electronics/')) { base = path.join(__dirname, '..', 'electronics', 'score'); rel = url.slice('/electronics'.length); }` | in the static block, beside `/bank/` |
 
-**The piece's composer page (`score/public/composer.html`) — two lines:**
+**The piece's composer page (`score/public/composer.html`) — four lines:**
 
 | # | the line | where |
 |---|---|---|
 | 1 | `<script src="/electronics/le_msg.js"></script>` | after the last panel's script tag |
-| 2 | `if (window.LE) LE.noteOn(inst.port, wc.layer, wc.id, wc.startSeconds, onAt);` | in `tickCurvePlayback`, right after the note-on is handed to Web MIDI. **THE TEST HOOK** — it goes when the mic opening is a brick of its own (4.3) |
+| 2 | `<script src="/electronics/le_objects.js"></script>` | after it |
+| 3 | `if (window.LEObjects) LEObjects.attach(Composer, { keys: { open: 'm', play: 'r' }, lanes: META_LAYER, indexUrl: '/bank/samples/index.json', portOf: (l) => (Composer.trackInstrument(l) \|\| {}).port, laneLabel: (l) => (TRACKS[l] \|\| {}).short \|\| ('lane ' + l) });` | just BEFORE `Composer.init()` is called — so a loaded score's first drawing has the bricks' labels. The keys, the lanes and the index's address are the PIECE's |
+| 4 | `if (window.LEObjects) LEObjects.tick(this, timeSec);` | in `applyScroll`, the last of the playback ticks |
 
-**The piece's route table (the Decibel piece: `bank/elec_route.json`) — one block:**
+*(4.2's test hook — `LE.noteOn(…)` in `tickCurvePlayback` — is OUT: the mic opening is the message.)*
+
+**The piece's route table (the Decibel piece: `bank/elec_route.json`) — two blocks:**
 
 ```
-"message": { "host": "127.0.0.1", "port": 57211, "testOnsets": true }
+"message": { "host": "127.0.0.1", "port": 57211 }
+"bank":    { "dir": "bank/samples", "crop": {} }
 ```
 
-`testOnsets` is the test hook's switch: while true, a note the page plays on a player's MIDI port also tells the engine its onset.
-The table is read at every request — a change needs no restart.
+The `message` block is read at every request — a change needs no restart of the score server. The `bank` block is read by the
+piece's start tool and given to the engine at ITS start — a change needs the engine started again.
 
-**Two facts of the take:** a score server started BEFORE its three lines existed has no route — restart it once · a page served
-by such a server gets no `le_msg.js`, `window.LE` is undefined and the hook is skipped: nothing breaks, nothing is sent.
+**Three facts of the take:** a score server started BEFORE its three lines existed has no route — restart it once · a page served
+by such a server gets no `le_msg.js`, `window.LE` is undefined and nothing is sent: nothing breaks · **the objects need no line of
+the server beyond those three** — a page reload brings them.

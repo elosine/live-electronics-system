@@ -34,6 +34,16 @@ reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, 
 
 ### THE REPO OPENS ON THIS (2026-10-03, Fable) — PART 1 DONE; the next part is HIS to name
 
+- **UPDATE 8 · 2026-10-04 (RUNNING_LOG §14, Opus) — 4.3 · 4.3b · 4.4 · THE INDEX · PART 11's FIRST TWO OBJECTS: BUILT AND PROVEN**, in
+  the Decibel piece (its 6.3 … 6.6). **The engine now does its first whole thing:** a brick in a score opens a microphone → the window is
+  recorded, cropped to its attack, saved under its name, indexed → a second brick returns it, at unity, where it is placed.
+  `sc/bank.scd` (the capture · the crop · the index · the sample player) · `leCapture` · `leSample` · `session.scd` (`LE_BANK` · `LE_CROP`;
+  a player's own sound no longer goes to the master — `LE_PASS` · `LE_ECHO` are route checks) · `score/le_objects.js` (the mic opening
+  and the return: zones with a model of their own) · `selftest.scd` F · G — SEVEN tests, all pass. **A fault of the runner found and
+  closed:** a window closed by its X left the server alive and every later start refused — `tools/sc.js` now knows a server's OWNER and
+  clears an ownerless one before a start; a piece's start tool ends its engine on the window's close. `docs/SEAMS.md` is whole for
+  both. **NOT CLAIMED: the composer's ear** — on the return, and on the crop's numbers. **► NEXT: nothing in hand here; the next object
+  comes when the Decibel piece's music reaches it (its running order, steps 8 … 10).**
 - **UPDATE 7 · 2026-10-04 (RUNNING_LOG §13, Fable) — 4.3 · 4.3b · 4.4 · THE INDEX LAID OUT**, as ONE build in the Decibel piece (its
   PLAN.md 1.1, 6.3 … 6.6; `docs/PLAN.md` part 4 has the generic forms, part 11 is `doing`): `/le/open` → the capture from the message to
   the window's end → the crop in the language by a rule his ear tunes → `<bank>/<name>.wav` and a row in `<bank>/index.json` → `/le/play`

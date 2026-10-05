@@ -17,6 +17,8 @@
 // leMeter1/2 a bus's peak, twenty times a second, to '/le/meter'.
 // leLatency  a click out and a listener in: the seconds between them, to '/le/latency' (latency.scd).
 // leOnset    a rise out of silence on a bus, told ONCE to '/le/heard' — when a player's sound arrives (boot.scd § the onset probe).
+// leCapture  a player's bus into a buffer, ONCE, from the moment it starts until the buffer is full; then it frees itself (bank.scd).
+// leSample   a buffer to the master, ONCE, dual mono at UNITY — as loud as it was captured; then it frees itself (bank.scd).
 (
 SynthDef(\leIn, { |in = 0, out = 0, amp = 1|
 	Out.ar(out, In.ar(in, 1) * amp);
@@ -65,5 +67,14 @@ SynthDef(\leLatency, { |out = 0, in = 0, amp = 0.1, thresh = 0.02, period = 0.5|
 SynthDef(\leOnset, { |in = 0, id = 0, thresh = 0.001, hold = 0.25|
 	var amp = Amplitude.ar(In.ar(in, 1), 0.001, 0.05);
 	SendReply.ar(Trig1.ar(amp > thresh, hold), '/le/heard', amp, id);
+}).add;
+
+SynthDef(\leCapture, { |in = 0, buf = 0|
+	RecordBuf.ar(In.ar(in, 1), buf, loop: 0, doneAction: 2);
+}).add;
+
+SynthDef(\leSample, { |out = 0, buf = 0, amp = 1|
+	var sig = PlayBuf.ar(1, buf, BufRateScale.kr(buf), doneAction: 2) * amp;
+	Out.ar(out, [sig, sig]);
 }).add;
 )

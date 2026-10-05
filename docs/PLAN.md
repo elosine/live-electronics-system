@@ -121,8 +121,12 @@ The simulation and the concert differ in ONE place: the input device. The sandbo
   and one hook line where its playback emits a note · (e) verified in the piece's running app; the lead over the note's own sound
   (which the engine hears through 4.1) the number · (f) `docs/SEAMS.md`: the message half of the sound-path row, the composer-score
   row's first entry, and the first rows of "the lines a stack file must change"; `docs/TAKE.md`.
-- **4.3 The capture to a bank · 4.3b the crop · 4.4 the playback from the bank · the sample index — `todo` (LAID OUT 2026-10-04 in the
-  Decibel piece as ONE build, the first object end to end — its PLAN.md 1.1, 6.3 … 6.6; its RUNNING_LOG §61 · §62).** *Result when done:*
+- **4.3 The capture to a bank · 4.3b the crop · 4.4 the playback from the bank · the sample index — `done` 2026-10-04 (BUILT in the
+  Decibel piece as ONE build — its 6.3 … 6.6, its RUNNING_LOG §64; here RUNNING_LOG §14): `sc/bank.scd` · `leCapture` · `leSample` ·
+  `session.scd` (`LE_BANK` · `LE_CROP`; the pass-through now a route check only) · `selftest.scd` F · G. Proven with no hardware
+  (the crop 0.16 ms from a known attack; the whole chain at unity) and in that piece's rack (a bass clarinet note: −41.2 dB captured,
+  −41.22 dB returned). `docs/SEAMS.md` § the bank has the shape, the rule, the schema. NOT CLAIMED: the composer's ear on the crop's
+  numbers.** *(LAID OUT 2026-10-04 in the Decibel piece — its PLAN.md 1.1, 6.3 … 6.6; its RUNNING_LOG §61 · §62.)* *Result when done:*
   a brick in a piece's score opens a window on a player; the engine records it, crops it to the attack, saves it under a name, writes its
   row; a second brick plays it back where it is placed; the composer hears the note, then the sample. **The generic forms:**
   - **4.3 the capture:** `/le/open  player · id · name · category · t · length · dueMs` → record the player's bus from NOW to the window's
@@ -200,11 +204,16 @@ record and deviations live in each piece's repo, not here. *Each run laid out th
 This repo's RUNNING_LOG and device sheets; what the engine teaches goes to the protocol's v2 (the home's 10.3) and to the home's
 INDEX (the module manifest, 9.11 — the engine its first member). *Kept as the work happens; no laying out needed.*
 
-## 11. The composer-score objects for the electronics — `doing` (the first two members laid out 2026-10-04 in the Decibel piece — its PLAN.md 1.1, 6.3 · 6.5; its RUNNING_LOG §62)
+## 11. The composer-score objects for the electronics — `doing` (the first two members BUILT 2026-10-04 in the Decibel piece — its 6.3 · 6.5, its RUNNING_LOG §64; here RUNNING_LOG §14)
 
 ***Why:*** the live instruments have bricks, meta shapes and curves; the electronics need their own family (LG-351).
 Objects that live on a lane, interact with the MIDI, are saved in the score and read by the extractor. The trigger of 5 is the
 first member; the rest by compositional need, one at a time, each through the planning method. *To be laid out when we discuss it.*
+
+- **11.1 THE MIC OPENING · 11.2 THE RETURN — `done` 2026-10-04.** `score/le_objects.js`: zones with a model of their own (`elecOpen` ·
+  `elecPlay`, `zoneFunction: 'elec'`) — a label, a panel section, a key each, and a message when the score plays through them; the
+  file's own tick (a tablet in concert has no MIDI). A piece gives it two tags and two lines (`docs/SEAMS.md`). NOT YET: their drawn
+  kinds in the notation (part 7 — a device sheet each); the extractor skips them.
 
 ## 12. The live graphics — `todo`
 

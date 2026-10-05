@@ -197,4 +197,7 @@
 	p[\onset] = Synth(\leOnset, [\in, p[\bus].index, \id, id, \thresh, thresh], self[\grpMeter]);
 	p
 };
+
+// ---- the bank: the capture, the crop, the index, the sample player (the engine plan's 4.3 … 4.4) — its own file ----
+(~le[\dir] +/+ "bank.scd").load;
 )

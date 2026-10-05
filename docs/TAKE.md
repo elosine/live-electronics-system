@@ -30,7 +30,11 @@
 2. **The seams applied** — `docs/SEAMS.md`'s list for this stack, once. *The audio half is written there (4.1): one send per
    player, one flat return track, three files of the piece's own.* **The message half is written there too (4.2): a `message` block in the piece's route table ·
    three lines in its score server · one tag and one hook line in its composer page — each written out, with where it goes.
-   Restart a score server that was running before its three lines existed.** *The rest as parts 3 · 7 are built.*
+   Restart a score server that was running before its three lines existed.** **The bank and the first two objects are written there
+   as well (4.3 … 4.4 · part 11): a `bank` block in the route table, passed to the engine at its start (`LE_BANK` · `LE_CROP`) ·
+   `raw/` in the piece's `.gitignore` · a second tag and two lines in its composer page (`LEObjects.attach` · `LEObjects.tick`),
+   the first proof's test hook taken out. The piece's start tool must END its engine when its window closes (`SIGHUP`) — the
+   Decibel piece's `tools/elec.js start` is the model.** *The rest as parts 3 · 7 are built.*
 3. ‹the batteries and THE SHIELD run in the piece — before and after›
 4. ‹the commit recorded — where in the piece it is written, and in the piece's journal›
 5. ‹at the piece's lock — what the archive's README says›

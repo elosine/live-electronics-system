@@ -1,15 +1,21 @@
-// session.scd — the engine, up and listening, for as long as its window is open (the engine plan's 4.1 · 4.2).
-//   node electronics/tools/sc.js run electronics/sc/session.scd LE_PLAYERS=bcl:0 --timeout 86400 --verbose
-// What it does TODAY:
-//   THE SOUND     each player named in LE_PLAYERS is passed straight through to the master — a note played into the rack
-//                 is heard a second time, from the engine. The capture, the bank and the playback hang on these buses next.
-//   THE MESSAGES  it listens on UDP 57211 (boot.scd § the ear). /le/onset — a piece's score saying "this player's note is
-//                 about to sound" — is shown as ONE LINE; when that player's sound then ARRIVES, a second line says how many
-//                 ms after its message it came (and one LE_RESULT line carries the same, for a tool to read).
+// session.scd — the engine, up and listening, for as long as its window is open (the engine plan's 4.1 … 4.4).
+//   node electronics/tools/sc.js run electronics/sc/session.scd LE_PLAYERS=bcl:0 LE_BANK=<folder> --timeout 86400 --verbose
+// What it does:
+//   THE PLAYERS   each player named in LE_PLAYERS has a bus of its own — its microphone. NOTHING of it goes to the master
+//                 by itself: the engine returns what it MAKES (a sample played back), not the player's own sound — the
+//                 player is already heard in the room (in the simulation: in the rack).
+//   THE BANK      with LE_BANK: the folder's index is read and its samples loaded. /le/open — a mic opening — records the
+//                 player for its window, crops the recording to the attack, saves it under its name, adds its row to the
+//                 index. /le/play returns a sample through the master, where the score's brick is (bank.scd).
+//   THE MESSAGES  it listens on UDP 57211 (boot.scd § the ear). Each is shown as ONE LINE. /le/onset — a route check: a
+//                 score saying "this player's note is about to sound" — is shown, and when that player's sound then
+//                 ARRIVES a second line says how many ms after its message it came.
 //   LE_PLAYERS   name:channel pairs, comma-separated — the hardware input (0-based) each player's microphone is on
 //   LE_MODE      sim (default) | live | quiet (no hardware, nothing sounds — a tool's test of the messages alone)
-//   LE_ECHO      seconds each player is returned BEHIND the note (0 = at once). At once, the return sits two DAW blocks
-//                after the note and is not heard as a second sound; LE_ECHO=1 makes it one — a listening aid for the route.
+//   LE_BANK      the bank's folder (the piece's; made if it is not there). Without it nothing is recorded or played.
+//   LE_CROP      the crop's rule, where a piece overrides the defaults:  attackDb=-30,endDb=-45,holdMs=50  (bank.scd)
+//   LE_ECHO      A ROUTE CHECK: seconds each player is returned BEHIND the note — the route heard as a second sound.
+//   LE_PASS      A ROUTE CHECK: 1 = each player straight to the master (two DAW blocks behind: not heard as a second sound).
 //   LE_SECONDS   leave by itself after this many seconds (0 = never: his window). A tool's bounded run.
 // While it runs it posts the loudest input and output of the last two seconds, when there was any.
 (
@@ -17,22 +23,32 @@ var dir = PathName(thisProcess.nowExecutingPath).pathOnly;
 var mode = ("LE_MODE".getenv ? "sim").asSymbol;
 var spec = ("LE_PLAYERS".getenv ? "p1:0");
 var echo = ("LE_ECHO".getenv ? "0").asFloat;
+var pass = ("LE_PASS".getenv ? "0").asFloat > 0;
 var secs = ("LE_SECONDS".getenv ? "0").asFloat;
+var bank = "LE_BANK".getenv;
+var cropSpec = "LE_CROP".getenv;
 (dir +/+ "boot.scd").load;
 ~le.bootEngine(mode, { |le|
-	var s = le[\server], names = List.new, pending = IdentityDictionary.new, t0 = Main.elapsedTime;
+	var s = le[\server], names = List.new, pending = IdentityDictionary.new, t0 = Main.elapsedTime, crop, nSamples = 0;
 	spec.split($,).do({ |pair|
 		var bits = pair.split($:), name = bits[0].asSymbol, ch = (bits[1] ? "0").asInteger, p;
 		p = le.addPlayer(name, ch);
-		le.passThrough(name, 1, echo);
+		if((echo > 0) or: { pass }) { le.passThrough(name, 1, echo) };
 		le.meterOn(name, p[\bus], 1);
 		le.onsetOn(name);
 		names.add(name);
 	});
 	le.meterOn(\out, le[\busOut], 2);
+	if(cropSpec.notNil and: { cropSpec.size > 0 }) {
+		crop = ();
+		cropSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { crop[b[0].asSymbol] = b[1].asFloat } });
+	};
+	if(bank.notNil and: { bank.size > 0 }) { nSamples = le.bankOn(bank, crop) };
 	s.sync;
-	// ---- the messages: an onset is shown; the player's own sound, when it comes, is timed against it ----
+	// ---- the messages ----
 	if(le.openEar) {
+		if(le[\bankDir].notNil) { le.bankHear };
+		// an onset is shown; the player's own sound, when it comes, is timed against it (a route check)
 		le.hear(\onset, { |le, d, time|
 			var name = (d[\player] ? '?').asSymbol;
 			pending[name] = (time: time, id: d[\id], lane: d[\lane], t: d[\t], dueMs: d[\dueMs]);
@@ -51,9 +67,12 @@ var secs = ("LE_SECONDS".getenv ? "0").asFloat;
 		};
 	};
 	le.say("LE_READY", le.json((device: le[\device], sr: s.sampleRate, players: names.asArray.collect(_.asString),
-		msgPort: le[\earPort])));
+		msgPort: le[\earPort], samples: nSamples)));
 	le.say("LE_INFO", "the engine is listening — close this window to stop it. "
-		++ if(echo > 0) { "Each note comes back " ++ echo ++ " s later." } { "Each note is passed straight through." });
+		++ if(le[\bankDir].notNil) { "The bank holds " ++ nSamples ++ " sample" ++ if(nSamples == 1) { "" } { "s" } ++ ". " }
+			{ "NO BANK: nothing will be recorded or played. " }
+		++ case { echo > 0 } { "ROUTE CHECK: each note comes back " ++ echo ++ " s later." }
+			{ pass } { "ROUTE CHECK: each note is passed straight through." } { true } { "" });
 	loop {
 		2.wait;
 		if(le[\peaks].values.any({ |v| v > 0.001 })) {

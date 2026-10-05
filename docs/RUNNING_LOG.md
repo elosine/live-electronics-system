@@ -317,3 +317,85 @@ has the generic forms. **The engine's own decisions in it, each a default the co
 - **The composer-score objects (part 11) are ZONES WITH A NEW MODEL in a piece's score, not a new object type** — the reason is the
   pieces' shared composer page, which has no registry of types (the piece's §62).
 **Rejected:** the crop in Node · a capture scheduled to the brick's exact start. **Not built yet** — the build is the piece's next step.
+
+## §14. 4.3 · 4.3b · 4.4 · THE INDEX · THE FIRST TWO OBJECTS — BUILT AND PROVEN: a note captured, cropped, banked, returned; and a fault of the runner closed (2026-10-04, Opus, in the Decibel piece's chat)
+
+*(The piece's side of the same build — its hooks, its tool, its demo score, the composer's questions about the engine — is its
+RUNNING_LOG §64. This entry is what is the ENGINE's: machinery any of the three pieces takes as it is.)*
+
+**His word there:** *"ok, window closed — go ahead with the build"*, then *"and please move thru the whole build independently"*.
+
+**WHAT WAS BUILT, in the order it was proven.**
+
+1. **`sc/synths.scd` — two synths.** `leCapture`: `RecordBuf` of a player's bus into a buffer, once, freeing itself when the buffer is
+   full. `leSample`: `PlayBuf` of a buffer to the master, dual mono, unity, freeing itself at its end.
+2. **`sc/bank.scd` — the bank, a file of its own, loaded by `boot.scd`.** `bankOn(dir, cropOpts)` · `bankHear` (the kinds `open` · `play`) ·
+   `captureOpen` · `captureDone` · `cropFind` · `cropTake` · `indexRead` · `indexWrite` · `samplePlay` · `safeName` · `wavWrite` · `nowIso`.
+   - **The recorder starts in the same breath as its buffer:** `Buffer.alloc`'s completion message IS the recorder's `/s_new` — no
+     round trip between the message's arrival and the first recorded sample. (A `sync` first would have cost one hardware block.)
+   - **The recording comes back to the language through `loadToFloatArray`** (the server writes a temp file, the language reads it);
+     the raw and the cropped files are then written BY THE LANGUAGE (`SoundFile`, WAV, 24-bit, mono) — one read from the server, the
+     crop on the numbers themselves, no second pass through the server.
+   - **The crop reads the level in steps of one millisecond** (the loudest sample of each), finds the first step over the threshold,
+     then the first SAMPLE over it inside that step. The end needs `holdMs` consecutive low steps — a low note's zero crossings dip a
+     1 ms step by a few dB and must not end the sample.
+   - **The index is rewritten whole at each capture** from the rows in memory; read at `bankOn`. sclang's JSON reader returns every
+     value as a string: the schema's numbers are converted back by name. **An index that fails to parse is never written over** — the
+     sample is still saved, and the engine says so.
+   - **The return is a time-stamped bundle** (`makeBundle(dueMs/1000, …)`): the server starts the sample `dueMs` after the language
+     received the message, to the sample, whatever the language is doing.
+   - **A name is a file name** — `safeName` keeps letters, digits, `-`, `_`. The bank's folder is never taken from a message.
+3. **`sc/session.scd`.** `LE_BANK` · `LE_CROP` (`key=value,…`). **A player's own sound no longer goes to the master.** Until now the
+   session passed every player straight through (4.1's proof), then one second late (the listening aid of §9). With a sample to
+   return, a straight copy of the player two DAW blocks behind is not "the electronics" — it is a comb on the live sound; in concert
+   it would be the dry microphone in the PA. So: nothing passes unless asked — `LE_PASS=1` (straight) and `LE_ECHO=n` (n seconds
+   late) remain as ROUTE CHECKS. *The AI's call; the piece's plan said only "the listening aid is retired".*
+4. **`sc/selftest.scd` — two more tests, seven in all.**
+   - **F · the crop.** A 0.6 s array: noise at −80 dB; at 0.200 s a 220 Hz tone, 1 ms to rise, a 60 ms time constant.
+     **Found 0.16 ms from where it was put**; the sample starts at 195.1 ms (5 ms of pre-roll), ends at 512.8 ms (the −45 dB point of
+     that decay is 511 ms); silence alone is refused.
+   - **G · the first object, end to end, no hardware.** `/le/open` (dueMs 100, lengthMs 400) to the ear; a 440 Hz burst put on the
+     player's private bus 200 ms later. **Raw 0.500 s · the attack found at 188.8 ms · 147.5 ms kept · peak −20.1 dB · one row in the
+     index, read back by the language's own parser · `/le/play` → −20.1 dB at the master: unity to the tenth of a dB.**
+   - All seven passed at the FIRST run of the new code.
+5. **`score/le_objects.js` — the mic opening and the return** (part 11's first two). Zones with a model of their own; the reasons and
+   the shape are `docs/SEAMS.md` § the composer score. Three decisions made at the build:
+   - **`zoneFunction: 'elec'`, not `midiPreview`** (the piece's plan had copied the trill's call). A `midiPreview` zone is offered the
+     MIDI models' rows in the panel — a model picker without these two in it, a player list from piece #2 — and takes part in the
+     zones' mute / solo. With a function of its own the host's panel shows the zone's four plain rows, and this file's section.
+   - **The tick is the file's own, called beside the MIDI playback** (the piece's plan put the message inside the zones' MIDI tick).
+     That tick returns at once on a page with no Web MIDI — and in concert the page is a player's tablet: no MIDI is the NORMAL case.
+     The correspondence rule (the piece's D10) decided it.
+   - **An opening the playhead starts inside still opens**, for the rest of its window. The window begins 100 ms before its note; a
+     composer who parks the playhead on the note and presses play is inside it.
+   `score/le_msg.js` lost its test hook (`LE.noteOn`); `LE.playerOf` stays — the objects read a lane's player with it.
+
+**IN THE DECIBEL PIECE'S RACK** (its `tools/elec.js object`; the numbers are in its `probes/elec_object.json`): a bass clarinet note
+(D3, 1.5 s) played into the rack by a tool, a 4000 ms window opened by message just before it → **raw 4000 ms, peak −41.2 dB → the
+attack found 575 ms in (the tool's own start-up) → 2476 ms kept (the note and its release) → on the return track −41.22 dB: unity.**
+Then the piece's composer page, in a throwaway copy: its own playback sent `open` 89.3 ms ahead and `play` 85.9 ms ahead; the engine
+showed both and the sample came back through the rack.
+
+**A FAULT OF THE RUNNER, FOUND BY THE BUILD'S FIRST RUN.** The composer had closed his engine's window; the runner still refused —
+"the engine is already running". **What was there:** one `scsynth` on 57210, its parent a `cmd /c "…scsynth.exe …"` wrapper, the
+wrapper's parent (the sclang) GONE. On Windows sclang starts its server through `cmd`; closing the console window ended node and
+sclang and left the wrapper and the server — holding the port and ReaRoute, with no language to speak to it. Every start after
+that would have been refused, his own `start` included. *And the runner's own sweep had been comparing a server's PARENT with the
+sclang's pid since §9 — the parent is the wrapper, so it never matched; it had been a no-op, hidden because a run that ends
+normally quits its own server.* **Closed three ways:**
+- `tools/sc.js` reads each server's OWNER — one step above the `cmd` wrapper — and whether that owner is a living `sclang`.
+- **`engineUp()` is true only for a server whose owner lives.** `sweepOrphans()` removes one whose owner is gone, before a start.
+  *This does not loosen §9's rule (a probe once took his engine down): a living engine is still never touched. An ownerless server
+  is no one's engine.*
+- A piece's start tool ends its engine on the window's close (`SIGHUP`), `SIGINT`, `SIGTERM`, `SIGBREAK`.
+**Proven:** the leftover was seen as `ownerAlive: false` and removed by the next run · an engine started in a console window of
+its own and closed as the X closes it: no SuperCollider process left · `SIGTERM`: the same.
+
+**NOT CLAIMED.** His ear — on the return (does it read as the note's attack?) and on every number of the crop. The crop on a soft
+or a slow attack (a −30 dB threshold under the peak lands late on one that takes 50 ms to rise — the pre-roll is 5 ms). More than
+one player at once. The concert's device (`\live`).
+
+**For the paper.** The first object is a small closed loop that already has the shape of the whole instrument: the SCORE knows
+WHEN and WHO (a brick on a player's staff), the ENGINE knows WHAT (the sound it heard, reduced to its attack), and the only thing
+that passes between them is a name and a lead time — no audio, no clock. The same two messages serve the concert unchanged; what
+the simulation replaces is the microphone and the loudspeaker, nothing else.

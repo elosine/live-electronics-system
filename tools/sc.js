@@ -16,7 +16,8 @@
 // Exit codes of the scripts: 0 done · 2 the device is not there · 3 the server did not boot · 4 a timeout.
 //
 // THE ENGINE'S SERVER LISTENS ON UDP 57210, never on 57110 — so an sclang or an IDE the composer has open for something
-// else is never touched. After a run this tool removes a scsynth left on 57210, and only that one.
+// else is never touched. After a run this tool removes the scsynth ITS OWN sclang left on 57210; before a run, one whose
+// sclang is gone (a closed window's leftover). A server with a living sclang — his engine — is refused beside, never touched.
 // (Where sclang is on this machine: the sandbox's rule, live-electronics-engine/docs/audio-workflow.md — the Windows
 // installer puts it under Program Files and not always on PATH.)
 'use strict';
@@ -46,26 +47,44 @@ function sclang() {
     throw new Error('sclang not found — install SuperCollider, or set SCLANG to the full path of sclang');
 }
 
-// every scsynth on the ENGINE's port (57210): [{ pid, parent }]
+// every scsynth on the ENGINE's port (57210), with the sclang that OWNS it: [{ pid, owner, ownerAlive }].
+// On Windows sclang starts its server through a `cmd /c` wrapper, so the server's parent is that cmd and the owner is one
+// step further up. An owner that is gone, or whose pid now belongs to something else, is not alive.
 function engineProcs() {
     if (process.platform !== 'win32') return [];
-    const r = cp.spawnSync('powershell', ['-NoProfile', '-Command',
-        "Get-CimInstance Win32_Process -Filter \"name='scsynth.exe'\" | Where-Object { $_.CommandLine -match '-u " + PORT + "' } | ForEach-Object { '' + $_.ProcessId + ' ' + $_.ParentProcessId }"],
-        { encoding: 'utf8' });
-    return (r.stdout || '').split(/\r?\n/).map((l) => l.trim().split(/\s+/).map(Number)).filter((a) => a.length === 2 && a[0] > 0).map(([pid, parent]) => ({ pid, parent }));
+    const ps = "$all = Get-CimInstance Win32_Process; $byId = @{}; foreach ($p in $all) { $byId[[int]$p.ProcessId] = $p }; " +
+        "foreach ($s in $all) { if ($s.Name -eq 'scsynth.exe' -and $s.CommandLine -match '-u " + PORT + "') { " +
+        "$o = [int]$s.ParentProcessId; $par = $byId[$o]; " +
+        "if ($par -and $par.Name -eq 'cmd.exe' -and $par.CommandLine -match 'scsynth') { $o = [int]$par.ParentProcessId }; " +
+        "$own = $byId[$o]; $alive = 0; if ($own -and $own.Name -eq 'sclang.exe') { $alive = 1 }; " +
+        "'' + $s.ProcessId + ' ' + $o + ' ' + $alive } }";
+    const r = cp.spawnSync('powershell', ['-NoProfile', '-Command', ps], { encoding: 'utf8' });
+    return (r.stdout || '').split(/\r?\n/).map((l) => l.trim().split(/\s+/).map(Number)).filter((a) => a.length === 3 && a[0] > 0)
+        .map(([pid, owner, alive]) => ({ pid, owner, ownerAlive: alive === 1 }));
 }
-// is an engine up — in his own window, or another run's?
-function engineUp() { return engineProcs().length > 0; }
+// is an engine up — in his own window, or another run's? An engine is a server WITH its language: a server whose
+// sclang is gone can be reached by nothing and is not one.
+function engineUp() { return engineProcs().some((p) => p.ownerAlive); }
+const end = (pid) => cp.spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
 // a scsynth left behind by THIS run's own sclang, and no other. (It swept every scsynth on the port until 2026-10-04:
 // a look-only probe then took down the engine he had started in his own window — the piece's RUNNING_LOG §55.)
 function sweep(sclangPid) {
-    for (const p of engineProcs()) if (p.parent === sclangPid) cp.spawnSync('taskkill', ['/PID', String(p.pid), '/F'], { stdio: 'ignore' });
+    for (const p of engineProcs()) if (p.owner === sclangPid) end(p.pid);
+}
+// a scsynth whose sclang is GONE — what is left when an engine's window is closed: the language dies with the window and
+// its server does not. It holds the port and the audio device, and nothing can speak to it; the next start would be
+// refused for ever. It is no one's engine: removed before a start (the piece's RUNNING_LOG §64). A live engine is never touched.
+function sweepOrphans() {
+    const gone = engineProcs().filter((p) => !p.ownerAlive);
+    for (const p of gone) end(p.pid);
+    return gone.length;
 }
 
 // opts.boots === false: the file boots no server (devices.scd) and may run beside a live engine
 function start(file, opts = {}) {
     const abs = path.resolve(file);
     if (!fs.existsSync(abs)) throw new Error('no such file: ' + abs);
+    if (opts.boots !== false) sweepOrphans();
     if (opts.boots !== false && engineUp()) throw new Error('the engine is already running (a scsynth on UDP ' + PORT + ', in another window) — close that window first');
     const child = cp.spawn(sclang(), [abs], { cwd: path.dirname(abs), env: { ...process.env, ...(opts.env || {}) }, windowsHide: true });
     const lines = [], results = [], errors = [], waiters = [];
@@ -104,7 +123,7 @@ function start(file, opts = {}) {
     return { child, lines, results, errors, waitFor, done, kill };
 }
 
-module.exports = { sclang, start, sweep, engineUp, engineProcs, PORT, SC_DIR };
+module.exports = { sclang, start, sweep, sweepOrphans, engineUp, engineProcs, PORT, SC_DIR };
 
 if (require.main === module) (async () => {
     const args = process.argv.slice(2), cmd = args[0];
