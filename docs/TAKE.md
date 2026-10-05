@@ -36,3 +36,4 @@
 ## The takes made
 
 - **`decibel_TENOR_2026`** — seated 2026-10-04 at this repo's `467dc7e` (its commit `f535210`); the first code built there.
+  **First push 2026-10-04: `467dc7e..3ce152c`, a fast-forward; the mirror pulled clean.**
