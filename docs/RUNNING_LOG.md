@@ -220,3 +220,10 @@ capture and the playback (4.3 · 4.4) replace it.
 
 **Proven** (the piece's §55): with `LE_ECHO=1` the engine's out trails its in; the piece's return track carries −42.62 dB; the piece's
 `meters` command leaves the engine up; `selftest.scd` still passes.
+
+## §10. 4.1 HEARD — the composer's ear closes it (2026-10-04, Opus, in the Decibel piece's chat)
+
+His words there (its RUNNING_LOG §56): *"I hear it now, let's go on to 6.2"* — a note, and the same note one second later out of the
+engine (`leEcho`, the listening aid of §9). 4.1 is closed by the meters and by the ear. The notes toward 4.2, the message, are in the
+piece's §56: a MIDI port carries the trigger on the notes' own clock but almost no data; OSC carries any data but no clock; a third shape
+sends the data ahead and the trigger by MIDI. Not decided — the talk is next.

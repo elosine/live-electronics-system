@@ -36,8 +36,8 @@ reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, 
 
 - **UPDATE 5 · 2026-10-04 (RUNNING_LOG §8, Opus) — 4.1 DONE: THE CROSSING PROVEN** in the Decibel piece (ReaRoute installed, Reaper on
   ASIO): unity through the engine; the round trip two DAW blocks (23.22 ms at 512); ReaRoute's channels sit at hardware index 512 …
-  527 in Reaper (`docs/SEAMS.md` has the three facts a piece's job needs). His ear not claimed. **► NEXT: 4.2, the message — a talk
-  first, in the Decibel piece (its 6.2).**
+  527 in Reaper (`docs/SEAMS.md` has the three facts a piece's job needs). **HEARD by him the same day (RUNNING_LOG §10)**; the runner's fault that killed his engine found and fixed (§9). **► NEXT: 4.2, the message
+  — a talk first, in the Decibel piece (its 6.2; its RUNNING_LOG §56 has the notes toward it).**
 - **UPDATE 4 · 2026-10-04 (RUNNING_LOG §7, Opus) — THE SEAT MADE, 4.1 BUILT, THE CROSSING UNPROVEN.** **Where you are reading this:**
   if the path is `…/decibel_TENOR_2026/electronics/docs/`, you are in the place of work — edit HERE; if it is the stand-alone clone,
   it is a MIRROR (`docs/TAKE.md`: pull before reading, never edit while a piece is at work). The code: `sc/` (boot · synths ·
