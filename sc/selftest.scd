@@ -2,11 +2,11 @@
 //   node electronics/tools/sc.js run electronics/sc/selftest.scd
 //
 // It proves what can be proven without a device, so that the one thing a device adds is the device:
-//   A  the pass-through is untouched — what leaves the master is, sample for sample, what the player's bus holds
-//   B  the safety holds — a signal 6 dB over full scale never leaves over full scale, at its onset or settled, and is
-//      held more than 5 dB under what came in. (The -1 dB is where the squeeze STARTS, not a ceiling: with a 2 ms attack and
-//      no look-ahead the follower reads under a wave's crest, so a 220 Hz tone at +6 settles at -0.1 dBFS, not -0.65.
-//      The ceiling is the clip at full scale. Measured 2026-10-04.)
+//   A  the pass-through is untouched — what leaves the master is, sample for sample, what the player's bus held one
+//      look-ahead earlier (the master's limiter delays the bus by its look-ahead; nothing else touches a signal under the ceiling)
+//   B  the ceiling holds — a signal 6 dB over full scale leaves AT the ceiling (−1 dB), at its onset and settled: the limiter
+//      looks ahead, so nothing overshoots. (Until 2026-10-06 the safety was a compressor with no look-ahead and −1 dB was only
+//      where its squeeze began; the same claims are proven offline, beside a living engine, by bus_test.scd.)
 //   C  the latency probe measures a delay it is given (512 samples + one block of the server)
 //   D  the ear — a message sent to UDP 57211 arrives with every field it carried, and /le/hello is answered
 //   E  the onset probe — a sound that starts 100 ms after its message is reported about 100 ms after it
@@ -30,8 +30,8 @@ var dir = PathName(thisProcess.nowExecutingPath).pathOnly;
 	SynthDef(\leTestTone, { |out = 0, amp = 0.1, freq = 220|
 		Out.ar(out, SinOsc.ar(freq) * amp);
 	}).add;
-	SynthDef(\leTestDiff, { |a = 0, b = 0|
-		var d = (In.ar(a, 1) - In.ar(b, 1)).abs;
+	SynthDef(\leTestDiff, { |a = 0, b = 0, late = 0.005|
+		var d = (DelayN.ar(In.ar(a, 1), 0.05, late) - In.ar(b, 1)).abs;   // the bus runs one look-ahead late: the same delay on the reference
 		SendReply.kr(Impulse.kr(20), '/le/diff', A2K.kr(RunningMax.ar(d)));
 	}).add;
 	SynthDef(\leTestBurst, { |out = 0, amp = 0.1, freq = 440|
@@ -49,8 +49,10 @@ var dir = PathName(thisProcess.nowExecutingPath).pathOnly;
 	le.meterOn(\in, p[\bus], 1);
 	le.meterOn(\out, le[\busOut], 2);
 	OSCdef(\leDiff, { |msg| maxDiff = max(maxDiff, msg[3]) }, '/le/diff', s.addr);
+	// the comparison FIRST, the tone after it: both delays — the master's and the reference's — then hold the tone from its first sample
+	Synth(\leTestDiff, [\a, p[\bus].index, \b, le[\busOut].index, \late, le[\masterDelay]], le[\grpMeter]);
+	s.sync;
 	tone = Synth(\leTestTone, [\out, p[\bus].index, \amp, -20.dbamp], le[\grpIn]);
-	Synth(\leTestDiff, [\a, p[\bus].index, \b, le[\busOut].index], le[\grpMeter]);
 	1.5.wait;
 	inDb = le.peakDb(\in); outDb = le.peakDb(\out);
 	okA = (maxDiff == 0) and: { (inDb - outDb).abs < 0.05 } and: { (inDb + 20).abs < 0.2 };
@@ -62,8 +64,8 @@ var dir = PathName(thisProcess.nowExecutingPath).pathOnly;
 	overDb = le.peakDb(\out);
 	le.resetPeaks; 0.8.wait;
 	settledDb = le.peakDb(\out);
-	okB = (overDb <= 0) and: { settledDb <= 0 } and: { settledDb < (6 - 5) };
-	le.say("LE_RESULT", le.json((test: "B safety", inPeakDb: 6, outPeakAtOnsetDb: overDb, outPeakSettledDb: settledDb, pass: okB)));
+	okB = (overDb <= -0.9) and: { (settledDb + 1).abs <= 0.2 };
+	le.say("LE_RESULT", le.json((test: "B the ceiling", inPeakDb: 6, outPeakAtOnsetDb: overDb, outPeakSettledDb: settledDb, ceilingDb: -1, pass: okB)));
 	tone.free;
 
 	// ---- C · the latency probe ----

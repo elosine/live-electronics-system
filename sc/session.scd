@@ -17,12 +17,14 @@
 //   LE_AR        the return behaviour 'ar', where a piece overrides the defaults:  before=0.35,afterLo=100,…  (bank.scd arDefaults)
 //   LE_CHAIN     the return behaviour 'chain':  after=0.7,lazy=0.2,far=0.1,unison=0,before=0,follow=1,shuffle=1  (bank.scd chainDefaults)
 //   LE_LEVEL     the ladder of marks, where a piece overrides the defaults:  reference=-29.54,stepDb=4,liftCapDb=20,floorDb=-60  (level.scd)
+//   LE_MASTER    the bus's dials, where a piece overrides the engine's neutral defaults:  hpfHz=30,glueOn=1,glueThr=-18,ceilingDb=-1,lookaheadMs=5  (boot.scd § the bus)
 //   LE_ECHO      A ROUTE CHECK: seconds each player is returned BEHIND the note — the route heard as a second sound.
 //   LE_PASS      A ROUTE CHECK: 1 = each player straight to the master (two DAW blocks behind: not heard as a second sound).
 //   LE_SOURCE    the folder the buffers are FILLED from at start (the bank itself when absent) — the backup bank in rehearsal and concert (§71)
 //   LE_RECORD    1: an opening records, buffer and file replaced (the default) · 0: an opening changes nothing — the buffers keep what the files gave them
 //   LE_SECONDS   leave by itself after this many seconds (0 = never: his window). A tool's bounded run.
-// While it runs it posts the loudest input and output of the last two seconds, when there was any.
+// While it runs it posts the loudest input and output of the last two seconds, when there was any — the output's peak, its
+// momentary loudness and its true peak. /le/master moves the bus's dials while it runs; /le/leave says the session's loudest.
 (
 var dir = PathName(thisProcess.nowExecutingPath).pathOnly;
 var mode = ("LE_MODE".getenv ? "sim").asSymbol;
@@ -35,9 +37,15 @@ var cropSpec = "LE_CROP".getenv;
 var arSpec = "LE_AR".getenv;
 var chainSpec = "LE_CHAIN".getenv;
 var levelSpec = "LE_LEVEL".getenv;
+var masterSpec = "LE_MASTER".getenv;
 var source = "LE_SOURCE".getenv;
 var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 (dir +/+ "boot.scd").load;
+// the bus's dials are needed BEFORE the boot: the master is made in it
+if(masterSpec.notNil and: { masterSpec.size > 0 }) {
+	~le[\masterOpts] = ();
+	masterSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { ~le[\masterOpts][b[0].asSymbol] = b[1].asFloat } });
+};
 ~le.bootEngine(mode, { |le|
 	var s = le[\server], names = List.new, pending = IdentityDictionary.new, t0 = Main.elapsedTime, crop, nSamples = 0;
 	spec.split($,).do({ |pair|
@@ -49,6 +57,7 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 		names.add(name);
 	});
 	le.meterOn(\out, le[\busOut], 2);
+	le.loudOn;
 	if(cropSpec.notNil and: { cropSpec.size > 0 }) {
 		crop = ();
 		cropSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { crop[b[0].asSymbol] = b[1].asFloat } });
@@ -73,7 +82,8 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 		if(le[\bankDir].notNil) { le.bankHear };
 		// a tool's run ends on a message, gracefully — the server quits its device before the process goes (§71: an engine killed from
 		// outside left ReaRoute wedged, and no engine could boot until Reaper was restarted). His own window still closes as before.
-		le.hear(\leave, { |le, d| le.say("LE_INFO", "leaving on request"); le.leave(0) });
+		le.hear(\leave, { |le, d| le.say("LE_INFO", "leaving on request" ++ if(le.loudSaid(\loudMax).size > 0) { " — the session's loudest" ++ le.loudSaid(\loudMax) } { "" }); le.leave(0) });
+		le.hear(\master, { |le, d| le.masterSet(d) });   // the bus's dials, moved while it runs
 		// an onset is shown; the player's own sound, when it comes, is timed against it (a route check)
 		le.hear(\onset, { |le, d, time|
 			var name = (d[\player] ? '?').asSymbol;
@@ -94,6 +104,7 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 	};
 	le.say("LE_READY", le.json((device: le[\device], sr: s.sampleRate, players: names.asArray.collect(_.asString),
 		msgPort: le[\earPort], samples: nSamples)));
+	le.say("LE_INFO", "the bus · " ++ le.masterSaid);
 	le.say("LE_INFO", "the engine is listening — close this window to stop it. "
 		++ if(le[\bankDir].notNil) { "The bank holds " ++ nSamples ++ " sample" ++ if(nSamples == 1) { "" } { "s" } ++ ". "
 			++ if(le[\sourceDir] != le[\bankDir]) { "Loaded from " ++ le[\sourceDir] ++ "; captures go to " ++ le[\bankDir] ++ ". " } { "" }
@@ -105,7 +116,7 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 		2.wait;
 		if(le[\peaks].values.any({ |v| v > 0.001 })) {
 			le.say("LE_INFO", names.asArray.collect({ |n| n.asString ++ " in " ++ le.peakDb(n) ++ " dB" }).join(" · ")
-				++ " · out " ++ le.peakDb(\out) ++ " dB");
+				++ " · out " ++ le.peakDb(\out) ++ " dB" ++ le.loudSaid(\loudNow));
 		};
 		le.resetPeaks;
 		if((secs > 0) and: { (Main.elapsedTime - t0) >= secs }) { le.leave(0) };

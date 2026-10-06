@@ -12,8 +12,9 @@
 // THE SIGNAL, in the order the groups run:
 //   grpIn      leIn — one per player: a hardware input onto the player's OWN bus (the "microphone"; amp = the preamp)
 //   grpFx      whatever hears a player — the pass-through now; the capture, the playback, the effects later
-//   grpMaster  leMaster — the master bus to the hardware output. THIS IS THE OUTPUT, live and simulated.
-//   grpMeter   the meters, last, so they read what was actually sent
+//   grpMaster  leMaster — the master bus to the hardware output. THIS IS THE OUTPUT, live and simulated: a mastering bus
+//              (high-pass · low-pass · the glue · a look-ahead limiter · the clip — synths.scd; § the bus, below)
+//   grpMeter   the meters, last, so they read what was actually sent — the peaks, and the loudness meter (loudOn)
 //
 // THE SERVER listens on UDP 57210, not SuperCollider's usual 57110: an IDE he has open is never touched.
 // THE LANGUAGE listens for a piece's MESSAGES on UDP 57211 (§ the ear, below; the engine plan's 4.2).
@@ -54,6 +55,69 @@
 	if(s.notNil and: { s.serverRunning }) { s.quit };
 	SystemClock.sched(0.8, { code.exit; nil });
 	self
+};
+
+// ---- the bus: the master's dials (the engine plan's part 13; the Decibel piece's 11.6) --------------------------------
+// The engine's own defaults are NEUTRAL — no filter, no glue; the limiter at −1 dB with 5 ms of look-ahead, always. A piece
+// gives its dials at the START (LE_MASTER, session.scd — the names below) and may move them while the engine runs:
+//     /le/master  hpfHz 30  glueOn 0  ceilingDb -1 …      (0 for a filter = off)
+// lookaheadMs alone is taken when the master is made: it is how late the bus runs, and samplePlay (bank.scd) plays that much
+// early (~le[\masterDelay]).
+~le[\masterDefaults] = (hpfHz: 0, lpfHz: 0, glueOn: 0, glueThr: -18, glueRatio: 2, glueKnee: 6, glueAtkMs: 30, glueRelMs: 250, glueGainDb: 0,
+	ceilingDb: -1, lookaheadMs: 5, limRelMs: 100);
+~le[\masterOf] = { |self|
+	var o = self[\masterDefaults].copy;
+	if(self[\masterOpts].notNil) { o.putAll(self[\masterOpts]) };
+	o
+};
+~le[\masterArgs] = { |self|
+	var o = self.masterOf, lp = (o[\lpfHz] > 0) and: { o[\lpfHz] < 20000 };
+	[\hpfOn, if(o[\hpfHz] > 0) { 1 } { 0 }, \hpfFreq, o[\hpfHz].max(10), \lpfOn, if(lp) { 1 } { 0 }, \lpfFreq, if(lp) { o[\lpfHz] } { 20000 },
+		\glueOn, if(o[\glueOn] > 0) { 1 } { 0 }, \glueThr, o[\glueThr], \glueRatio, o[\glueRatio].max(1), \glueKnee, o[\glueKnee].max(0),
+		\glueAtk, (o[\glueAtkMs] / 1000).max(0.001), \glueRel, (o[\glueRelMs] / 1000).max(0.001), \glueGain, o[\glueGainDb],
+		\ceilDb, o[\ceilingDb].min(0), \limRel, (o[\limRelMs] / 1000).max(0.005)]
+};
+~le[\masterSaid] = { |self|
+	var o = self.masterOf, lp = (o[\lpfHz] > 0) and: { o[\lpfHz] < 20000 };
+	"high-pass " ++ if(o[\hpfHz] > 0) { o[\hpfHz].asString ++ " Hz" } { "off" } ++ " · low-pass " ++ if(lp) { o[\lpfHz].asString ++ " Hz" } { "off" }
+	++ " · the glue " ++ if(o[\glueOn] > 0) { "ON (" ++ o[\glueThr] ++ " dB, " ++ o[\glueRatio] ++ ":1, a " ++ o[\glueKnee] ++ " dB knee)" } { "off" }
+	++ " · the ceiling " ++ o[\ceilingDb] ++ " dB, " ++ ((self[\masterDelay] ? 0) * 1000).round(0.1) ++ " ms of look-ahead"
+};
+// /le/master — the dials moved while the engine runs (a listening session's on and off); what it does not know is left out
+~le[\masterSet] = { |self, d|
+	var took = List.new;
+	if(self[\masterOpts].isNil) { self[\masterOpts] = () };
+	d.keysValuesDo({ |k, v|
+		if(self[\masterDefaults][k].notNil) { self[\masterOpts][k] = v.asString.asFloat; took.add(k) };
+	});
+	if(self[\master].notNil and: { took.size > 0 }) { self[\master].set(*self.masterArgs) };
+	self.say("LE_INFO", "the bus · " ++ if(took.size > 0) { self.masterSaid } { "nothing it knows in that message" }
+		++ if(took.includes(\lookaheadMs)) { " — THE LOOK-AHEAD is taken at the start: it changes with the next one" } { "" });
+	self
+};
+
+// ---- the loudness meter on what was sent: momentary LUFS and true peak, the loudest since they were last read ---------
+~le[\loudOn] = { |self|
+	if(self[\loudSynth].isNil) {
+		self[\loudNow] = (lufs: -120, tp: 0);
+		self[\loudMax] = (lufs: -120, tp: 0);
+		OSCdef(\leLoud, { |msg|
+			var l = msg[3], p = msg[4];
+			if(l.isNumber and: { l.isNaN.not }) {
+				self[\loudNow][\lufs] = max(self[\loudNow][\lufs], l); self[\loudMax][\lufs] = max(self[\loudMax][\lufs], l);
+			};
+			if(p.isNumber and: { p.isNaN.not }) {
+				self[\loudNow][\tp] = max(self[\loudNow][\tp], p); self[\loudMax][\tp] = max(self[\loudMax][\tp], p);
+			};
+		}, '/le/loud', self[\server].addr);
+		self[\loudSynth] = Synth(\leLoudness, [\in, self[\busOut].index], self[\grpMeter]);
+	};
+	self
+};
+// " · −21.3 LUFS · −2.0 dBTP" — or nothing, when nothing sounded
+~le[\loudSaid] = { |self, which|
+	var x = self[which];
+	if(x.isNil or: { x[\lufs] < -70 }) { "" } { " · " ++ x[\lufs].round(0.1) ++ " LUFS · " ++ self.db(x[\tp]) ++ " dBTP" }
 };
 
 // ---- the boot --------------------------------------------------------------------------------------------------------
@@ -103,7 +167,7 @@
 				msg[3..].pairsDo({ |pk, rms| peak = max(peak, pk) });
 				self[\peaks][id] = max(self[\peaks][id] ? 0, peak);
 			}, '/le/meter', s.addr);
-			self[\master] = Synth(\leMaster, [\in, self[\busMaster].index, \out, self[\busOut].index], self[\grpMaster]);
+			self[\masterDelay] = (self.masterOf[\lookaheadMs] / 1000).clip(0.001, 0.02); self[\master] = Synth(\leMaster, [\in, self[\busMaster].index, \out, self[\busOut].index, \lookahead, self[\masterDelay]] ++ self.masterArgs, self[\grpMaster]);
 			s.sync;
 			onReady.value(self);
 		}, 100, {
@@ -145,7 +209,7 @@
 	id
 };
 ~le[\peakDb] = { |self, name| self.db(self[\peaks][self[\meterIds][name]] ? 0) };
-~le[\resetPeaks] = { |self| self[\peaks] = (); self };
+~le[\resetPeaks] = { |self| self[\peaks] = (); if(self[\loudNow].notNil) { self[\loudNow] = (lufs: -120, tp: 0) }; self };
 
 // ---- the ear: a piece's messages (the engine plan's 4.2) -------------------------------------------------------------
 // The LANGUAGE listens on UDP 57211 — PINNED, because sclang's own port moves when another sclang is open. A message is

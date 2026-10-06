@@ -7,6 +7,8 @@
 //                 a floor and a ceiling · the lift's cap · the floor · a row with no figure
 //   THE ENVELOPE  a line of three points and a hairpin, as \leSample is given them: the dB at each breakpoint, the times between
 //   THE INDEX     a row's figure is written and read back as a NUMBER
+//   THE BUS       a piece's dials become the master's arguments, and a message moves them (the sound of the bus is bus_test.scd's)
+//   THE FILES     every file of the engine that boots a server still PARSES — they cannot be run beside a living engine
 //   THE GUARD     (11.7 c) a capture whose attack stands too little over the room is flagged; a clean one is not
 //   "C:/Program Files/SuperCollider-3.14.1/sclang.exe" electronics/sc/level_test.scd
 // LE_TEST_FILE=<a mono wav>  adds one line: that file's two figures (a cross-check against another implementation).
@@ -14,7 +16,7 @@
 (
 var dir = thisProcess.nowExecutingPath.dirname;
 var tmp = Platform.defaultTempDir +/+ "le_level_test_" ++ Date.localtime.stamp;
-var fails = List.new, check, near, tone, co, m, m44, mShort, mFile, long, t0, took, row, quiet, faint, bare, g, lv, rows, extra, f, b, sd;
+var fails = List.new, check, near, tone, co, m, m44, mShort, mFile, long, t0, took, row, quiet, faint, bare, g, lv, rows, extra, f, b, sd, ma, bad;
 (dir +/+ "boot.scd").load;
 check = { |what, ok, detail| ("  " ++ if(ok) { "ok   " } { "FAIL " } ++ what ++ " — " ++ detail).postln; if(ok.not) { fails.add(what) } };
 near = { |a, b, tol| a.notNil and: { (a - b).abs <= tol } };
@@ -97,6 +99,24 @@ check.("\\leSample is built to take it: eight levels, seven times, a curve", sd.
 	if(sd.notNil) { sd.controlNames.asString } { "no such SynthDef" });
 check.("every SynthDef of the engine is built", [\leIn, \lePass, \leEcho, \leMaster, \leMeter1, \leMeter2, \leLatency, \leOnset, \leCapture, \leSample].every({ |n| SynthDescLib.global[n].notNil }),
 	[\leIn, \lePass, \leEcho, \leMaster, \leMeter1, \leMeter2, \leLatency, \leOnset, \leCapture, \leSample].reject({ |n| SynthDescLib.global[n].notNil }).asString ++ " missing");
+
+"LEVEL_TEST the bus's dials:".postln;
+ma = ().putPairs(~le.masterArgs);
+check.("the engine's own bus is neutral: no filter, no glue, a ceiling", (ma[\hpfOn] == 0) and: { ma[\lpfOn] == 0 } and: { ma[\glueOn] == 0 } and: { ma[\ceilDb] == -1 }, ~le.masterSaid);
+~le[\masterOpts] = (hpfHz: 30, lpfHz: 0, glueOn: 1, glueThr: -18, glueRatio: 2, glueKnee: 6, glueAtkMs: 30, glueRelMs: 250, ceilingDb: -1, lookaheadMs: 5, limRelMs: 100);
+ma = ().putPairs(~le.masterArgs);
+check.("a piece's dials become the master's arguments", (ma[\hpfOn] == 1) and: { ma[\hpfFreq] == 30 } and: { ma[\lpfOn] == 0 } and: { ma[\glueOn] == 1 } and: { (ma[\glueAtk] - 0.03).abs < 1e-9 } and: { (ma[\glueRel] - 0.25).abs < 1e-9 } and: { (ma[\limRel] - 0.1).abs < 1e-9 },
+	~le.masterSaid);
+~le.masterSet((glueOn: 0, lpfHz: 6000, nonsense: 3));
+ma = ().putPairs(~le.masterArgs);
+check.("a message moves them, and leaves out what the bus does not know", (ma[\glueOn] == 0) and: { ma[\lpfOn] == 1 } and: { ma[\lpfFreq] == 6000 } and: { ma[\hpfOn] == 1 } and: { ~le[\masterOpts][\nonsense].isNil }, ~le.masterSaid);
+~le[\masterOpts] = nil;
+
+"LEVEL_TEST the files that boot a server:".postln;
+bad = ["session.scd", "selftest.scd", "check_route.scd", "latency.scd", "devices.scd", "calibrate.scd"].select({ |n| File.exists(dir +/+ n) }).select({ |n|
+	thisProcess.interpreter.compile(File.readAllString(dir +/+ n)).isNil
+});
+check.("they parse", bad.size == 0, if(bad.size == 0) { "session · selftest · check_route · latency · devices" ++ if(File.exists(dir +/+ "calibrate.scd")) { " · calibrate" } { "" } } { "DO NOT PARSE: " ++ bad.join(" · ") });
 
 "LEVEL_TEST the index:".postln;
 ~le.bankOn(tmp);
