@@ -732,3 +732,19 @@ re-rendered re-rendering those made from it — the label already says which are
 **Measured in passing:** thirteen renders of the processing's own test, all at one peak, spread over 15 dB of loudness (−14.6 … −29.9 LUFS) — what "a render's peak is set to its source's" means to an ear.
 
 **NOT CLAIMED:** the composer's ear · any of it through a living engine.
+
+## §43. The drive — a gain on the source, before the chain; a dial as a line in time (2026-10-06, Opus; the Decibel piece's §162 · its PLAN 1.4, 11.4)
+
+**What prompted it** — the Decibel piece's D17: level is two things, the DRIVE into an effect and the DYNAMIC out of it, and the composer's word that some impulses came back quiet, *"and their processed versions with them"*: a quiet take was a quiet excitation, and the non-linear stages answered less.
+
+**In `sc/process.scd`:**
+- `\leProcess` has `srcAmp` (1): the source's gain, before every stage.
+- `/le/process` takes `srcDrive` — `played` (0 dB) · `normalized` (the source brought to `driveRef`, LE_LEVEL; −20 LUFS — measured on the samples in hand by `level.scd`) · `+12` / `-6`. Held so that the driven source's own peak stays a decibel under full scale. A render asked for by a brick of its own defaults to `played`; a PLAN's variant to `normalized`. The row keeps what was done (`drive: "normalized +13.2 dB"`); nothing is written when the source went in as it is.
+- a plan row has an eleventh field, the drive; `planNext` hands it on.
+- `processArgs` reads A DIAL AS A LINE — `name:value@ms,value@ms` — and returns its breakpoints; `processRender` writes them into the offline score as `/n_set` steps every 50 ms along the line.
+
+**In `score/le_objects.js` · `score/le_process.js`:** `driveWord` · `driveOf` · `driveTag` · `vsuffix` · `isLine`; a variant may be `{ v, drive }`, and a drive of the brick's own gives the variant a name of its own (`…_dN` · `_dP` · `_d12` · `_dm6`); the plan's rows carry the drive (the brick's, else the preset's, else `normalized`); a drive menu per sample in "Processed as"; on the process brick `elec.drive`, a Drive row, and a dial's third form — a line (`∿` / `=`).
+
+**The proof** (`sc/process_test.scd`, PROCESS_TEST PASS): the feedback from a source and from a copy of it 20 dB down, `normalized`: −9.9 and −9.9 LUFS · a linear stage `played`: 20 dB apart · a boost of 12: 12 dB · a line on the output level ends a reverb's tail at 274 ms instead of 1649. **Measured:** the feedback `played` — −10.0 and −13.0 LUFS: three decibels for twenty; a saturating loop is set by its ceiling, not its excitation. `tools/page_test.js` covers the page's part.
+
+**NOT CLAIMED:** the composer's ear.

@@ -240,7 +240,7 @@
         },
         keep(zone, remark) {
             const e = zone.elec, s = this.processSettings(e), row = this.row(e.out), setting = {};
-            for (const k of ['effect', 'args', 'end', 'atkMs', 'durMs', 'relMs', 'curve', 'floorDb', 'capMs', 'gainDb', 'match', 'label']) if (s[k] !== undefined) setting[k] = s[k];
+            for (const k of ['effect', 'args', 'end', 'atkMs', 'durMs', 'relMs', 'curve', 'floorDb', 'capMs', 'gainDb', 'match', 'drive', 'label']) if (s[k] !== undefined) setting[k] = s[k];
             const body = { setting, heardOn: e.source, out: e.out, label: e.label || '', effect: e.effect, render: row ? Math.round(row.lengthMs) + ' ms · peak ' + row.peakDb + ' dB' : 'not rendered', remark: remark || '' };
             const url = (this.opts && this.opts.shelfUrl) || '/api/candidates';
             return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json())
@@ -287,14 +287,19 @@
         // the brick's settings as one string: has anything changed since its render?
         processSig(e) {
             const a = this.processArgs(e), keys = Object.keys(a).sort();
-            return JSON.stringify([e.source, e.effect, keys.map((k) => [k, a[k]]), e.end, e.end === 'tail' ? [+e.floorDb, +e.capMs] : [+e.atkMs, +e.durMs, +e.relMs, +e.curve], +e.gainDb, +e.match]);
+            const sig = [e.source, e.effect, keys.map((k) => [k, a[k]]), e.end, e.end === 'tail' ? [+e.floorDb, +e.capMs] : [+e.atkMs, +e.durMs, +e.relMs, +e.curve], +e.gainDb, +e.match];
+            if (this.processDrive(e)) sig.push(this.processDrive(e));   // only when it has one: a brick rendered before the drive existed is not "changed"
+            return JSON.stringify(sig);
         },
+        // THE DRIVE of a stage (11.4): '' = as played (a stage is made from the one before it, at its level) · 'normalized' · '+12' / '-6'
+        processDrive(e) { const w = this.driveWord(e && e.drive); return w === 'played' ? '' : w; },
         // what the message carries (the engine's field names)
         processMessage(zone, id) {
             const e = zone.elec, a = this.processArgs(e);
             this._drawnFor = this._drawnFor || {}; this._drawnFor[safe(e.out)] = this.drawArgs(e, a);   // the ranges, drawn for THIS render
-            const args = Object.keys(a).filter((k) => /^[A-Za-z][A-Za-z0-9]*$/.test(k) && Number.isFinite(+a[k])).map((k) => k + ':' + (+a[k])).join(',');
+            const args = Object.keys(a).filter((k) => /^[A-Za-z][A-Za-z0-9]*$/.test(k) && (this.isLine(a[k]) || Number.isFinite(+a[k]))).map((k) => k + ':' + (this.isLine(a[k]) ? String(a[k]).replace(/\s+/g, '') : +a[k])).join(',');   // a dial as a line goes whole
             const m = { id, source: safe(e.source), out: safe(e.out), effect: String(e.effect || '').slice(0, 40), args, end: isEnd(e.end) ? e.end : 'shape', gainDb: +e.gainDb || 0, match: +e.match > 0 ? 1 : 0 };
+            if (this.processDrive(e)) m.srcDrive = this.processDrive(e);
             if (m.end !== 'tail') Object.assign(m, { atkMs: +e.atkMs || 0, durMs: +e.durMs || END.durMs, relMs: +e.relMs || 0, curve: +e.curve || 0 });
             else Object.assign(m, { floorDb: +e.floorDb || END.floorDb, capMs: +e.capMs || END.capMs });
             return m;
@@ -357,6 +362,7 @@
         processSettings(e) {
             const o = {};
             for (const k of ['source', 'out', 'label', 'effect', 'args', 'end', 'atkMs', 'durMs', 'relMs', 'curve', 'floorDb', 'capMs', 'gainDb', 'match']) o[k] = e[k];
+            if (this.processDrive(e)) o.drive = this.processDrive(e);
             return o;
         },
         // the whole setting written at once (the panel's box): what is not a setting is left out, what is out of range is brought in
@@ -369,10 +375,12 @@
                 for (const k of Object.keys(o.args)) {
                     if (!/^[A-Za-z][A-Za-z0-9]*$/.test(k)) continue;
                     if (this.isRange(o.args[k])) e.args[k] = [+o.args[k][0], +o.args[k][1]];   // a range: drawn at each render
+                    else if (this.isLine(o.args[k])) e.args[k] = String(o.args[k]).replace(/\s+/g, '');   // a line in time: kept whole
                     else if (Number.isFinite(+o.args[k])) e.args[k] = +o.args[k];
                 }
             }
             if (isEnd(o.end)) e.end = o.end;
+            if (o.drive !== undefined) { const w = this.driveWord(o.drive); if (w && w !== 'played') e.drive = w; else delete e.drive; }
             for (const k of Object.keys(RANGE)) if (o[k] != null && Number.isFinite(+o[k])) e[k] = clamp(k, +o[k]);
             if (typeof o.label === 'string') e.label = o.label.trim().slice(0, 40);
             if (typeof o.source === 'string' && safe(o.source) && safe(o.source) !== e.source) this.setSource(zone, safe(o.source));
@@ -454,6 +462,12 @@
                     const hint = hintOf(d);
                     let control;
                     if (d.options) { control = pick(e.args[d.key], d.options, (v) => { e.args[d.key] = +v; }); control.title = hint; }
+                    else if (this.isLine(e.args[d.key])) {   // 11.4: a LINE in time — value@ms breakpoints from the render's start
+                        const shown = () => String(e.args[d.key]).replace(/,/g, ', ');
+                        const box = text(shown(), (n) => { const t = String(n.value || '').replace(/\s+/g, ''); if (this.isLine(t)) commit(() => { e.args[d.key] = t; }); else n.value = shown(); }, 150);
+                        box.title = 'value@ms, value@ms … from the render\'s start: the dial moves along the line — ' + hint;
+                        control = pair(box, tiny(d.unit + ' · a line in time'), btn('=', () => commit(() => { e.args[d.key] = +String(e.args[d.key]).split('@')[0]; }), 'back to one value: the line\'s first'));
+                    }
                     else if (this.isRange(e.args[d.key])) {   // §111: a range — two boxes; a value is drawn between them at every Render
                         const r = e.args[d.key];
                         control = pair(num(r, 0, d.min, d.max, d.step, 58, 'the low end of the range'), tiny('…'), num(r, 1, d.min, d.max, d.step, 58, 'the high end of the range'), tiny(d.unit + ' · drawn at each render'),
@@ -462,7 +476,8 @@
                         const box = num(e.args, d.key, d.min, d.max, d.step, 64, hint), v = +e.args[d.key];
                         const logish = d.min > 0 && d.max / d.min >= 50, lo = logish ? v / 2 : v - (d.max - d.min) / 4, hi = logish ? v * 2 : v + (d.max - d.min) / 4;
                         control = pair(slider(e.args, d.key, d, box), box, tiny(d.unit),
-                            btn('⚄', () => commit(() => { e.args[d.key] = [Math.max(d.min, +lo.toFixed(4)), Math.min(d.max, +hi.toFixed(4))]; }), 'make it a RANGE: a value is drawn between two ends at every Render'));
+                            btn('⚄', () => commit(() => { e.args[d.key] = [Math.max(d.min, +lo.toFixed(4)), Math.min(d.max, +hi.toFixed(4))]; }), 'make it a RANGE: a value is drawn between two ends at every Render'),
+                            btn('∿', () => commit(() => { e.args[d.key] = v + '@0,' + v + '@1000'; }), 'make it a LINE in time: value@ms breakpoints — the dial moves while the render plays (11.4)'));
                     }
                     control.style.flexWrap = 'nowrap';   // §113: the ⚄ button stays on the dial's line (it wrapped under the slider on rows with a unit)
                     const row = rowEl(d.label, control);
@@ -470,7 +485,7 @@
                     sec.appendChild(row);
                 }
                 if (fx.dials.some((d) => !/Mix$/.test(d.key))) {   // §112: the global randomizer — every dial but the mix (and the ranges, which draw themselves)
-                    const roll = (usual) => commit(() => { for (const d of fx.dials) { if (/Mix$/.test(d.key) || this.isRange(e.args[d.key])) continue; e.args[d.key] = this.rollDial(d, usual); } });
+                    const roll = (usual) => commit(() => { for (const d of fx.dials) { if (/Mix$/.test(d.key) || this.isRange(e.args[d.key]) || this.isLine(e.args[d.key])) continue; e.args[d.key] = this.rollDial(d, usual); } });
                     sec.appendChild(rowEl('', pair(
                         btn('⚄ all', () => roll(false), 'every dial of this effect drawn at random across its WHOLE range — the mix and any range dial left alone'),
                         btn('⚄ usual', () => roll(true), 'every dial drawn at random within its USUAL range (the one the hover hint names) — the mix and any range dial left alone'))));
@@ -500,6 +515,20 @@
             matchLabel.appendChild(doc.createTextNode('peak as its source\'s'));
             matchLabel.title = 'ticked: the render\'s peak is set to its source\'s, so a chain neither fades nor runs hot · unticked: as rendered';
             sec.appendChild(rowEl('Level', pair(matchLabel, tiny('then'), num(e, 'gainDb', -60, 24, 0.5, 52, 'then this much on top, in dB — −60 … 24'), tiny('dB'))));
+            // THE DRIVE (11.4): how hard the SOURCE hits the effect — before every stage; what comes out is still set by Level above
+            {
+                const dw = this.processDrive(e), boost = /^[+-]\d+$/.test(dw);
+                const dPick = pick(boost ? 'boost' : dw, [['', 'as played — the source as it is'], ['normalized', 'normalized — one level in, whatever was captured'], ['boost', 'boost …']],
+                    (v) => { if (v === 'boost') e.drive = boost ? dw : '+6'; else if (v) e.drive = v; else delete e.drive; });
+                dPick.title = 'how hard the source hits the effect: as played — a quiet take stays a quiet excitation · normalized — every take is brought to one level first, so the effect always speaks · boost — that many dB';
+                const kids = [dPick];
+                if (boost) {
+                    const dBox = el('input', { type: 'number', value: String(+dw), step: '1', min: '-60', max: '40', style: 'width:52px', title: 'dB onto the source before the effect — −60 … 40' });
+                    dBox.addEventListener('change', () => commit(() => { const w = this.driveWord(String(Math.round(+dBox.value) || 0)); if (w && w !== 'played') e.drive = w; else delete e.drive; }));
+                    kids.push(dBox, tiny('dB into the effect'));
+                }
+                sec.appendChild(rowEl('Drive', pair(...kids)));
+            }
 
             // RENDER · LISTEN
             sec.appendChild(rowEl('', pair(

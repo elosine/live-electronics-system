@@ -38,6 +38,7 @@ fork {
 	var p1, p2, p3, fb, lenOf = { |r| if(r.notNil) { r[\lengthMs] } { -1 } };
 	var r9, f9, d9, gfHeld, r10, f10, d10, icHeld;
 	var r11, r12, tP, r13, f13, d13, own, tones;
+	var dA, dB, dC, dD, dE, dF, dG, parsedL, ln;
 	waitFor = { |name, secs = 30|
 		var t = 0;
 		while { rowOf.(name).isNil and: { t < secs } } { 0.25.wait; t = t + 0.25 };
@@ -200,6 +201,40 @@ fork {
 	fb = ~le.sampleFor("t-src~nope-perc");
 	check.("a variant not rendered yet falls back to its base", fb.notNil and: { fb[\row][\name].asString == "t-src" }, if(fb.notNil) { "t-src~nope-perc plays " ++ fb[\row][\name] } { "nothing" });
 	check.("a name that is nobody's variant plays nothing", ~le.sampleFor("no-such~x-perc").isNil and: { ~le.sampleFor("no-such").isNil }, "no-such~x-perc · no-such");
+	// THE DRIVE (the Decibel piece's PLAN 1.4 · 11.4): the same stage from a LOUD source and a QUIET one — a copy of the source 20 dB
+	// down, banked beside it. NORMALIZED: the feedback is hit as hard either way, and the two renders come out as loud as each other
+	// (match 0: the level the chain itself made). PLAYED, through a linear stage (the comb): they differ by the sources' own 20 dB.
+	~le.wavWrite(tmp +/+ "t-q.wav", FloatArray.fill(src.size, { |i| src[i] * 0.1 }), sr);
+	[["t-src", "dn1"], ["t-q", "dn2"]].do({ |p| ~le.processRender((source: p[0], out: p[0] ++ "~" ++ p[1], effect: 'feedback', args: 'fbMix:1,fbBloom:0.3,fbHold:1,fbDrive:6',
+		end: 'tail', capMs: 4000, match: 0, srcDrive: "normalized", id: "test-" ++ p[1])) });
+	dA = waitFor.("t-src~dn1"); dB = waitFor.("t-q~dn2");
+	check.("the drive, NORMALIZED: the feedback speaks alike from a loud source and a quiet one", dA.notNil and: { dB.notNil } and: { dA[\loudDb].notNil } and: { (dA[\loudDb] - dB[\loudDb]).abs < 1 },
+		if(dA.notNil and: { dB.notNil }) { "from the loud " ++ dA[\loudDb] ++ " LUFS (" ++ dA[\drive] ++ ") · from the quiet " ++ dB[\loudDb] ++ " LUFS (" ++ dB[\drive] ++ ")" } { "no rows" });
+	[["t-src", "dp1"], ["t-q", "dp2"]].do({ |p| ~le.processRender((source: p[0], out: p[0] ++ "~" ++ p[1], effect: 'comb', args: 'combMix:1,combTime:0.012,combFb:0.5',
+		end: 'shape', atkMs: 2, durMs: 600, relMs: 600, curve: -4, match: 0, srcDrive: "played", id: "test-" ++ p[1])) });
+	dC = waitFor.("t-src~dp1"); dD = waitFor.("t-q~dp2");
+	check.("the drive, AS PLAYED: through a linear stage the renders keep the sources' 20 dB", dC.notNil and: { dD.notNil } and: { ((dC[\loudDb] - dD[\loudDb]) - 20).abs < 1 },
+		if(dC.notNil and: { dD.notNil }) { "from the loud " ++ dC[\loudDb] ++ " · from the quiet " ++ dD[\loudDb] ++ " LUFS (" ++ (dD[\drive] ? "as played: nothing in its row") ++ ")" } { "no rows" });
+	~le.processRender((source: 't-q', out: 't-q~db1', effect: 'comb', args: 'combMix:1,combTime:0.012,combFb:0.5', end: 'shape', atkMs: 2, durMs: 600, relMs: 600, curve: -4, match: 0, srcDrive: "+12", id: 'test-db1'));
+	dE = waitFor.("t-q~db1");
+	check.("the drive, a BOOST: +12 dB in, +12 dB out of a linear stage", dE.notNil and: { dD.notNil } and: { ((dE[\loudDb] - dD[\loudDb]) - 12).abs < 1 },
+		if(dE.notNil and: { dD.notNil }) { dD[\loudDb].asString ++ " → " ++ dE[\loudDb] ++ " LUFS (" ++ dE[\drive] ++ ")" } { "no rows" });
+	// measured, not asserted: what the FEEDBACK does with the two sources as played (a loop that saturates need not keep their difference)
+	[["t-src", "df1"], ["t-q", "df2"]].do({ |p| ~le.processRender((source: p[0], out: p[0] ++ "~" ++ p[1], effect: 'feedback', args: 'fbMix:1,fbBloom:0.3,fbHold:1,fbDrive:6',
+		end: 'tail', capMs: 4000, match: 0, srcDrive: "played", id: "test-" ++ p[1])) });
+	dF = waitFor.("t-src~df1"); dG = waitFor.("t-q~df2");
+	("  note the feedback AS PLAYED (measured, not a check) — from the loud " ++ if(dF.notNil) { dF[\loudDb].asString ++ " LUFS · " ++ dF[\lengthMs] ++ " ms" } { "no render" }
+		++ " · from the quiet " ++ if(dG.notNil) { dG[\loudDb].asString ++ " LUFS · " ++ dG[\lengthMs] ++ " ms" } { "no render" }).postln;
+	if(p1.notNil) { check.("a plan's variant that names no drive is driven normalized", (p1[\drive] ? "").asString.beginsWith("normalized"), (p1[\drive] ? "no drive in its row").asString) };
+	// A DIAL AS A LINE: value@ms breakpoints. Read: the dial's start is its first value, the rest are its steps. Rendered: the reverb's
+	// OUTPUT taken from 1 to 0 over 300 ms — the tail that rang 1.6 s (~2 above) is over well inside one
+	parsedL = ~le.processArgs("fbDrive:2@0,8@6000,fbMix:1,noSuch:3@0,4@9,revMix:0.6");
+	check.("a dial as a line is read", (parsedL[\args] == [\fbDrive, 2.0, \fbMix, 1.0, \revMix, 0.6]) and: { parsedL[\lines].size == 1 } and: { parsedL[\lines][0][\pts].asArray == [[2.0, 0.0], [8.0, 6000.0]] } and: { parsedL[\unknown] == [\noSuch] },
+		parsedL[\args].asString ++ " · the line " ++ parsedL[\lines].collect({ |l| l[\key].asString ++ " " ++ l[\pts].asArray }).asString ++ " · unknown " ++ parsedL[\unknown]);
+	~le.processRender((source: 't-src', out: 't-src~ln', effect: 'reverb', args: 'revMix:0.6,revTime:1.5,amp:1@0,0@300', end: 'tail', capMs: 6000, id: 'test-ln'));
+	ln = waitFor.("t-src~ln");
+	check.("a dial as a line is played: the reverb's level drawn down to nothing in 300 ms ends its tail", ln.notNil and: { r2.notNil } and: { ln[\lengthMs] < 700 } and: { ln[\args].asString.contains("amp:1.0@0,0.0@300") },
+		if(ln.notNil) { ln[\lengthMs].asString ++ " ms (the same reverb left alone: " ++ lenOf.(r2) ++ " ms) · args " ++ ln[\args] } { "no row" });
 	// a pass leaves nothing behind; a failure keeps the scratch bank to be looked at
 	if(fails.size == 0) { try { File.deleteAll(tmp) }; "PROCESS_TEST PASS".postln; 0.exit } { ("PROCESS_TEST FAIL — " ++ fails.join(" · ")).postln; 1.exit };
 };

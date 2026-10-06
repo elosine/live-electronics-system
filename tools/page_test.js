@@ -10,8 +10,16 @@
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const DIR = path.join(__dirname, '..', 'score');
 const sent = [];
-const mkEl = (tag) => ({ tag, children: [], on: {}, appendChild(k) { this.children.push(k); return k; }, addEventListener(ev, fn) { this.on[ev] = fn; }, setAttribute() {}, blur() {}, querySelector() { return null; } });
-const doc = { createElement: mkEl };
+const doc = {};
+const mkEl = (tag) => {
+    const st = { cssText: '' };   // a page's element takes a string for its style and still has style.flexWrap
+    const n = { tag, children: [], on: {}, ownerDocument: doc, appendChild(k) { this.children.push(k); return k; }, addEventListener(ev, fn) { this.on[ev] = fn; }, setAttribute() {}, blur() {}, querySelector() { return null; } };
+    Object.defineProperty(n, 'style', { get: () => st, set: (v) => { st.cssText = String(v); } });
+    Object.defineProperty(n, 'firstChild', { get() { return this.children[0] || null; } });
+    return n;
+};
+doc.createElement = mkEl;
+doc.createTextNode = (t) => ({ tag: '#text', textContent: String(t), children: [] });
 const win = { addEventListener() {}, document: doc };
 win.LE = { cfg: { players: [{ name: 'bcl', port: 'P1', ports: ['P1'] }] }, ready: Promise.resolve(), playerOf: (p) => (p === 'P1' ? 'bcl' : null),
     send: (kind, data) => { sent.push({ kind, data }); return Promise.resolve(null); } };
@@ -104,6 +112,24 @@ if (typeof LEO.driveTag === 'function') {
     sent.length = 0; LEO.sendPlan(false);
     const line = sent.filter((x) => x.kind === 'plan').map((x) => x.data.rows).join('|').split('|').find((l) => l.startsWith('bcl-impulse-1;fb1-tail_d12;'));
     check('the plan\'s row: eleven fields, a dial as a line kept whole, the drive last', !!line && line.split(';').length === 11 && line.split(';')[9] === 'fbMix:1,fbDrive:2@0,8@6000' && line.split(';')[10] === '+12', String(line));
+    p = panelOf(z);
+    const dsel = find(p, (n) => n.tag === 'select' && n.children.some((o) => o.value === 'boost'))[0];
+    dsel.value = 'played'; dsel.on.change();
+    check('the panel\'s drive menu writes it on the brick', JSON.stringify(z.elec.variants) === '{"bcl-impulse-2":{"v":"fz-perc","drive":"played"}}' && fire(z).name === 'bcl-impulse-2~fz-perc_dP', JSON.stringify(z.elec.variants) + ' → ' + fire(z).name);
+    p = panelOf(z);
+    const dsel2 = find(p, (n) => n.tag === 'select' && n.children.some((o) => o.value === 'boost'))[0];
+    dsel2.value = ''; dsel2.on.change();
+    check('and takes it off: the variant is a plain name again', JSON.stringify(z.elec.variants) === '{"bcl-impulse-2":"fz-perc"}', JSON.stringify(z.elec.variants));
+    // a stage of the workshop (le_process.js): its drive and a dial on a line
+    const pz = zone({ source: 'bcl-impulse-1', out: 'bcl-impulse-1~1', effect: 'feedback', args: { fbMix: 1, fbDrive: '2@0,8@6000' }, end: 'tail', drive: 'normalized' }, 'elecProcess');
+    const pm = LEO.processMessage(pz, 'x');
+    check('a stage: its drive and its line go in the message', pm.srcDrive === 'normalized' && /(^|,)fbDrive:2@0,8@6000(,|$)/.test(pm.args), JSON.stringify({ srcDrive: pm.srcDrive, args: pm.args }));
+    const plain = LEO.processMessage(zone({ source: 'bcl-impulse-1', out: 'bcl-impulse-1~2', effect: 'comb', args: { combMix: 1 }, end: 'tail' }, 'elecProcess'), 'y');
+    check('a stage with no drive says none: as played', !('srcDrive' in plain), JSON.stringify(plain));
+    let pp = null, perr = '';
+    try { pp = panelOf(pz); } catch (err) { perr = String(err && err.stack || err).split('\n').slice(0, 2).join(' | '); }
+    check('its panel builds: a Drive row, and the line in a box', !!pp && find(pp, (n) => n.textContent === 'Drive').length === 1 && find(pp, (n) => n.tag === 'input' && n.value === '2@0, 8@6000').length === 1,
+        pp ? find(pp, (n) => n.tag === 'label').map((n) => n.textContent).filter(Boolean).slice(0, 40).join(' · ') : perr);
 }
 
 console.log(fails ? 'PAGE_TEST FAIL — ' + fails + ' check(s)' : 'PAGE_TEST PASS');

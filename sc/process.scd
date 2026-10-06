@@ -8,6 +8,15 @@
 //       effect   a word for the row and the label; the engine does not read it
 //       args     "name:value,name:value" — the chain's OWN control names (below). The page decides them: every stage of the
 //                chain is a MIX at 0 until an argument turns it up, so a "stage alone" is its mix at 1 and nothing else.
+//                A DIAL AS A LINE (the Decibel piece's 11.4):  fbDrive:2@0,8@6000  — value@ms breakpoints from the render's start;
+//                the dial starts at the first value and is stepped along the line every 50 ms (the chain's own lag smooths it).
+//       srcDrive THE DRIVE (11.4): how hard the SOURCE hits the chain — a gain on the source, before every stage:
+//                  played       as the sample is (0 dB) — the default of a render asked for by a brick of its own
+//                  normalized   brought to the piece's driveRef (LE_LEVEL; −20 LUFS) whatever was captured — one excitation, the
+//                               effect always speaks; the default of a PLAN's variant
+//                  +12 · -6     that many dB
+//                held so that the driven source's own peak stays a decibel under full scale. What comes OUT is not touched by it:
+//                `match` sets the result's peak as before, and a return's DYNAMIC (level.scd) is applied when it is played.
 //       end      HOW THE RESULT ENDS —
 //                  shape   an ENVELOPE after the effect: atkMs up · the level held · relMs down on `curve` (-4 = percussive),
 //                          the whole exactly durMs long. relMs as long as the rest = a pure struck shape. The processed TIMBRE
@@ -29,8 +38,8 @@
 // captures, <base>~<suffix> (bfl-impulse-1~crush4-perc): one effect under a short envelope. The score is a PLAN; the engine renders
 // each sample's variants RIGHT AFTER ITS CAPTURE, the soonest-needed first — the same in concert and in simulation.
 //   /le/plan        stamp · part · of · rows · [render]
-//       rows     the variants, "|" between them, each  base;suffix;effect;end;atkMs;durX;match;t;capMs;args  (t = the score time of
-//                its first use; args as /le/process takes them). A plan comes in PARTS that share a stamp; it REPLACES the plan
+//       rows     the variants, "|" between them, each  base;suffix;effect;end;atkMs;durX;match;t;capMs;args[;drive]  (t = the score time
+//                of its first use; args as /le/process takes them; drive as srcDrive above — absent = normalized). A plan comes in PARTS that share a stamp; it REPLACES the plan
 //                before it when the last part is in, in whatever order they arrive. An empty plan clears it. render 1: then every
 //                planned variant whose sample is in the bank is rendered (as /le/planrender).
 //   /le/planrender  every planned variant whose sample is in the bank, rendered again — the simulation's button.
@@ -107,7 +116,7 @@
 			icMix = 0, icSpeed = 0.03, icFromMs = 60, icWin = 0.6, icOverlaps = 17, icRand = 0.2, icPitch = 0, icEnv = 4,
 			poMix = 0, poFund = 200, poFirst = 2, poSpread = 0.33, poOffset = 0.25, poRingLo = 7.75, poRingHi = 9.5, poInLen = 1,
 			ptMix = 0, ptFund = 200, ptFirst = 2, ptSpread = 0.33, ptOffset = 0.25, ptRingLo = 7.75, ptRingHi = 9.5, ptInLen = 1,
-			amp = 1, lag = 0.04|
+			amp = 1, lag = 0.04, srcAmp = 1|
 			var sig, play, dry, pre, soft, bank, shaped, filtered, chainA, chainF, specA, specF, frz, wet, back;
 			var gfBufL, gfW, gfOn, gfD, gfTrig, gfOv, gfPos, gfRate, gfCloud;
 			var icOn, icWr, icPtr, icEnvBuf, icSig;
@@ -128,7 +137,7 @@
 			play = PlayBuf.ar(1, buf, rate.abs.clip(0.05, 8) * BufRateScale.kr(buf) * (1 - (2 * back)), 1, back * (BufFrames.kr(buf) - 2), 0);
 			// a player that has reached its buffer's end HOLDS the last value: a source that does not end on zero would leave a
 			// steady offset under everything, and a tail would never reach silence (measured, process_test.scd) — so it is shut
-			sig = play * (1 - Done.kr(play));
+			sig = play * (1 - Done.kr(play)) * srcAmp;   // srcAmp: THE DRIVE (11.4) — the source's gain, before every stage
 			// the noise bed follows the sample's own envelope: it breathes with the material
 			sig = sig + (LPF.ar(PinkNoise.ar(1), noiseCut.lag(lag).clip(200, 16000)) * Amplitude.kr(sig, 0.01, 0.2) * noise.lag(lag) * 3);
 
@@ -383,16 +392,29 @@
 };
 
 // "name:value,name:value" -> the chain's own controls, as [\name, value, …]; a name the chain does not have is left out and named
+// A dial may be a LINE,  name:value@ms,value@ms  (11.4): its first value is the dial's start; the breakpoints come back in `lines`.
 ~le[\processArgs] = { |self, text|
-	var names = self.processDef.allControlNames.collect({ |c| c.name }), args = List.new, unknown = List.new;
+	var names = self.processDef.allControlNames.collect({ |c| c.name }), args = List.new, unknown = List.new, lines = List.new, cur;
+	var point = { |t| var p = t.asString.stripWhiteSpace.split($@); [p[0].asString.asFloat, if(p.size > 1) { p[1].asString.asFloat.max(0) } { 0 }] };
 	(text ? "").asString.split($,).do({ |kv|
-		var b = kv.asString.stripWhiteSpace.split($:), k;
+		var b = kv.asString.stripWhiteSpace.split($:), k, first;
 		if(b.size == 2) {
 			k = b[0].asString.stripWhiteSpace.asSymbol;
-			if(names.includes(k) and: { (k != \buf) and: { k != \out } }) { args.add(k); args.add(b[1].asString.asFloat) } { unknown.add(k) };
+			cur = nil;
+			if(names.includes(k) and: { (k != \buf) and: { k != \out } and: { k != \srcAmp } }) {
+				if(b[1].asString.includes($@)) {
+					first = point.(b[1]);
+					cur = (key: k, pts: List[first]);
+					lines.add(cur);
+					args.add(k); args.add(first[0]);
+				} { args.add(k); args.add(b[1].asString.asFloat) };
+			} { unknown.add(k) };
+		} {
+			// a line's further breakpoints: "fbDrive:2@0,8@6000" arrives here as "fbDrive:2@0" and then "8@6000"
+			if((b.size == 1) and: { cur.notNil } and: { b[0].asString.includes($@) }) { cur[\pts].add(point.(b[0])) };
 		};
 	});
-	(args: args.asArray, unknown: unknown.asArray)
+	(args: args.asArray, unknown: unknown.asArray, lines: lines.asArray)
 };
 
 // where a sample's FILE is: the bank the engine writes to, else the one its buffers were filled from
@@ -407,6 +429,7 @@
 	var effect = (d[\effect] ? "").asString.select({ |c| c.isAlphaNum or: { " -_+".includes(c) } }).keep(40);
 	var lim = (floorDb: [-120, -6], capMs: [100, 60000], fadeOutMs: [0, 2000], atkMs: [0, 10000], durMs: [10, 120000], relMs: [0, 120000], curve: [-12, 12], gainDb: [-60, 24], match: [0, 1]);
 	var endMode, srcPath, sf, sr, srcData, srcPeak, parsed, args, argsText, rate = 1, total, lead = 0.02, oscPath, nrtPath, opts, score, envPaths;
+	var lineText = IdentityDictionary.new, steps = List.new, driveMode, driveDb = 0, driveHeld = false, srcLoud;
 	var endModes = ["shape", "tail", "perc", "gauss", "quasi", "tri", "expodec", "rexpodec"];
 	var durX = (d[\durX] ? 0).asString.asFloat;
 	lim.keysValuesDo({ |k, r| if(d[k].notNil) { o[k] = d[k].asString.asFloat.clip(r[0], r[1]) } });
@@ -435,7 +458,19 @@
 			srcPeak = if(srcData.size > 0) { srcData.abs.maxItem } { 0 };
 			parsed = self.processArgs(d[\args]);
 			args = parsed[\args];
-			argsText = args.clump(2).collect({ |p| p[0].asString ++ ":" ++ p[1] }).join(",");
+			parsed[\lines].do({ |ln| lineText[ln[\key]] = ln[\pts].collect({ |p| p[0].asString ++ "@" ++ p[1].round(1).asInteger }).join(",") });
+			argsText = args.clump(2).collect({ |p| p[0].asString ++ ":" ++ (lineText[p[0]] ? p[1]) }).join(",");
+			// THE DRIVE (11.4): a gain on the source before the chain — measured HERE, on the samples in hand (a row may have no figure yet)
+			driveMode = (d[\srcDrive] ? if(d[\planned].notNil) { "normalized" } { "played" }).asString.stripWhiteSpace;
+			if(driveMode == "normalized") {
+				srcLoud = if(self[\loudOf].notNil) { try { self.loudOf(srcData, sr) } { nil } };
+				driveDb = if(srcLoud.notNil and: { srcLoud[\loudDb] > -100 }) { self.levelOf[\driveRef] - srcLoud[\loudDb] } { 0 };
+			} {
+				if(driveMode != "played") { driveDb = driveMode.asFloat.clip(-60, 40) };
+			};
+			if((srcPeak > 0) and: { (srcPeak.ampdb + driveDb) > -1 }) { driveDb = -1 - srcPeak.ampdb; driveHeld = true };
+			// said in the window and kept in the row — unless the source went in as it is, which is nothing to say
+				o[\driveText] = if((driveMode == "played") and: { driveDb == 0 }) { nil } { driveMode ++ " " ++ if(driveDb >= 0) { "+" } { "" } ++ driveDb.round(0.1) ++ " dB" ++ if(driveHeld) { " (held under full scale)" } { "" } };
 			args.clump(2).do({ |p| if(p[0] == \rate) { rate = p[1].abs.clip(0.05, 8) } });
 			// durX: the envelope's length as a multiple of the source's own — of what the effect makes of it, when the tape's speed changes it
 			if(durX > 0) { o[\durMs] = (srcData.size / sr / rate * 1000 * durX).clip(lim[\durMs][0], lim[\durMs][1]) };
@@ -448,15 +483,28 @@
 			opts = ServerOptions.new.numOutputBusChannels_(1).memSize_(131072).numWireBufs_(256);
 			// his ten grain windows (grainEnv/gEnv_*.aif, §122) into buffers 1 … 10, in name order — the icy stage picks one by number
 			envPaths = (self[\dir] +/+ "grainEnv" +/+ "gEnv_*.aif").pathMatch.sort;
+			// a dial as a line: stepped along its breakpoints every 50 ms, from the render's start (the chain's lag smooths the steps)
+			parsed[\lines].do({ |ln|
+				var pts = ln[\pts].asArray.sort({ |a, b| a[1] < b[1] });
+				(pts.size - 1).do({ |i|
+					var p = pts[i], q = pts[i + 1], t = p[1] + 50, span = (q[1] - p[1]).max(1);
+					while { t < q[1] } { steps.add([lead + (t / 1000), ['/n_set', 1000, ln[\key], p[0] + ((q[0] - p[0]) * ((t - p[1]) / span))]]); t = t + 50 };
+					steps.add([lead + (q[1] / 1000), ['/n_set', 1000, ln[\key], q[0]]]);
+				});
+			});
+			steps = steps.select({ |x| (x[0] > lead) and: { x[0] < (lead + total) } }).sort({ |a, b| a[0] < b[0] });
 			score = Score([
 				[0.0, ['/d_recv', self.processDef.asBytes]],
 				[0.0, ['/b_allocRead', 0, srcPath, 0, 0]]
 			] ++ envPaths.collect({ |p, i| [0.0, ['/b_allocRead', i + 1, p, 0, 0]] }) ++ [
-				[lead, ['/s_new', \leProcess, 1000, 0, 0, \buf, 0, \out, 0] ++ args],
+				[lead, ['/s_new', \leProcess, 1000, 0, 0, \buf, 0, \out, 0, \srcAmp, driveDb.dbamp] ++ args]
+			] ++ steps.asArray ++ [
 				[lead + total, ['/c_set', 0, 0]]
 			]);
 			self[\processBusy].add(out.asSymbol);
 			self.say("LE_INFO", "process · " ++ out ++ " ← " ++ src ++ " · " ++ effect ++ " · " ++ endMode ++ " · rendering " ++ total.round(0.01) ++ " s offline"
+					++ if(o[\driveText].notNil) { " · driven " ++ o[\driveText] } { "" }
+					++ if(parsed[\lines].size > 0) { " · " ++ parsed[\lines].size ++ " dial" ++ if(parsed[\lines].size > 1) { "s" } { "" } ++ " on a line" } { "" }
 				++ if(parsed[\unknown].size > 0) { " · NOT in the chain, left out: " ++ parsed[\unknown].join(", ") } { "" });
 			score.recordNRT(oscPath, nrtPath, nil, sr, "WAV", "float", opts, "", nil, { |code|
 				self[\processBusy].remove(out.asSymbol);
@@ -553,6 +601,7 @@
 				openingId: id, windowMs: 0, attackMs: (head / sr * 1000).round(0.1), captured: self.nowIso,
 				kind: "processed", source: src, effect: effect, args: argsText, end: endMode);
 			if(loud.notNil) { self.loudInto(row, loud) };
+			if(o[\driveText].notNil) { row[\drive] = o[\driveText] };
 			if(o[\planned].notNil) { row[\planned] = 1 };   // a variant of the plan (below): a page keeps it out of its pickers
 			self[\indexRows] = self[\indexRows].reject({ |r| r[\name].asString == out }).asList;   // a List: add() in place (bank.scd, §84)
 			self[\indexRows].add(row);
@@ -591,7 +640,7 @@
 		if(f.size >= 10) {
 			rows.add((base: self.safeName(f[0]), suffix: self.safeName(f[1]), effect: f[2].asString, end: f[3].asString,
 				atkMs: f[4].asString.asFloat, durX: f[5].asString.asFloat, match: f[6].asString.asInteger, t: f[7].asString.asFloat,
-				capMs: f[8].asString.asFloat, args: f[9].asString));
+				capMs: f[8].asString.asFloat, args: f[9].asString, drive: if(f.size > 10) { f[10].asString.stripWhiteSpace } { "" }));
 		};
 	});
 	if(self[\planIn].isNil or: { self[\planIn][\stamp] != stamp }) { self[\planIn] = (stamp: stamp, parts: IdentityDictionary.new, render: false) };
@@ -633,6 +682,7 @@
 			m = (source: r[\base], out: q[\out], effect: r[\effect], args: r[\args], end: r[\end], atkMs: r[\atkMs], durX: r[\durX],
 				match: r[\match], id: "plan", planned: 1);
 			if(r[\capMs] > 0) { m[\capMs] = r[\capMs] };
+			if(r[\drive].notNil and: { r[\drive].size > 0 }) { m[\srcDrive] = r[\drive] };   // absent: a plan's variant is driven normalized (processRender)
 			self.processRender(m);
 		};
 	};

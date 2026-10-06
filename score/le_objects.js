@@ -170,20 +170,37 @@
             if ((e.behaviour === 'chain' || e.behaviour === 'arChain') && Array.isArray(e.names) && e.names.length) return e.names.filter((n) => n && n !== '*');
             return e.name && e.name !== '*' ? [e.name] : [];
         },
-        variantOf(e, name) { const v = e && e.variants && e.variants[name]; return v ? safe(v) : ''; },
+        // a variant is '<key>-<env>' — or { v: '<key>-<env>', drive } when the BRICK says how hard the sample hits the effect (11.4)
+        variantOf(e, name) { const x = e && e.variants && e.variants[name], v = x && typeof x === 'object' ? x.v : x; return v ? safe(v) : ''; },
+        // THE DRIVE (the first piece's 11.4): what goes INTO an effect — 'normalized' (brought to one level first: the effect always
+        // speaks; the default of a plan's variant) · 'played' (as the microphone caught it: the player leads) · '+12' / '-6' (dB).
+        // On a preset of the piece's file (`drive`), and on a brick's own variant, which then asks for a NAME of its own:
+        // <sample>~<key>-<env>_dN · _dP · _d12 · _dm6 — two bricks may drive one preset differently and each gets its render.
+        driveWord(d) {
+            const t = String(d == null ? '' : d).trim();
+            if (t === 'normalized' || t === 'played') return t;
+            if (!/^[+-]?\d+(\.\d+)?$/.test(t)) return '';
+            const n = Math.max(-60, Math.min(40, Math.round(+t)));
+            return n === 0 ? 'played' : (n > 0 ? '+' : '-') + Math.abs(n);
+        },
+        driveOf(e, name) { const x = e && e.variants && e.variants[name]; return x && typeof x === 'object' ? this.driveWord(x.drive) : ''; },
+        driveTag(d) { const w = this.driveWord(d); return !w ? '' : w === 'normalized' ? '_dN' : w === 'played' ? '_dP' : '_d' + (w[0] === '-' ? 'm' : '') + w.slice(1); },
+        vsuffix(e, name) { const v = this.variantOf(e, name); return v ? v + this.driveTag(this.driveOf(e, name)) : ''; },
+        // A DIAL AS A LINE (11.4): 'value@ms,value@ms…' — breakpoints from the render's start; the engine moves the dial along them
+        isLine(v) { return typeof v === 'string' && /^\s*-?\d+(\.\d+)?@\d+(\.\d+)?(\s*,\s*-?\d+(\.\d+)?@\d+(\.\d+)?)+\s*$/.test(v); },
         splitVariant(v) { const s = String(v || ''), i = s.lastIndexOf('-'); return i > 0 ? { key: s.slice(0, i), env: s.slice(i + 1) } : { key: s, env: '' }; },
         // the name a brick asks the engine for: the sample's, or its variant's
-        vname(e, name) { const v = this.variantOf(e, name); return safe(safe(name) + (v && name !== '*' ? '~' + v : '')); },
+        vname(e, name) { const v = this.vsuffix(e, name); return safe(safe(name) + (v && name !== '*' ? '~' + v : '')); },
         // every variant the score's bricks ask for, once each, with the time of its first use — what the engine must have rendered by then
         planRows() {
             const P = this.presets, out = new Map();
             if (!P) return [];
-            const add = (name, v, t) => {
+            const add = (name, v, t, drive) => {
                 const { key, env } = this.splitVariant(v), p = P.presets.find((x) => x.key === key), E = (P.envelopes || {})[env];
                 if (!p || !E) return;   // a preset or an envelope the file no longer has: the sample returns raw
-                const id = safe(name) + '~' + v, was = out.get(id), cls = (P.classes || {})[p.class] || {};
+                const suffix = v + this.driveTag(drive), id = safe(name) + '~' + suffix, was = out.get(id), cls = (P.classes || {})[p.class] || {};
                 if (was) { if (t < was.t) was.t = t; return; }
-                out.set(id, { base: safe(name), suffix: v, effect: String(p.effect || '').replace(/[^A-Za-z0-9 _+-]/g, '').slice(0, 40), end: env === 'tail' ? 'tail' : env,
+                out.set(id, { drive: this.driveWord(drive) || this.driveWord(p.drive) || 'normalized', base: safe(name), suffix, effect: String(p.effect || '').replace(/[^A-Za-z0-9 _+-]/g, '').slice(0, 40), end: env === 'tail' ? 'tail' : env,
                     atkMs: +E.atkMs || 0, durX: +(p.durX || cls.durX || 1), match: p.match === 0 ? 0 : 1, t, capMs: env === 'tail' ? (p.capMs || E.capMs || 4000) : 0, args: p.args || {} });   // capMs may be a range [lo, hi]: drawn at the send
             };
             for (const z of this.zones('elecPlay')) {
@@ -194,7 +211,7 @@
                     continue;
                 }
                 if (!e.variants) continue;
-                for (const name of this.samplesOf(e)) { const v = this.variantOf(e, name); if (v) add(name, v, r3(z.startTime)); }
+                for (const name of this.samplesOf(e)) { const v = this.variantOf(e, name); if (v) add(name, v, r3(z.startTime), this.driveOf(e, name)); }
             }
             return [...out.values()].sort((a, b) => a.t - b.t);
         },
@@ -208,10 +225,11 @@
             const lines = rows.map((r) => {
                 const args = Object.keys(r.args).filter((k) => /^[A-Za-z][A-Za-z0-9]*$/.test(k)).map((k) => {
                     const v = r.args[k], x = Array.isArray(v) && v.length === 2 ? Math.round((Math.min(+v[0], +v[1]) + Math.random() * Math.abs(+v[1] - +v[0])) * 100) / 100 : +v;
+                    if (this.isLine(v)) return k + ':' + String(v).replace(/\s+/g, '');   // a dial as a line in time: sent whole
                     return Number.isFinite(x) ? k + ':' + x : null;
                 }).filter(Boolean).join(',');
                 const cap = Array.isArray(r.capMs) && r.capMs.length === 2 ? Math.round(Math.min(+r.capMs[0], +r.capMs[1]) + Math.random() * Math.abs(+r.capMs[1] - +r.capMs[0])) : (+r.capMs || 0);   // a ring time drawn fresh (the tail's [950, 1350])
-                return [r.base, r.suffix, r.effect, r.end, r.atkMs, r.durX, r.match, r.t, cap, args].join(';');
+                return [r.base, r.suffix, r.effect, r.end, r.atkMs, r.durX, r.match, r.t, cap, args, r.drive || 'normalized'].join(';');
             });
             const per = 6, n = Math.max(1, Math.ceil(lines.length / per)), stamp = 'p' + Date.now().toString(36);
             for (let i = 0; i < n; i++) LE.send('plan', { stamp, part: i + 1, of: n, rows: lines.slice(i * per, (i + 1) * per).join('|'), render: render ? 1 : 0 });
@@ -519,11 +537,19 @@
             sec.appendChild(el('h5', { textContent: 'Processed as' }));
             for (const name of names) {
                 const cur = this.splitVariant(this.variantOf(e, name)), known = P.presets.find((p) => p.key === cur.key);
-                const set = (key, env) => commit(() => {
+                const set = (key, env, drive) => commit(() => {
                     if (!e.variants) e.variants = {};
-                    if (key) e.variants[name] = safe(key + '-' + (envs.includes(env) ? env : envs[0])); else delete e.variants[name];
+                    const d = this.driveWord(drive === undefined ? this.driveOf(e, name) : drive);
+                    if (key) { const v = safe(key + '-' + (envs.includes(env) ? env : envs[0])); e.variants[name] = d ? { v, drive: d } : v; } else delete e.variants[name];
                     if (!Object.keys(e.variants).length) delete e.variants;
                 });
+                // THE DRIVE of this sample into its effect (11.4): the preset's own (else normalized) · normalized · as played · a boost in dB
+                const dNow = this.driveOf(e, name), boost = /^[+-]\d+$/.test(dNow), dStd = (known && this.driveWord(known.drive)) || 'normalized';
+                const ds = el('select', { style: small, disabled: !cur.key, title: 'THE DRIVE — how hard this sample hits the effect: normalized = brought to one level first, so the effect always speaks · as played = as the microphone caught it, the player leads · boost = that many dB' });
+                for (const [v, t] of [['', 'drive: ' + (dStd === 'played' ? 'as played' : dStd)], ['normalized', 'normalized'], ['played', 'as played'], ['boost', 'boost …']]) ds.appendChild(el('option', { value: v, textContent: t, selected: boost ? v === 'boost' : v === dNow }));
+                ds.addEventListener('change', () => { if (ds.blur) ds.blur(); set(cur.key, cur.env, ds.value === 'boost' ? (boost ? dNow : '+6') : ds.value); });
+                const dBox = boost ? el('input', { type: 'number', value: String(+dNow), step: '1', min: '-60', max: '40', title: 'dB onto the sample before the effect', style: 'width:44px;' + small }) : null;
+                if (dBox) dBox.addEventListener('change', () => set(cur.key, cur.env, String(Math.round(+dBox.value) || 0)));
                 const ps = el('select', { style: 'max-width:170px;' + small, title: 'the transformation this sample returns as — one effect of the chain; — raw — returns the sample as it is' });
                 ps.appendChild(el('option', { value: '', textContent: '— raw —', selected: !cur.key }));
                 if (cur.key && !known) ps.appendChild(el('option', { value: cur.key, textContent: cur.key + ' — not in the presets: raw', selected: true }));
@@ -534,8 +560,8 @@
                 es.addEventListener('change', () => { es.blur(); set(cur.key, es.value); });
                 const hear = btn('▶', () => { if (window.LE) LE.send('play', { name: this.vname(e, name), id: 'audition', lane: -1, t: 0, dueMs: 0, ...this.dynFields(e) }); this.say('▶ ' + this.vname(e, name)); },
                     'this sample as the brick will ask for it, now — raw if its variant is not rendered yet (the engine\'s window says)');
-                const made = cur.key ? this.row(safe(name) + '~' + this.variantOf(e, name)) : null;
-                sec.appendChild(rowEl(name, pair(ps, es, hear, tiny(!cur.key ? '' : made ? Math.round(made.lengthMs) + ' ms' : 'not rendered'))));
+                const made = cur.key ? this.row(safe(name) + '~' + this.vsuffix(e, name)) : null;
+                sec.appendChild(rowEl(name, pair(...[ps, es, ds, dBox, hear, tiny(!cur.key ? '' : made ? Math.round(made.lengthMs) + ' ms' : 'not rendered')].filter(Boolean))));
             }
             const rows = this.planRows(), have = rows.filter((r) => this.row(r.base + '~' + r.suffix)).length;
             sec.appendChild(rowEl('', pair(
