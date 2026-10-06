@@ -32,6 +32,15 @@
 play back, then **STOP and ask**. No edits, no builds, no tool calls beyond the resume
 reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, then work.)*
 
+### 2026-10-06 — A GENERATED VOICE, THE SINE, in the Decibel piece (Opus; RUNNING_LOG §47 · §48; part 11.4)
+
+- **What exists:** `sc/sine.scd` (loaded by `boot.scd` after `level.scd`; `session.scd` wires `sineHear` with or without a bank) · `\leSine` in `sc/synths.scd` · `/le/sine` · `/le/sinestop` · `score/le_sine.js` (a mixin on `LEObjects`; `le_objects.js` hands it the key, the label, the panel, the fire and the tick's "inside") · `sc/sine_test.scd` · `tools/sine_page_test.js` · `docs/SEAMS.md` § the fourth object, the two kinds, rows 2c · 3.
+- **The level is exact:** a mark → `markDb + 0.691 − K(f)` = the sine's peak (`kGainDb` from `level.scd`'s own filters). One ladder for the samples and the generated voices.
+- **A level that follows a drawn curve** is read through the HOST's reader, handed in at attach (`opts.curveAt`) — the module leans on no file of a piece's.
+- **The stop:** `stopPlay` wrapped → `/le/sinestop`; a restart or a jump by `pass` on each message; each sine remembered by its own node (`~le[\sines]`).
+- **NOT CLAIMED:** `sinePlay` · `sineLetGo` through a living server (parsed, never run — the Decibel piece's composer restarts his engine for the first run); his ear.
+- **NEXT, by a piece's need:** other generated voices beside the sine; the sine's drawn kind in the notation (part 7 — a device sheet).
+
 ### 2026-10-05 — TWO GRANULAR VOICES, in the Decibel piece (Fable; RUNNING_LOG §36 · §37; part 6.3)
 
 - **What exists:** `sc/process.scd` — the stage `cloud` (GrainBuf: asynchronous grains from one moment of the chain's signal, written into a
