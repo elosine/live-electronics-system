@@ -15,7 +15,7 @@
 //       `openMs` (500) long, the crop finds the attack — or, with no note selected, at the playhead on the active lane.
 //       Its name: the player's name and the next free letter (bcl-A, bcl-B …), the composer's to rename in the panel.
 //
-//   midiModel 'elecPlay'   THE RETURN.   elec: { name, behaviour? }
+//   midiModel 'elecPlay'   THE RETURN.   elec: { name, behaviour?, label? }   (label: a tag shown first on the brick — a number, a word)
 //       behaviour 'ar' (2026-10-05, step 9): the brick is a REGION around its CENTRE, the live note; the message points at the
 //       centre and names the behaviour; the ENGINE rolls where the sample lands (before, after, lazily after, near unison, a
 //       miss) — never the page: the score stays still, the simulation runs the same dice. Its panel chooses the behaviour.
@@ -245,6 +245,7 @@
                 if (e.behaviour === 'pattern') { const n = Array.isArray(e.pattern) ? e.pattern.length : 0; text = M.sign + ' ' + (n ? n + ' samples · ' + Math.round((zone.endTime - zone.startTime) * 1000) + ' ms' : 'no sample picked'); }
                 if (e.behaviour) text += ' ~ ' + String(e.behaviour).toUpperCase();
                 if (e.behaviour !== 'pattern' && !this.row(e.name)) text += ' — not captured yet';
+                if (e.label) text = M.sign + ' ' + String(e.label).slice(0, 24) + ' · ' + text.slice(M.sign.length + 1);   // a brick's own tag, first: a number in an audition, a word of his
             }
             if (label) label.textContent = text;
         },
