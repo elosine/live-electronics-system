@@ -233,3 +233,13 @@ first member; the rest by compositional need, one at a time, each through the pl
 ***Why:*** the animations go with the sounds, and live analysis may feed the score at performance time (LG-351).
 New in kind: the scrolling score has animated objects (the GC · the pie · the meter · the ball) but no RUNTIME INPUT; 12 gives
 the performance score one. 7's kinds are its drawn form; a device sheet for each. *To be laid out when we discuss it.*
+
+## 13. The level — the loudness law, the drive, the bus, the house — `laid out` 2026-10-06 in the Decibel piece (its PLAN.md § 1.4; its RUNNING_LOG §154 … §159; its D17)
+
+***Why:*** the composer's goal: *"score the electronics like live performers on a scale from ppp to fff … smooth, deterministic crescendos … subito piano or sotto voce"*, with player agency kept (*"played back as played or re leveled as my composer intention"*). Generic by nature — every piece's returns need a loudness, a mark, an envelope, a drive, a mastering bus and a way into any hall.
+
+**The design (the piece's D17):** level is TWO things — the DRIVE (into an effect) and the DYNAMIC (out to the audience) — each with a MODE: `as played` · `written` (a mark) · `relative`; the drive also `normalized` · `boost`. The defaults: the dynamic `as played`, the drive `normalized`; a mark overrides. The bus is SuperCollider's (no second install; the VSTPlugin extension a possible upgrade in the same slot).
+
+**What is the engine's, laid out as the piece's 11.1 … 11.7 and built there first:** 13.1 the MEASURE — BS.1770 K-weighted loudness on every row at capture and at render (`loudDb` the loudest 400 ms · `loudIntDb`), the existing bank measured at start · 13.2 the LADDER — marks to dB (`reference` · `stepDb` · the eight names · a lift cap), `gainFor(sample, dyn)`, `playedMark(row)` · 13.3 the DYNAMIC on a return brick — `zone.elec.dyn` (mode · mark · shape: hairpin · step · line), the message fields `dyn` · `env`, `\leSample` with a breakpoint envelope · 13.4 the DRIVE — a gain on the source before the chain (`normalized` · `played` · `+N`), a dial as a line in time (`/n_set` steps in the NRT score) · 13.6 the BUS — `\leMaster` rebuilt (HPF · LPF · a soft-knee RMS compressor · `Limiter.ar` at −1 dBTP with its look-ahead subtracted from `dueMs` · the clip) and a LUFS / true-peak meter · 13.7 the HOUSE — `\leIn` with trim · HPF · EQ from a venue file, a sound-check calibration, a bleed guard at capture, a reference tone for the house. **The piece's:** the numbers (`bank/elec_route.json` `level` · `master`, `bank/venue/`), the marks on its bricks, its impulse tool's dynamics (the piece's 11.5).
+
+**Status:** nothing built. The build order and the one proof of each: the piece's PLAN.md § 1.4, last bullet.
