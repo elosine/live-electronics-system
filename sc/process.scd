@@ -74,7 +74,7 @@
 	var missing = List.new;
 	if(self[\processDefObj].isNil) {
 		self[\processDefObj] = SynthDef(\leProcess, { |out = 0, buf = 0, rate = 1, rev = 0,
-			rlo = 0.5, rlomid = 0.5, rhimid = 0.5, rhi = 0.5, resMix = 0, resDcy = 0.6,
+			rlo = 0.5, rlomid = 0.5, rhimid = 0.5, rhi = 0.5, resMix = 0, resDcy = 0.6, resF1 = 110, resF2 = 440, resF3 = 1600, resF4 = 5200,
 			cresFreq = 300, cresDcy = 0.6, cresMix = 0,
 			drive = 8, driveType = 0, driveArg = 0.5, shapeMix = 0,
 			rmFreq = 300, rmMix = 0, drmFreq = 180, drmMix = 0, fsHz = 120, fsMix = 0,
@@ -144,8 +144,8 @@
 			ovr = (rdA * gA.sqrt) + (rdB * (1 - gA).sqrt * (1 - firstRep));
 			sig = mix.(sig, ovr, ovrMix);
 
-			// --- resonator bank: four ringing bands -----------------------------------------------------------------
-			bank = Ringz.ar(sig, [110, 440, 1600, 5200], resDcy.lag(lag).clip(0.02, 3.0)) * [rlo.lag(lag), rlomid.lag(lag), rhimid.lag(lag), rhi.lag(lag)];
+			// --- resonator bank: four ringing bands — their pitches controls since §125 (the Decibel piece's DEC-23: drawn per variant) -----
+			bank = Ringz.ar(sig, [resF1, resF2, resF3, resF4].collect({ |f| f.lag(lag).clip(20, 12000) }), resDcy.lag(lag).clip(0.02, 3.0)) * [rlo.lag(lag), rlomid.lag(lag), rhimid.lag(lag), rhi.lag(lag)];
 			sig = mix.(sig, bank.sum * 0.2, resMix);
 			// --- complex resonator: one ringing partial ---------------------------------------------------------------
 			sig = opt.(\ComplexRes, { |c| mix.(sig, c.ar(sig, cresFreq.lag(lag).clip(20, 8000), cresDcy.lag(lag).clip(0.01, 0.99)) * 0.5, cresMix) }, sig);

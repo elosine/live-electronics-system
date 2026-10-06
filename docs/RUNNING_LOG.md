@@ -660,3 +660,5 @@ re-rendered re-rendering those made from it — the label already says which are
 - **Not yet:** his `\icy_live`'s duration envelope (linen with `rel` on curve −6) — the piece's endings do that job here · stereo (his `\icy_s` ran two buffers) · the speed map of `Freezer.scd` read exactly.
 
 - **§37 b (the same day; the piece's §124):** the icy stage no longer gates the dry sound until its first window — Warp1 runs from the start, swelling in as the material is written (no gap after the attack); the mix alone decides the attack: 1 = the stretch only, the peak-match lifting the sustain · 0.5 = both · 0 = the sample. `process_test.scd` PASS (the sustain −5.5 dB under the peak, was −11.9).
+
+- **§37 c (the same day; the piece's §125):** the resonator bank's four pitches are controls (`resF1 … resF4`; the row has the dials) — so a piece can draw them per variant (the Decibel piece's DEC-23). `process_test.scd` PASS.
