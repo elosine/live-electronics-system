@@ -72,6 +72,9 @@
 //   on a buffer the chain writes), the first of the granular voices (the engine plan's 10.2; after the sandbox's \roadsCloudBuf).
 //   ADDED the same day (§122): `icy` — HIS OWN FREEZE of 2015 … 2016 (github.com/elosine/freeze): Warp1 over that buffer, a crawling read
 //   point, 0.6 … 0.8 s windows, 17 … 40 overlaps, his ten grain windows (grainEnv/). The render loads them into buffers 1 … 10.
+//   ADDED 2026-10-06 (the Decibel piece's DEC-34b · PLAN 10.13 · RUNNING_LOG §171; the engine's §46): `icLoop` on the icy stage —
+//   1 = the read point WRAPS at the source's end and reads it again from the start (a drone from a held sound); 0 = it holds at the
+//   end as his freezes did. The engine's default is 0; the Decibel piece's row defaults to 1 with icFromMs 0.
 //   ADDED 2026-10-06 (the Decibel piece's DEC-32 · PLAN 10.3 · RUNNING_LOG §151; the engine's §40): HIS PETALS OF RESONANCE
 //   (github.com/elosine/SynthDef_petalsOfResonance), twice, after the resonator bank — `petalsOrig` (po…), his SynthDef UGen for UGen
 //   with the microphone replaced by the chain's signal, and `petals` (pt…), the same instrument by a cleaned signal path.
@@ -113,13 +116,13 @@
 			fbMix = 0, fbS1 = 82.41, fbS2 = 110, fbS3 = 146.83, fbS4 = 196, fbS5 = 246.94, fbS6 = 329.63,
 			fbBloom = 1, fbHold = 2, fbDrive = 6, fbTone = 2500, fbPath = 8, fbClimb = 0, fbWobble = 0, fbOwn = 0,
 			gfMix = 0, gfAtMs = 80, gfDur = 200, gfDens = 40, gfSpread = 20, gfPitch = 0,
-			icMix = 0, icSpeed = 0.03, icFromMs = 60, icWin = 0.6, icOverlaps = 17, icRand = 0.2, icPitch = 0, icEnv = 4,
+			icMix = 0, icSpeed = 0.03, icFromMs = 60, icWin = 0.6, icOverlaps = 17, icRand = 0.2, icPitch = 0, icEnv = 4, icLoop = 0,
 			poMix = 0, poFund = 200, poFirst = 2, poSpread = 0.33, poOffset = 0.25, poRingLo = 7.75, poRingHi = 9.5, poInLen = 1,
 			ptMix = 0, ptFund = 200, ptFirst = 2, ptSpread = 0.33, ptOffset = 0.25, ptRingLo = 7.75, ptRingHi = 9.5, ptInLen = 1,
 			amp = 1, lag = 0.04, srcAmp = 1|
 			var sig, play, dry, pre, soft, bank, shaped, filtered, chainA, chainF, specA, specF, frz, wet, back;
 			var gfBufL, gfW, gfOn, gfD, gfTrig, gfOv, gfPos, gfRate, gfCloud;
-			var icOn, icWr, icPtr, icEnvBuf, icSig;
+			var icOn, icWr, icPos, icLp, icPtr, icEnvBuf, icSig;
 			var ovrBufL, ovrFrames, wr, ovrTrig, startPos, miniSamps, fadeSamps, period, ph, firstRep, gA, rdA, rdB, ovr;
 			var od, fz, oc, cabSig, cr, chx, chx2, ch;
 			var fbRt, fbProg, fbGain, fbIn, fbExc, fbStr, fbNone, fbAmp, fbToneNow, fbCol, fbPathNow;
@@ -366,7 +369,13 @@
 			//     together · 0 = the sample as it is. The read point waits at icFromMs until the sound reaches it, then crawls.
 			icWr = gfW / SampleRate.ir;   // seconds of material written so far: the read point never runs ahead of it
 			icOn = Sweep.kr(0, 1) >= (icFromMs.clip(0, 3000) / 1000);
-			icPtr = ((icFromMs.clip(0, 3000) / 1000) + Sweep.kr(icOn, icSpeed.clip(0, 4))).min(icWr) / (BufFrames.ir(gfBufL) / SampleRate.ir);
+			icPos = (icFromMs.clip(0, 3000) / 1000) + Sweep.kr(icOn, icSpeed.clip(0, 4));
+			// THE LOOP (the Decibel piece's DEC-34b, its §169 · §171): icLoop 1 = the read point WRAPS at the end of what is written — the
+			//     source read in order from its beginning, again and again (a drone from a held sound); 0 = it HOLDS at the end, as his
+			//     freezes did. The material written so far bounds it both ways (the point never runs ahead of the writing), so a wrap
+			//     happens only once the source is over. Arithmetic, not Select: the bound is audio rate (gfW), the rest control rate.
+			icLp = icLoop.clip(0, 1);
+			icPtr = ((icPos.min(icWr) * (1 - icLp)) + ((icPos % icWr.max(1e-4)) * icLp)) / (BufFrames.ir(gfBufL) / SampleRate.ir);
 			icEnvBuf = Select.kr(icEnv.clip(0, 10), [-1] ++ (1..10));
 			icSig = Warp1.ar(1, gfBufL, icPtr, 2 ** (icPitch.clip(-24, 24) / 12), icWin.clip(0.05, 2), icEnvBuf, icOverlaps.clip(1, 64), icRand.clip(0, 1), 2)
 				* icOverlaps.clip(1, 64).sqrt.reciprocal;

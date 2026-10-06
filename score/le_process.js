@@ -78,8 +78,9 @@
         { key: 'smear', label: 'smear — spectral blur', dials: [D('smear', 'bins', 0, 24, 1, 8)] },
         { key: 'gate', label: 'spectral gate — the loudest bins only', dials: [D('gate', 'threshold', 0, 60, 0.1, 2)] },
         { key: 'freeze', label: 'freeze — the spectrum, held', on: { freeze: 1 }, dials: [D('freezeAtMs', 'at', 0, 2000, 5, 60, 'ms'), D('smear', 'smear', 0, 24, 1, 0)] },
-        { key: 'icy', label: 'icy — his freeze (2015): a stretch — the read point crawls, long windows, many grains', dials: [D('icMix', 'mix', 0, 1, 0.05, 1), D('icSpeed', 'speed ×', 0, 2, 0.01, 0.03), D('icFromMs', 'from', 0, 3000, 5, 60, 'ms'), D('icWin', 'window', 0.05, 2, 0.01, 0.6, 's'), D('icOverlaps', 'overlaps', 1, 64, 1, 17), D('icRand', 'rand', 0, 1, 0.05, 0.2), D('icPitch', 'pitch', -24, 24, 0.5, 0, 'st'),
-            O('icEnv', 'grain window', [[0, 'Hann (built in)'], [1, '3-stage linear'], [2, 'Blackman'], [3, 'Blackman-Harris'], [4, 'expodec'], [5, 'gauss'], [6, 'Hamming'], [7, 'hanning'], [8, 'quasi-gauss'], [9, 'rexpodec'], [10, 'tri']], 4)],
+        { key: 'icy', label: 'icy — his freeze (2015): a stretch — the read point crawls, long windows, many grains', dials: [D('icMix', 'mix', 0, 1, 0.05, 1), D('icSpeed', 'speed ×', 0, 2, 0.01, 0.03), D('icFromMs', 'from', 0, 3000, 5, 0, 'ms'), D('icWin', 'window', 0.05, 2, 0.01, 0.6, 's'), D('icOverlaps', 'overlaps', 1, 64, 1, 17), D('icRand', 'rand', 0, 1, 0.05, 0.2), D('icPitch', 'pitch', -24, 24, 0.5, 0, 'st'),
+            O('icEnv', 'grain window', [[0, 'Hann (built in)'], [1, '3-stage linear'], [2, 'Blackman'], [3, 'Blackman-Harris'], [4, 'expodec'], [5, 'gauss'], [6, 'Hamming'], [7, 'hanning'], [8, 'quasi-gauss'], [9, 'rexpodec'], [10, 'tri']], 4),
+            O('icLoop', 'at the end', [[1, 'loops to the start'], [0, 'holds at the end']], 1)],   // DEC-34b (§169 · §171): this piece reads the source in order from 0 and loops — the row's default; the engine's own stays 0
             presets: [   // §122: his three versions, as he set them (the AI's reading of each file's numbers)
                 { name: 'icy (2015) — window 0.8 s · 33 grains · rand 0.2 · hanning', args: { icSpeed: 0.03, icWin: 0.8, icOverlaps: 33, icRand: 0.2, icEnv: 7 } },
                 { name: 'icy live (2015) — window 0.6 s · 17 grains · rand 0.2 · expodec · ~30× slower', args: { icSpeed: 0.03, icWin: 0.6, icOverlaps: 17, icRand: 0.2, icEnv: 4 } },
@@ -143,7 +144,8 @@
         freezeAtMs: ['the moment the spectrum is caught and held, from the sample\'s start', '20 … 200'],
         icMix: ['1 is the stretch alone — the attack suppressed, the sustain swells in and is lifted to the source\'s peak · 0.5 is the attack and the sustain together · 0 is the sample as it is', '0.5 … 1'],
         icSpeed: ['how fast the read point moves through the sample, as a fraction of real time: 1 is the sample as it is, 0.03 is thirty times longer, 0 is held in one place', '0 … 0.1'],
-        icFromMs: ['where the read point starts, from the sample\'s start', '20 … 200'],
+        icFromMs: ['where the read point starts, from the sample\'s start — 0 for this piece: the source is read from its beginning (DEC-34b)', '0'],
+        icLoop: ['what the read point does at the end of the sample: loops back to its start (this piece\'s rule, DEC-34b) or holds there, as his freezes did'],
         icWin: ['each grain\'s window, in seconds — his freezes used 0.6 … 0.8: very long, very smooth; short is grainy', '0.3 … 0.8'],
         icOverlaps: ['how many grains sound at once — 17 … 40 in his freezes; the loudness is compensated', '12 … 40'],
         icRand: ['each window placed a little off the read point, at random: 0 is exact (a comb at the window rate), 0.2 blurs it away', '0.1 … 0.3'],

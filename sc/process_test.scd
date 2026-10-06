@@ -36,7 +36,7 @@ check = { |what, ok, detail| ("  " ++ if(ok) { "ok   " } { "FAIL " } ++ what ++ 
 fork {
 	var r1, r2, r3, r4, r5, r6, r7, r8, f4, d4, held, f7, d7, fbHeld, f8, d8, late8, srcDb = ~le.db(src.abs.maxItem), t0 = Main.elapsedTime;
 	var p1, p2, p3, fb, lenOf = { |r| if(r.notNil) { r[\lengthMs] } { -1 } };
-	var r9, f9, d9, gfHeld, r10, f10, d10, icHeld;
+	var r9, f9, d9, gfHeld, r10, f10, d10, icHeld, r14, f14, d14, r15, f15, d15, lpLate, hdLate, lateOf;
 	var r11, r12, tP, r13, f13, d13, own, tones;
 	var dA, dB, dC, dD, dE, dF, dG, parsedL, ln;
 	waitFor = { |name, secs = 30|
@@ -136,6 +136,18 @@ fork {
 		check.("~10 icy stretches past its source and is cut at the cap", (icHeld > -20) and: { r10[\lengthMs] > 1500 } and: { r10[\lengthMs] < 1900 },
 			"0.6 … 1.1 s into it, " ++ icHeld ++ " dB under its peak (the source ended at 0.35 s) · " ++ r10[\lengthMs] ++ " ms long, the cap 1500 past the source");
 	};
+	// DEC-34b (the Decibel piece's §169 · §171): THE LOOP — icLoop 1: the read point wraps at the source's end and reads it again from 0;
+	// icLoop 0 holds at the end. At half speed over a 0.35 s source the point wraps every 0.7 s: a second in, the looping render is still
+	// revisiting the burst while the holding one sits on the source's dying end (−31 dB under its peak by then). Both cut at the cap.
+	~le.processRender((source: 't-src', out: 't-src~14', effect: 'icy', args: 'icMix:1,icSpeed:0.5,icFromMs:0,icWin:0.1,icOverlaps:8,icRand:0.1,icPitch:0,icEnv:4,icLoop:1', end: 'tail', capMs: 1500, id: 'test-14'));
+	~le.processRender((source: 't-src', out: 't-src~15', effect: 'icy', args: 'icMix:1,icSpeed:0.5,icFromMs:0,icWin:0.1,icOverlaps:8,icRand:0.1,icPitch:0,icEnv:4,icLoop:0', end: 'tail', capMs: 1500, id: 'test-15'));
+	r14 = waitFor.("t-src~14"); r15 = waitFor.("t-src~15");
+	lateOf = { |name| var f = SoundFile.new, d; if(f.openRead(tmp +/+ name)) { d = FloatArray.newClear(f.numFrames); f.readData(d); f.close };
+		if(d.notNil and: { d.size > (1.4 * sr) }) { (d.copyRange((1.0 * sr).asInteger, (1.4 * sr).asInteger).abs.maxItem / d.abs.maxItem).ampdb.round(0.1) } { -999 } };
+	lpLate = if(r14.notNil) { lateOf.("t-src~14.wav") } { -999 }; hdLate = if(r15.notNil) { lateOf.("t-src~15.wav") } { -999 };
+	// the holding render sits on the source's dying end, so its tail falls under −60 dB and the render ENDS before 1.4 s (lateOf gives −999 then)
+	check.("~14 icy LOOPS: a second in it is still reading the burst; ~15 holds at the end and dies", r14.notNil and: { r15.notNil } and: { lpLate > -18 } and: { (hdLate == -999) or: { (lpLate - hdLate) > 8 } } and: { r14[\lengthMs] > 1500 } and: { r14[\lengthMs] < 1900 },
+		"1.0 … 1.4 s into it: looping " ++ lpLate ++ " dB under its peak · holding " ++ if(hdLate == -999) { "over at " ++ lenOf.(r15) ++ " ms — its tail died at the source's end" } { hdLate.asString ++ " dB" } ++ " · the looping render " ++ lenOf.(r14) ++ " ms long (the cap 1500 past the source)");
 	// DEC-32 (the Decibel piece's §151): HIS PETALS OF RESONANCE, twice — the original (his SynthDef UGen for UGen: 26 DynKlanks, the
 	// limiter, his fade) and the cleaned path (one bank of 26 Ringz, the draws per render) — fund 110 (partials on the source's 330 and
 	// 660), a ring of 1 … 2 s, a cap of 5 s past the source: each must RING well past its source (over at 0.35 s) and die before the cap
@@ -172,7 +184,7 @@ fork {
 		check.("~13 the chord holds, all three strings in it, then it dies", (own > -6) and: { tones.minItem > -12 } and: { r13[\lengthMs] > 1500 } and: { r13[\lengthMs] < 4800 },
 			"0.9 … 1.4 s into it, " ++ own ++ " dB under its peak · E4 · F#4 · A4 at " ++ tones ++ " dB of the strongest · " ++ r13[\lengthMs] ++ " ms long (the hold 1.5 s, the cap 5000)");
 	};
-	check.("the index on disk holds the thirteen", ~le.indexRowsOf(tmp).size == 13, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
+	check.("the index on disk holds the fifteen", ~le.indexRowsOf(tmp).size == 15, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
 	// what a chain's "*" plays: every CAPTURED sample — a render does not join it (bank.scd chainNames)
 	~le[\samples].put('t-src', (row: (name: "t-src")));
 	if(r1.notNil) { ~le[\samples].put('t-src~1', (row: r1)) };
