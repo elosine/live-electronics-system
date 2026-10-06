@@ -32,6 +32,16 @@
 play back, then **STOP and ask**. No edits, no builds, no tool calls beyond the resume
 reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, then work.)*
 
+### 2026-10-05 — TWO GRANULAR VOICES, in the Decibel piece (Fable; RUNNING_LOG §36 · §37; part 6.3)
+
+- **What exists:** `sc/process.scd` — the stage `cloud` (GrainBuf: asynchronous grains from one moment of the chain's signal, written into a
+  LocalBuf while the source plays) and the stage `icy` (the composer's own freeze, `github.com/elosine/freeze` 2015 … 2016: Warp1 over that
+  buffer, a crawling read point, long windows, many grains; `icEnv` 1 … 10 = `sc/grainEnv/gEnv_*.aif`, read into buffers 1 … 10 by every
+  offline render; no gate — the mix decides the attack) · the resonator bank's four pitches as controls · `score/le_process.js`: the rows
+  `cloud` · `icy` (four presets: his three versions · held) and the bank's four pitch dials.
+- **Not claimed:** the composer's ear on the presets a piece draws from them; the speeds read from his `rate` maps.
+- **Next, by the piece's need:** `\grainArticulate` · the cloud's envelopes across its length · the spectral freeze's tuning · a stereo bank.
+
 ### 2026-10-05 — THE PLAN IS BUILT, in the Decibel piece (Opus; RUNNING_LOG §35; parts 6.2 · 11.2)
 
 - **What exists:** a return brick may ask for a VARIANT of its sample (`elec.variants`, `<sample>~<key>-<env>`: one effect of the
