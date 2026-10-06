@@ -71,8 +71,8 @@
 	n = data.size div: hop;
 	env = Array.fill(n, { |b| var m = 0.0, i0 = b * hop; hop.do({ |j| m = max(m, data[i0 + j].abs) }); m });
 	peak = if(n > 0) { env.maxItem } { 0 };
-	if(peak < o[\floorDb].dbamp) { nil } {
-		thrOn = max(peak * o[\attackDb].dbamp, o[\floorDb].dbamp);
+	if((peak < o[\floorDb].dbamp) or: { ((o[\roomAmp] ? 0) * 2) > peak }) { nil } {   // nothing over the floor — or nothing 6 dB over the ROOM (11.7 c)
+		thrOn = max(max(peak * o[\attackDb].dbamp, o[\floorDb].dbamp), (o[\roomAmp] ? 0) * 2);   // roomAmp: what already sounded when the window opened — an attack stands 6 dB over it
 		a = env.detectIndex({ |v| v >= thrOn });
 		at = a * hop;
 		while { data[at].abs < thrOn } { at = at + 1 };   // the sample, inside that millisecond
@@ -102,10 +102,24 @@
 	out
 };
 
+// ---- the room (the Decibel piece's 11.7 c — the bleed guard): what was ALREADY sounding when the window opened ----------
+// A window opens before its note (the message's lead, and the opening's own pre-roll), so the first 60 ms of a recording are
+// THE ROOM: the hall, the other players in this microphone. room = their loudest sample · overDb = how far the recording's own
+// peak stands over it · bleed = under the piece's bleedDb (LE_LEVEL; 12): the "attack" is then mostly someone else's sound.
+// A silent room — the simulation — never flags. The crop's attack must stand 6 dB over the room too (cropFind's roomAmp), or a
+// hall's murmur would be taken for the attack and the sample would begin with it.
+~le[\bleedOf] = { |self, data, sr|
+	var n = (0.06 * sr).asInteger.min(data.size), room = 0, peak = if(data.size > 0) { data.abs.maxItem } { 0 }, over;
+	var need = if(self[\levelOf].notNil) { self.levelOf[\bleedDb] } { 12 };
+	n.do({ |i| room = max(room, data[i].abs) });
+	over = if((room > 1e-6) and: { peak > 0 }) { (peak / room).ampdb.round(0.1) } { 200 };
+	(room: room, floorDb: if(room > 0) { room.ampdb.round(0.1) } { -150 }, overDb: over, bleed: over < need, needDb: need)
+};
+
 // ---- the index --------------------------------------------------------------------------------------------------------
 // (a JSON file read by the language comes back all strings: the numbers of the schema are made numbers again here)
 ~le[\indexRead] = { |self|
-	var path = self[\bankDir] +/+ "index.json", doc, rows = List.new, numbers = [\scoreTime, \lengthMs, \peakDb, \windowMs, \attackMs, \loudDb, \loudIntDb, \floorDb];
+	var path = self[\bankDir] +/+ "index.json", doc, rows = List.new, numbers = [\scoreTime, \lengthMs, \peakDb, \windowMs, \attackMs, \loudDb, \loudIntDb, \floorDb, \overDb];
 	self[\indexBroken] = false;
 	if(File.exists(path)) {
 		try { doc = path.parseJSONFile } { doc = nil };
@@ -129,7 +143,7 @@
 
 // the rows of ANY folder's index, read without touching the write bank's state — the source the buffers are filled from (§71)
 ~le[\indexRowsOf] = { |self, dir|
-	var path = dir.asString +/+ "index.json", doc, rows = List.new, numbers = [\scoreTime, \lengthMs, \peakDb, \windowMs, \attackMs, \loudDb, \loudIntDb, \floorDb];
+	var path = dir.asString +/+ "index.json", doc, rows = List.new, numbers = [\scoreTime, \lengthMs, \peakDb, \windowMs, \attackMs, \loudDb, \loudIntDb, \floorDb, \overDb];
 	if(File.exists(path)) {
 		try { doc = path.parseJSONFile } { doc = nil };
 		if(doc.notNil and: { doc["samples"].notNil }) {
@@ -218,16 +232,23 @@
 ~le[\captureDone] = { |self, d, who, name, id, winMs, data|
 	var s = self[\server], sr = s.sampleRate, dir = self[\bankDir], rawRel = "raw/" ++ id ++ ".wav", rel = name ++ ".wav";
 	var rawMs = (data.size / sr * 1000).round(1).asInteger, rawPeak = if(data.size > 0) { data.abs.maxItem } { 0 };
-	var c, out, row, old, lenMs, atMs, loud;
+	var c, out, row, old, lenMs, atMs, loud, room, refused = false, cropOpts;
 	self.wavWrite(dir +/+ rawRel, data, sr);
 	self.say("LE_INFO", "captured · " ++ name ++ " · raw · " ++ rawMs ++ " ms · peak " ++ self.db(rawPeak) ++ " dB");
-	c = self.cropFind(data, sr, self[\cropOpts]);
-	if(c.isNil) {
+	// 11.7 c: the room this window opened on — the crop's attack must stand over it; a capture that barely does is BLEED, and in a
+	// concert it is REFUSED (refuseBleed, session.scd): the buffer keeps the backup, as it does when nothing was caught at all
+	room = if(self[\bleedOf].notNil) { try { self.bleedOf(data, sr) } { nil } };
+	cropOpts = (self[\cropOpts] ? ()).copy;
+	if(room.notNil) { cropOpts[\roomAmp] = room[\room] };
+	c = self.cropFind(data, sr, cropOpts);
+	refused = c.notNil and: { room.notNil } and: { room[\bleed] } and: { self[\refuseBleed] == true };
+	if(c.isNil or: { refused }) {
 		old = self[\samples][name.asSymbol];
-		self.say("LE_INFO", "nothing to crop · " ++ name ++ " — no attack in the window; the sample was not saved"
+		self.say("LE_INFO", if(refused) { "BLEED · " ++ name ++ " — its attack stands only " ++ room[\overDb] ++ " dB over the room (" ++ room[\needDb] ++ " asked): REFUSED; the sample was not saved" }
+			{ "nothing to crop · " ++ name ++ " — no attack in the window" ++ if(room.notNil and: { room[\room] > 1e-6 }) { " over the room (" ++ room[\floorDb] ++ " dB)" } { "" } ++ "; the sample was not saved" }
 			++ if(old.notNil) { " · THE BUFFER KEEPS ITS " ++ if(old[\from] == \loaded) { "LOADED" } { "EARLIER" } ++ " TAKE (the safety net, §71)" } { " · the buffer is empty" });
 		self.say("LE_RESULT", self.json((msg: "captured", name: name, player: who, openingId: id, cropped: false,
-			rawMs: rawMs, rawPeakDb: self.db(rawPeak), raw: rawRel, kept: old.notNil)));
+			rawMs: rawMs, rawPeakDb: self.db(rawPeak), raw: rawRel, kept: old.notNil, bleed: refused)));
 	} {
 		out = self.cropTake(data, sr, c, self[\cropOpts]);
 		self.wavWrite(dir +/+ rel, out, sr);
@@ -243,6 +264,8 @@
 			// the Decibel piece's 11.1: HOW LOUD it is, on the players' scale (level.scd) — its own try: a figure that cannot be made
 			// costs the figure, never the row
 			if(self[\loudOf].notNil) { loud = try { self.loudOf(out, sr) } { nil }; if(loud.notNil) { self.loudInto(row, loud) } };
+			// 11.7 c: what the room was, where there was one — and the flag, when the attack barely stood over it
+			if(room.notNil and: { room[\room] > 1e-6 }) { row[\floorDb] = room[\floorDb]; row[\overDb] = room[\overDb]; if(room[\bleed]) { row[\bleed] = true } };
 			// §84: a FIRST take lost its row every time, a re-take never did — reject() hands back a collection of exactly the size left,
 			// and add() on a full Array returns a NEW array that was being thrown away. A List adds in place: made one, every time.
 			self[\indexRows] = self[\indexRows].reject({ |r| r[\name].asString == name }).asList;
@@ -255,6 +278,7 @@
 			self.say("LE_INFO", "cropped · " ++ name ++ " · " ++ lenMs.round(1).asInteger ++ " ms of " ++ rawMs
 				++ " · the attack at " ++ atMs.round(1).asInteger ++ " ms · peak " ++ self.db(c[\peak]) ++ " dB"
 				++ if(loud.notNil) { " · loud " ++ loud[\loudDb] ++ " LUFS (" ++ row[\played] ++ ")" } { "" }
+				++ if(room.notNil and: { room[\bleed] }) { " · BLEED? only " ++ room[\overDb] ++ " dB over the room" } { "" }
 				++ if(old.notNil) { " · REPLACES the earlier take" } { "" });
 			self.say("LE_RESULT", self.json(row.copy.putAll((msg: "captured", cropped: true, rawMs: rawMs, replaced: old.notNil))));
 			// the Decibel piece's 10.8: the take is in its file and its row — the variants the score PLANNED for this sample are rendered

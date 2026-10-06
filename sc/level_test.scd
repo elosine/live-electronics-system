@@ -112,6 +112,21 @@ ma = ().putPairs(~le.masterArgs);
 check.("a message moves them, and leaves out what the bus does not know", (ma[\glueOn] == 0) and: { ma[\lpfOn] == 1 } and: { ma[\lpfFreq] == 6000 } and: { ma[\hpfOn] == 1 } and: { ~le[\masterOpts][\nonsense].isNil }, ~le.masterSaid);
 ~le[\masterOpts] = nil;
 
+"LEVEL_TEST what a session is started with (the environment a piece's tool hands over):".postln;
+"LE_LEVEL".setenv("reference=-31,stepDb=4,liftCapDb=20,floorDb=-60,driveRef=-20,bleedDb=9");
+"LE_MASTER".setenv("hpfHz=30,lpfHz=0,glueOn=1,glueThr=-18,glueRatio=2,glueKnee=6,glueAtkMs=30,glueRelMs=250,glueGainDb=0,ceilingDb=-1,lookaheadMs=5,limRelMs=100");
+"LE_VENUE".setenv("name=hall;bcl:trimDb=-2.5:hpfHz=50:eq1=250/-3/1,bfl:trimDb=0:hpfHz=90,perc");
+"LE_REFUSE_BLEED".setenv("1");
+~le.takeSpecs;
+ma = ().putPairs(~le.micArgs(\bcl));
+check.("the ladder, the bus, the venue and the bleed's refusal are all taken", (~le.levelOf[\reference] == -31) and: { ~le.levelOf[\bleedDb] == 9 } and: { near.(~le.markDb("mf"), -43, 0.001) }
+	and: { ~le.masterOf[\glueOn] == 1 } and: { ~le.masterOf[\hpfHz] == 30 }
+	and: { ~le[\venueName] == "hall" } and: { (ma[\amp] - -2.5.dbamp).abs < 1e-6 } and: { ma[\hpfFreq] == 50 } and: { ma[\eq1Db] == -3 } and: { ~le.micArgs(\perc).size == 0 }
+	and: { ~le[\refuseBleed] == true },
+	"fff " ++ ~le.levelOf[\reference] ++ " LUFS · " ++ ~le.masterSaid ++ " · the house " ++ ~le.micSaid ++ " · a bled capture refused: " ++ ~le[\refuseBleed]);
+["LE_LEVEL", "LE_MASTER", "LE_VENUE", "LE_REFUSE_BLEED"].do({ |k| k.unsetenv });
+~le[\levelOpts] = nil; ~le[\masterOpts] = nil; ~le[\venue] = nil; ~le[\venueName] = nil; ~le[\refuseBleed] = false;
+
 "LEVEL_TEST the files that boot a server:".postln;
 bad = ["session.scd", "selftest.scd", "check_route.scd", "latency.scd", "devices.scd", "calibrate.scd"].select({ |n| File.exists(dir +/+ n) }).select({ |n|
 	thisProcess.interpreter.compile(File.readAllString(dir +/+ n)).isNil
@@ -130,13 +145,24 @@ check.("a row's figure comes back as a number, its name on the ladder with it", 
 if(~le[\bleedOf].notNil) {
 	"LEVEL_TEST the guard:".postln;
 	// a room at −40 dB and an attack 8 dB over it — bleed; the same room and an attack 30 dB over it — a capture
-	f = { |attackDb| FloatArray.fill(24000, { |i| (1.0.rand2 * -40.dbamp) + if(i >= 9600) { sin(2pi * 220 * i / 48000) * attackDb.dbamp * exp((i - 9600) / 48000 / -0.08) } { 0 } }) };
-	b = ~le.bleedOf(f.(-28), 48000, 9600);
-	check.("an attack 8 dB over the room is flagged", b[\bleed] == true, "the room " ++ b[\floorDb] ++ " dB · the attack " ++ b[\overDb] ++ " dB over it");
-	b = ~le.bleedOf(f.(-8), 48000, 9600);
+	f = { |attackDb, roomDb = -40| FloatArray.fill(24000, { |i| (1.0.rand2 * roomDb.dbamp) + if(i >= 9600) { sin(2pi * 220 * i / 48000) * attackDb.dbamp * exp((i - 9600) / 48000 / -0.08) } { 0 } }) };
+	b = ~le.bleedOf(f.(-33), 48000);
+	check.("an attack about 10 dB over the room is flagged", b[\bleed] == true, "the room " ++ b[\floorDb] ++ " dB · the attack " ++ b[\overDb] ++ " dB over it");
+	b = ~le.bleedOf(f.(-8), 48000);
 	check.("an attack 30 dB over the room is a capture", b[\bleed] == false, "the room " ++ b[\floorDb] ++ " dB · the attack " ++ b[\overDb] ++ " dB over it");
-	b = ~le.bleedOf(FloatArray.fill(24000, { |i| if(i >= 9600) { sin(2pi * 220 * i / 48000) * 0.2 } { 0 } }), 48000, 9600);
+	b = ~le.bleedOf(FloatArray.fill(24000, { |i| if(i >= 9600) { sin(2pi * 220 * i / 48000) * 0.2 } { 0 } }), 48000);
 	check.("a silent room (the simulation) never flags", b[\bleed] == false, "the room " ++ b[\floorDb] ++ " dB");
+	// the crop in a room: without the room's level the murmur is taken for the attack; with it, the attack is found where it is
+	g = f.(-8, -30);   // a louder room: 22 dB under the attack — over the crop's own threshold (30 under the peak)
+	check.("the crop finds the attack OVER the room, not the room", (~le.cropFind(g, 48000)[\attack] < 480) and: { (~le.cropFind(g, 48000, (roomAmp: ~le.bleedOf(g, 48000)[\room]))[\attack] - 9600).abs < 200 },
+		"told nothing of the room, the attack is put at " ++ (~le.cropFind(g, 48000)[\attack] / 48).round(0.1) ++ " ms · told of it, at " ++ (~le.cropFind(g, 48000, (roomAmp: ~le.bleedOf(g, 48000)[\room]))[\attack] / 48).round(0.1) ++ " ms (it is at 200)");
+	check.("a window that holds only the room has nothing to crop", ~le.cropFind(FloatArray.fill(24000, { 1.0.rand2 * -40.dbamp }), 48000, (roomAmp: -40.dbamp)).isNil, "nil");
+	// a venue's numbers become a microphone's arguments
+	~le[\venue] = (bcl: (trimDb: "-6", hpfHz: "90", eq1: "250/-3/2"), bfl: ());
+	ma = ().putPairs(~le.micArgs(\bcl));
+	check.("a venue's numbers become a microphone's arguments", ((ma[\amp] - -6.dbamp).abs < 1e-6) and: { ma[\hpfOn] == 1 } and: { ma[\hpfFreq] == 90 } and: { ma[\eq1On] == 1 } and: { ma[\eq1Freq] == 250 } and: { ma[\eq1Db] == -3 } and: { (ma[\eq1Rq] - 0.5).abs < 1e-6 }
+		and: { ~le.micArgs(\bfl).size == 0 } and: { ~le.micArgs(\nobody).size == 0 }, ~le.micSaid);
+	~le[\venue] = nil;
 };
 
 [tmp +/+ "tone.wav", tmp +/+ "index.json"].do({ |p| if(File.exists(p)) { File.delete(p) } });

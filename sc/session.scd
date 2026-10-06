@@ -18,6 +18,8 @@
 //   LE_CHAIN     the return behaviour 'chain':  after=0.7,lazy=0.2,far=0.1,unison=0,before=0,follow=1,shuffle=1  (bank.scd chainDefaults)
 //   LE_LEVEL     the ladder of marks, where a piece overrides the defaults:  reference=-29.54,stepDb=4,liftCapDb=20,floorDb=-60  (level.scd)
 //   LE_MASTER    the bus's dials, where a piece overrides the engine's neutral defaults:  hpfHz=30,glueOn=1,glueThr=-18,ceilingDb=-1,lookaheadMs=5  (boot.scd § the bus)
+//   LE_VENUE     a hall's numbers for each microphone:  name=<n>;bcl:trimDb=-2.5:hpfHz=90:eq1=250/-3/1,bfl:…  (boot.scd § the house; absent = flat)
+//   LE_REFUSE_BLEED  1: a capture whose attack stands under bleedDb over the room is refused, and the buffer keeps what it had (a concert)
 //   LE_ECHO      A ROUTE CHECK: seconds each player is returned BEHIND the note — the route heard as a second sound.
 //   LE_PASS      A ROUTE CHECK: 1 = each player straight to the master (two DAW blocks behind: not heard as a second sound).
 //   LE_SOURCE    the folder the buffers are FILLED from at start (the bank itself when absent) — the backup bank in rehearsal and concert (§71)
@@ -36,16 +38,10 @@ var bank = "LE_BANK".getenv;
 var cropSpec = "LE_CROP".getenv;
 var arSpec = "LE_AR".getenv;
 var chainSpec = "LE_CHAIN".getenv;
-var levelSpec = "LE_LEVEL".getenv;
-var masterSpec = "LE_MASTER".getenv;
 var source = "LE_SOURCE".getenv;
 var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 (dir +/+ "boot.scd").load;
-// the bus's dials are needed BEFORE the boot: the master is made in it
-if(masterSpec.notNil and: { masterSpec.size > 0 }) {
-	~le[\masterOpts] = ();
-	masterSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { ~le[\masterOpts][b[0].asSymbol] = b[1].asFloat } });
-};
+~le.takeSpecs;   // the ladder · the bus (needed BEFORE the boot: the master is made in it) · the venue · the bleed's refusal — boot.scd
 ~le.bootEngine(mode, { |le|
 	var s = le[\server], names = List.new, pending = IdentityDictionary.new, t0 = Main.elapsedTime, crop, nSamples = 0;
 	spec.split($,).do({ |pair|
@@ -70,10 +66,6 @@ if(masterSpec.notNil and: { masterSpec.size > 0 }) {
 		le[\chainOpts] = ();
 		chainSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { le[\chainOpts][b[0].asSymbol] = b[1].asFloat } });
 	};
-	if(levelSpec.notNil and: { levelSpec.size > 0 }) {
-		le[\levelOpts] = ();
-		levelSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { le[\levelOpts][b[0].asSymbol] = b[1].asFloat } });
-	};
 	if(bank.notNil and: { bank.size > 0 }) { nSamples = le.bankOn(bank, crop, source, record) };
 	s.sync;
 	if(le[\bankDir].notNil and: { le[\measureBank].notNil }) { le.measureBank };   // the rows with no loudness figure yet, in the background (level.scd)
@@ -84,6 +76,7 @@ if(masterSpec.notNil and: { masterSpec.size > 0 }) {
 		// outside left ReaRoute wedged, and no engine could boot until Reaper was restarted). His own window still closes as before.
 		le.hear(\leave, { |le, d| le.say("LE_INFO", "leaving on request" ++ if(le.loudSaid(\loudMax).size > 0) { " — the session's loudest" ++ le.loudSaid(\loudMax) } { "" }); le.leave(0) });
 		le.hear(\master, { |le, d| le.masterSet(d) });   // the bus's dials, moved while it runs
+		le.hear(\tone, { |le, d| le.toneOut(d) });       // the house's line-up tone
 		// an onset is shown; the player's own sound, when it comes, is timed against it (a route check)
 		le.hear(\onset, { |le, d, time|
 			var name = (d[\player] ? '?').asSymbol;
@@ -105,6 +98,7 @@ if(masterSpec.notNil and: { masterSpec.size > 0 }) {
 	le.say("LE_READY", le.json((device: le[\device], sr: s.sampleRate, players: names.asArray.collect(_.asString),
 		msgPort: le[\earPort], samples: nSamples)));
 	le.say("LE_INFO", "the bus · " ++ le.masterSaid);
+	if(le[\venue].notNil) { le.say("LE_INFO", "the house · " ++ le.micSaid ++ if(le[\refuseBleed] == true) { " · a bled capture is REFUSED" } { "" }) };
 	le.say("LE_INFO", "the engine is listening — close this window to stop it. "
 		++ if(le[\bankDir].notNil) { "The bank holds " ++ nSamples ++ " sample" ++ if(nSamples == 1) { "" } { "s" } ++ ". "
 			++ if(le[\sourceDir] != le[\bankDir]) { "Loaded from " ++ le[\sourceDir] ++ "; captures go to " ++ le[\bankDir] ++ ". " } { "" }

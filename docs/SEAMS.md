@@ -272,6 +272,35 @@ from whatever was just captured.
 order; a queue two wide; lengths by `durX`; the fallback); the page's half under a stub window with the piece's score. NOT yet
 through a living engine or by a browser's eye.
 
+## The level — a sample's loudness, a return's dynamic, the drive, the bus, the house (part 13)
+
+*(Built in the Decibel piece, 2026-10-06 — its PLAN 1.4; this repo's RUNNING_LOG §42 … §45. NO line of a piece's stack files changes for any of it: the page's part is in the two modules already tagged, the engine's in files `boot.scd` loads.)*
+
+**What a piece GIVES at the engine's start** (its tool flattens its own route table; `sc/boot.scd` `takeSpecs` reads them):
+
+| the variable | what it is | absent |
+|---|---|---|
+| `LE_LEVEL` | the ladder — `reference=<the LUFS of fff>,stepDb=4,liftCapDb=20,floorDb=-60,driveRef=-20,bleedDb=12` | the engine's defaults (`sc/level.scd` `levelDefaults`) |
+| `LE_MASTER` | the bus — `hpfHz=30,lpfHz=0,glueOn=1,glueThr=-18,glueRatio=2,glueKnee=6,glueAtkMs=30,glueRelMs=250,glueGainDb=0,ceilingDb=-1,lookaheadMs=5,limRelMs=100` | NEUTRAL: no filter, no glue; the ceiling −1 dB, 5 ms of look-ahead |
+| `LE_VENUE` | a hall — `name=<n>;bcl:trimDb=-2.5:hpfHz=90:eq1=250/-3/1,bfl:…` (an eq is hz/dB/Q) | every microphone flat |
+| `LE_REFUSE_BLEED` | `1`: a capture that barely stands over its room is refused — a concert | flagged in its row, kept |
+
+**What a page MAY add to `/le/play`** (`score/le_objects.js` `dynFields`; an engine that predates them ignores them): `dyn` — `played` · `mark:mf` · `rel:+1[:floor:p][:ceil:f]` · `env` — `ms:level,…` (ms may be `end`, the sample's own length; a level is a mark, `=` the brick's own dynamic, or `+n` / `-n` steps from it) · `envCurve`.
+
+**What a page MAY add to `/le/process`:** `srcDrive` — `played` · `normalized` · `+12`. **To a plan row:** an eleventh field, the drive (absent = `normalized`). **In `args`:** a dial as a line, `name:value@ms,value@ms`.
+
+**Two more messages:** `/le/master  name value …` — the bus's dials while it runs (the names of `LE_MASTER`; `lookaheadMs` only at the start) · `/le/tone  seconds · db · hz` — a line-up tone past the bus.
+
+**What the INDEX gains** (a row; all optional — a page must not need them): `loudDb` · `loudIntDb` (LUFS: the loudest 400 ms · the whole sample) · `played` (the name on the ladder) · `drive` (how a render was driven) · `floorDb` · `overDb` · `bleed` (a capture in a room).
+
+**What a piece's score SAVE gains** (the uses — the piece's): `zone.elec.dyn` on a return brick · `zone.elec.variants[name]` as `{ v, drive }` beside the plain string · `zone.elec.drive` on a process brick · a dial's value as a line string.
+
+**A variant's NAME:** `<sample>~<key>-<env>` — and `…_dN` · `_dP` · `_d12` · `_dm6` when the BRICK says the drive. A piece that keeps its plan's renders out of git by `*~*-*.wav` still matches them.
+
+**The bus runs LATE by its look-ahead, and `samplePlay` plays that much EARLY:** a return still lands where its brick is; a piece's DAW job changes nothing; a measured round trip through the master grows by the look-ahead.
+
+**The batteries a piece runs after taking a change here** — all offline, safe beside a living engine: `sc/level_test.scd` · `sc/bus_test.scd` · `sc/process_test.scd` · `sc/roll_test.scd` · `tools/page_test.js`.
+
 ## The lines a stack file must change, per piece
 
 *(The message route, 4.2 — the Decibel piece's 6.2 commit of 2026-10-04. The objects, part 11 — its 6.3 … 6.6 commit, the same day.)* *(The process brick — the Decibel piece's 10.1 commit of 2026-10-05: one more tag, one more key.)* *(The processed return — its 10.8 commit of the same day: NO line; a presets file where the page fetches it, `/bank/presets.json`.)*

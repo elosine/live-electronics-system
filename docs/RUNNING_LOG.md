@@ -762,3 +762,15 @@ re-rendered re-rendering those made from it — the label already says which are
 `sc/level_test.scd` now also checks the bus's dials and PARSES every file that boots a server.
 
 **NOT RUN:** `sc/selftest.scd` — its tests A and B rewritten for the delayed, limited bus — and `session.scd`'s new lines: the composer's engine was up, and they boot the engine's own server. Parsed, not executed.
+
+## §45. The house — a venue's input chains, a calibration, a guard against bleed, a line-up tone (2026-10-06, Opus; the Decibel piece's §165 · its PLAN 1.4, 11.7)
+
+**What prompted it** — the last item of the level: an engine that has only ever heard a sampler through a DAW's sends must take any hall's microphones.
+
+- **`\leIn`** (`sc/synths.scd`) — amp (the trim) · a high-pass · two `BPeakEQ` bands, each switched; flat, it is the input sample for sample.
+- **A venue** — `~le[\venue]`, per player `trimDb` · `hpfHz` · `eq1` · `eq2` (hz/dB/Q), from `LE_VENUE` (`name=<n>;bcl:trimDb=-2.5:hpfHz=90:eq1=250/-3/1,bfl:…`); `micArgs` turns it into `\leIn`'s arguments at `addPlayer`. **`takeSpecs`** (`sc/boot.scd`) reads `LE_LEVEL` · `LE_MASTER` · `LE_VENUE` · `LE_REFUSE_BLEED` in one place, for `session.scd` and `calibrate.scd` alike.
+- **`sc/calibrate.scd`** — each player in turn, one reference dynamic on cue; the loudest 400 ms of a few seconds, read through the venue's chain; one `LE_RESULT` a player with the trim that puts the reading on the ladder's mark. It writes nothing: the piece's tool writes the venue's file.
+- **The room** (`sc/bank.scd` `bleedOf`) — the first 60 ms of a capture's recording, where a window is known to be early: its loudest sample is the ROOM. `cropFind` takes it (`roomAmp`): an attack must stand 6 dB over it, or a hall's murmur 20 dB under the note is taken for the attack (the crop's own threshold is 30 under the peak). A capture whose peak stands under `bleedDb` over the room is flagged in its row; with `refuseBleed` (a concert) it is refused and the buffer keeps what it had. A silent room changes nothing.
+- **`/le/tone`** (`toneOut`, `\leTone`) — a sine on both outputs, past the bus.
+
+**Proof:** `sc/level_test.scd` — the guard's three cases; the crop with and without the room (0.0 ms against 200.1 for an attack at 200); a venue's numbers as arguments; a session's start from its environment · `sc/bus_test.scd` — `\leIn` flat, trimmed, high-passed, one band. **NOT RUN:** `calibrate.scd` (parsed) and `/le/tone` — each needs an engine of its own or sounds; a capture in a real room.

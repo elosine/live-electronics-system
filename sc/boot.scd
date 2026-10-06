@@ -179,12 +179,65 @@
 	self
 };
 
+// ---- the house (the engine plan's part 13; the Decibel piece's 11.7): a VENUE's numbers for each microphone ----------
+// ~le[\venue] = (bcl: (trimDb: "-2.5", hpfHz: "90", eq1: "250/-3/1", eq2: "3000/2/0.7"), …) — as LE_VENUE gives them (takeSpecs):
+// an eq is  hz/dB/Q . micArgs turns a player's into \leIn's arguments; a player the venue does not name is flat.
+~le[\micArgs] = { |self, name|
+	var v = if(self[\venue].notNil) { self[\venue][name] }, args = List.new;
+	var num = { |x| x.asString.asFloat };
+	if(v.notNil) {
+		if(v[\trimDb].notNil) { args.addAll([\amp, num.(v[\trimDb]).clip(-40, 40).dbamp]) };
+		if(v[\hpfHz].notNil and: { num.(v[\hpfHz]) > 0 }) { args.addAll([\hpfOn, 1, \hpfFreq, num.(v[\hpfHz])]) };
+		[[\eq1, \eq1On, \eq1Freq, \eq1Db, \eq1Rq], [\eq2, \eq2On, \eq2Freq, \eq2Db, \eq2Rq]].do({ |k|
+			var e = if(v[k[0]].notNil) { v[k[0]].asString.split($/).collect({ |x| x.asString.asFloat }) };
+			if(e.notNil and: { e.size >= 2 } and: { e[1] != 0 }) { args.addAll([k[1], 1, k[2], e[0], k[3], e[1], k[4], (e[2] ? 1).max(0.1).reciprocal]) };
+		});
+	};
+	args.asArray
+};
+~le[\micSaid] = { |self|
+	var v = self[\venue] ? ();
+	(self[\venueName] ? "a venue").asString ++ " — " ++ v.keys.asArray.sort.collect({ |k|
+		var o = v[k];
+		k.asString ++ ": trim " ++ (o[\trimDb] ? 0) ++ " dB" ++ if(o[\hpfHz].notNil) { " · high-pass " ++ o[\hpfHz] ++ " Hz" } { "" }
+			++ [\eq1, \eq2].select({ |e| o[e].notNil }).collect({ |e| " · eq " ++ o[e] }).join
+	}).join(" | ")
+};
+// what a session is started with, read from the environment in one place (session.scd · calibrate.scd): the ladder (LE_LEVEL), the
+// bus (LE_MASTER — needed BEFORE the boot: the master is made in it), the venue (LE_VENUE:  name=<n>;bcl:trimDb=-2.5:hpfHz=90:eq1=250/-3/1,bfl:…),
+// and whether a bled capture is refused (LE_REFUSE_BLEED, a concert)
+~le[\takeSpecs] = { |self|
+	var pairs = { |text, into| text.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { into[b[0].asSymbol] = b[1].asFloat } }); into };
+	var lv = "LE_LEVEL".getenv, ms = "LE_MASTER".getenv, vn = "LE_VENUE".getenv, parts;
+	if(lv.notNil and: { lv.size > 0 }) { self[\levelOpts] = pairs.(lv, ()) };
+	if(ms.notNil and: { ms.size > 0 }) { self[\masterOpts] = pairs.(ms, ()) };
+	if(vn.notNil and: { vn.size > 0 }) {
+		parts = vn.split($;);
+		self[\venueName] = if(parts.size > 1) { parts[0].asString.replace("name=", "") } { "a venue" };
+		self[\venue] = ();
+		parts.last.asString.split($,).do({ |p|
+			var b = p.asString.split($:), o = ();
+			b.drop(1).do({ |kv| var x = kv.asString.split($=); if(x.size == 2) { o[x[0].asSymbol] = x[1].asString } });
+			if(b[0].asString.size > 0) { self[\venue][b[0].asSymbol] = o };
+		});
+	};
+	self[\refuseBleed] = ("LE_REFUSE_BLEED".getenv ? "0").asFloat > 0;
+	self
+};
+// /le/tone — the line-up tone a house asks for: a sine on both outputs, PAST the bus (as it is, untouched by the glue or the limiter)
+~le[\toneOut] = { |self, d|
+	var dur = (d[\seconds] ? 10).asString.asFloat.clip(1, 120), db = (d[\db] ? -18).asString.asFloat.clip(-60, -6), hz = (d[\hz] ? 1000).asString.asFloat.clip(20, 16000);
+	Synth(\leTone, [\out, self[\busOut].index, \freq, hz, \db, db, \dur, dur], self[\grpMeter], \addToHead);
+	self.say("LE_INFO", "tone · " ++ hz.round(1).asInteger ++ " Hz at " ++ db ++ " dBFS on both outputs for " ++ dur ++ " s — past the bus, as it is: the house's line-up");
+	self
+};
+
 // ---- the players, the pass-through, the meters -----------------------------------------------------------------------
 // a player = one microphone = one hardware input channel (0-based) onto the player's own mono bus
 ~le[\addPlayer] = { |self, name, inCh = 0, amp = 1|
 	var s = self[\server], bus = Bus.audio(s, 1), syn;
 	if(self[\mode] != \quiet) {
-		syn = Synth(\leIn, [\in, s.options.numOutputBusChannels + inCh, \out, bus.index, \amp, amp], self[\grpIn]);
+		syn = Synth(\leIn, [\in, s.options.numOutputBusChannels + inCh, \out, bus.index, \amp, amp] ++ self.micArgs(name), self[\grpIn]);
 	};
 	self[\players][name] = (bus: bus, mic: syn, ch: inCh);
 	self[\players][name]
