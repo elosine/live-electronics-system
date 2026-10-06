@@ -54,6 +54,11 @@
 //       pattern[i].variant = '<key>-<env>', so that onset asks for <sample>~<key>-<env> and the plan carries each variant at the
 //       onset's own time. The brick's two rows of boxes offer the RAW samples only — captured, never a render of any kind.
 //
+//   midiModel 'elecSine'   A SINE TONE (2026-10-06) — the FOURTH object, the first the engine MAKES: a pitch, a length, a gliss, a
+//       level that may follow a drawn curve. All of it is le_sine.js — a mixin on this object, one more tag (it adds its own row to
+//       MODELS); this file hands it the label, the panel, the key and the tick, and starts it for what is left of it when the
+//       playhead begins inside it.
+//
 //   midiModel 'elecProcess'   A STAGE OF A CHAIN (2026-10-05) — the THIRD object: a banked sample through one configuration of
 //       the engine's chain, banked again under a name of its own (<root>~1, ~2 …). Its catalogue, its panel and its render are
 //       le_process.js — a mixin on this object, one more tag; this file only knows that it IS one of its bricks and hands it
@@ -141,6 +146,7 @@
                 if (k === keys.open) { e.preventDefault(); this.addOpening(); }
                 else if (k === keys.play) { e.preventDefault(); this.addReturn(); }
                 else if (keys.process && k === keys.process && this.addProcess) { e.preventDefault(); this.addProcess(); }   // le_process.js
+                else if (keys.sine && k === keys.sine && this.addSine) { e.preventDefault(); this.addSine(); }   // le_sine.js
             });
             if (window.LE && LE.ready) LE.ready.then(() => this.redraw());
             this.loadIndex();
@@ -267,6 +273,7 @@
             if (!g || !e) return;
             const M = MODELS[zone.midiModel], label = g.querySelector('text');
             if (zone.midiModel === 'elecProcess') { if (label && this.processLabel) label.textContent = this.processLabel(zone); return; }   // le_process.js
+            if (zone.midiModel === 'elecSine') { if (label && this.sineLabel) label.textContent = this.sineLabel(zone); return; }   // le_sine.js
             let text = M.sign + ' ' + (e.name || '?');
             if (zone.midiModel === 'elecOpen') {
                 const p = this.playerOf(zone.layer);
@@ -376,6 +383,9 @@
             } else if (zone.midiModel === 'elecProcess') {
                 if (this.processPanel) this.processPanel(zone, sec, { el, rowEl, note, commit });   // le_process.js
                 else sec.appendChild(note('this brick\'s panel is le_process.js — not loaded on this page'));
+            } else if (zone.midiModel === 'elecSine') {
+                if (this.sinePanel) this.sinePanel(zone, sec, { el, rowEl, note, commit });   // le_sine.js
+                else sec.appendChild(note('this brick\'s panel is le_sine.js — not loaded on this page'));
             } else {
                 const rows = this.choosable().sort((a, b) => String(a.name).localeCompare(String(b.name)));
                 const pick = el('select');
@@ -813,12 +823,13 @@
             const fresh = newPass || this._prev == null || Math.abs(t - this._prev) > 0.5;
             const from = fresh ? t - 1e-6 : this._prev + look, to = t + look;
             this._pass = host.playStartTime; this._prev = t;
+            if (fresh) this._passN = (this._passN || 0) + 1;   // a number for this pass — a start, or a jump of the playhead (le_sine.js: a new pass lets go of the sines of the one before)
             if (!window.LE) return;
             if (newPass) this.sendPlan(false);   // a pass begins: the engine is told what the bricks will ask for, before the first capture ends (it may have been restarted since)
             for (const z of host.objects) {
                 if (!this.is(z) || !z.elec) continue;
                 const ahead = z.startTime > from && z.startTime <= to;
-                const inside = fresh && z.midiModel === 'elecOpen' && z.startTime <= t && z.endTime > t + 0.02;   // the playhead starts inside an opening
+                const inside = fresh && z.startTime <= t && ((z.midiModel === 'elecOpen' && z.endTime > t + 0.02) || (z.midiModel === 'elecSine' && z.endTime > t + 0.1));   // the playhead starts inside an opening — or inside a sine: it sounds for what is left of it
                 if (!ahead && !inside) continue;
                 if (host.isPartAudible && !host.isPartAudible(z.layer)) continue;
                 this.fire(host, z, inside ? t : z.startTime);
@@ -828,6 +839,7 @@
             const e = z.elec, perf = host.playStartTime + (at - host.playStartOffset / host.pixelsPerSecond) * 1000;
             const dueMs = Math.max(0, Math.round(((Number.isFinite(perf) ? perf : performance.now()) - performance.now()) * 10) / 10);
             if (z.midiModel === 'elecProcess') { if (this.processFire) this.processFire(host, z, at, dueMs); return; }   // le_process.js: a rendered stage is played as a return
+            if (z.midiModel === 'elecSine') { if (this.sineFire) this.sineFire(host, z, at, dueMs); return; }   // le_sine.js: a generated voice — nothing of the bank's
             if (z.midiModel === 'elecOpen') {
                 const player = this.playerOf(z.layer);
                 if (!player) { this.say('mic opening ' + e.name + ': no microphone on ' + this.opts.laneLabel(z.layer) + ' — nothing is recorded'); return; }

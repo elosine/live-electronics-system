@@ -3,7 +3,7 @@
 // level.scd. Its first member is a SINE: a pitch, a length, a level that is a LINE and a pitch that may GLIDE — the tone a
 // player holds a long note against and bends until the two beat.
 //
-//   /le/sine  id · lane · t · dueMs · midi · lengthMs · [level · levelCurve · gliss]
+//   /le/sine  id · lane · t · dueMs · midi · lengthMs · [level · levelCurve · gliss · pass]
 //       THE SINE. Played to the master dueMs from now ON THE ENGINE'S CLOCK — it starts where the score's brick is, as a return
 //       does, earlier by the master's look-ahead.
 //         midi         the pitch as a MIDI number WITH its cents: 57 = A3 · 57.12 = A3 + 12 cents
@@ -14,7 +14,11 @@
 //                      decibels — an even hairpin to the ear).
 //         gliss        a line of CENTS against the pitch:   0:-28,end:0   — the sine starts 28 cents under and arrives.
 //                      Straight in cents. Absent = it holds its pitch.
-//   /le/sinestop      every sine sounding lets go in 50 ms (a score that stops: a long tone must not hang over the silence)
+//         pass         a number that changes when the score is started again or its playhead jumps: the first sine of a NEW
+//                      pass lets go of every sine of the pass before (so no message has to arrive before another to do it).
+//                      Absent (an audition): no pass, nothing let go.
+//   /le/sinestop      every sine sounding lets go in 50 ms (a score that stops: a long tone must not hang over the silence);
+//                     one begun AFTER the word is not touched — each sine is known by its own node
 //
 // THE LEVEL IS EXACT — a sine's loudness needs no measurement. A mark is a loudness on the players' ladder (level.scd markDb:
 // fff = `reference` LUFS, 4 dB a step); BS.1770 reads a sine of peak A on BOTH channels (as \leSine sends it) as
@@ -104,25 +108,39 @@
 // ---- the sine: /le/sine -----------------------------------------------------------------------------------------------
 ~le[\sinePlay] = { |self, d|
 	var s = self[\server], due = ((d[\dueMs] ? 0).asString.asFloat / 1000).clip(0, 5), la = (self[\masterDelay] ? 0);
-	var sp = self.sineSpec(d), at = (due - la).max(0);
-	if(self[\grpSine].isNil) { self[\grpSine] = Group.tail(self[\grpFx]) };
-	s.makeBundle(if(at > 0.005) { at }, {
-		Synth(\leSine, [\out, self[\busMaster].index] ++ self.sineArgs(sp), self[\grpSine], \addToTail);
-	});
+	var sp = self.sineSpec(d), at = (due - la).max(0), now = SystemClock.seconds, node = Synth.basicNew(\leSine, s), pass = d[\pass], gone = 0;
+	// a NEW PASS of the score (it was started again, or the playhead jumped): the sines of the pass before let go first
+	if(pass.notNil and: { self[\sinePass] != pass }) { gone = self.sineLetGo(pass); self[\sinePass] = pass };
+	s.sendBundle(if(at > 0.005) { at }, node.newMsg(self[\grpFx], [\out, self[\busMaster].index] ++ self.sineArgs(sp), \addToTail));
+	// each sine is remembered until its length is over — by its own node, so a stop lets go of THESE and of none begun after it
+	self[\sines] = (self[\sines] ? List.new).reject({ |x| x[\end] < now }).asList;
+	self[\sines].add((node: node, start: now + at, end: now + at + sp[\dur] + 0.1, pass: pass));
+	if(gone > 0) { self.say("LE_INFO", "sine · a new pass — " ++ gone ++ " of the pass before let go") };
 	self.say("LE_INFO", "sine · " ++ self.sineSaid(sp) ++ " · in " ++ (at * 1000).round(1).asInteger ++ " ms");
 	self.say("LE_RESULT", self.json((msg: "sine", id: (d[\id] ? "").asString, midi: sp[\midi], hz: sp[\freq].round(0.01),
 		lengthMs: (sp[\dur] * 1000).round(1), dueMs: (at * 1000).round(0.1), peakDb: sp[\envDb].maxItem.round(0.1))));
 	self
 };
 
-// every sine lets go — now, and once more a fifth of a second on, for one that was sent ahead and had not begun
+// the remembered sines let go — all, or all but those of the pass `keep`: one that sounds, by its gate (50 ms); one sent ahead
+// that has not begun is freed as it begins. Answers how many.
+~le[\sineLetGo] = { |self, keep|
+	var s = self[\server], now = SystemClock.seconds, n = 0, stay = List.new;
+	(self[\sines] ? []).do({ |x|
+		if(x[\end] > now) {
+			if(keep.notNil and: { x[\pass] == keep }) { stay.add(x) } {
+				if(x[\start] > now) { s.sendBundle((x[\start] - now) + 0.002, x[\node].freeMsg) } { s.sendBundle(nil, x[\node].setMsg(\gate, 0)) };
+				n = n + 1;
+			};
+		};
+	});
+	self[\sines] = stay;
+	n
+};
+
 ~le[\sineStop] = { |self|
-	var g = self[\grpSine];
-	if(g.notNil) {
-		g.set(\gate, 0);
-		self[\server].makeBundle(0.2, { g.set(\gate, 0) });
-		self.say("LE_INFO", "sine · stopped — every sine sounding let go");
-	};
+	var n = self.sineLetGo(nil);
+	if(n > 0) { self.say("LE_INFO", "sine · stopped — " ++ n ++ " let go") };
 	self
 };
 

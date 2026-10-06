@@ -110,6 +110,8 @@ starting or stopping anything.
 | `open` | player · lane · id · name · category · `t` the score's seconds · `lengthMs` the window · `dueMs` how far ahead of the window's start the message left | THE MIC OPENING — the bank, below |
 | `play` | name · id · lane · t · `dueMs` | THE RETURN — the bank, below |
 | `process` | source · out · effect · `args` "name:value,…" (the chain's own controls) · `end` shape or tail · atkMs · durMs · relMs · curve (shape) · floorDb · capMs (tail) · gainDb · match · id | THE PROCESSING — a banked sample through the chain, OFFLINE, banked again as `out`; its row carries the id back as `openingId` (`sc/process.scd`) |
+| `sine` | id · lane · t · dueMs · `midi` (the pitch with its cents: 57.12) · `lengthMs` · `level` a mark or a line `ms:mark,…` · `levelCurve` · `gliss` a line `ms:cents,…` · `pass` | A GENERATED VOICE — a sine at a dynamic of the ladder, exact by formula, where the brick is (`sc/sine.scd`). A new `pass` lets go of the sines of the pass before |
+| `sinestop` | — | every sine sounding lets go in 50 ms (a score that stops) |
 | `onset` | player · lane · id · t · dueMs | A ROUTE CHECK (4.2's proof): shown as one line; when that player's sound then arrives, a second line with the ms between them. No page sends it any more |
 
 **Why the timing need not be exact.** A message is sent AHEAD of what it announces (a composer page schedules about 100 ms
@@ -272,6 +274,32 @@ from whatever was just captured.
 order; a queue two wide; lengths by `durX`; the fallback); the page's half under a stub window with the piece's score. NOT yet
 through a living engine or by a browser's eye.
 
+## The composer score — the fourth object: the sine brick, a GENERATED voice
+
+**The shape.** `score/le_sine.js` — a MIXIN on `LEObjects`, as the process brick's file is; it adds its own row to `MODELS`. The
+engine's half is `sc/sine.scd` and `\leSine` (`sc/synths.scd`), heard with or without a bank. A zone like the other three:
+
+| | `midiModel` | carries | the key (the piece's) | played through |
+|---|---|---|---|---|
+| **the sine brick** | `elecSine` | `elec: { midi, gliss: { kind, from, to, points? }, level: { mode, mark, to?, curveRef? }, label }` | over the selected note: its lane, its span, its pitch; or at the playhead, four seconds | `/le/sine` |
+
+- **Its length is the sine's; its lane says whose staff it is on** — the player who holds a long tone against it.
+- **The pitch carries its cents** (`57.12`); the panel takes a name (`A3 +12`) or a number.
+- **The gliss is a line of CENTS** against the pitch — `none · to` (unison) `· from · through · around · line` — sent as `ms:cents` pairs.
+- **The level is a dynamic of the ladder** — `flat` · `hairpin` · `curve`. The engine turns a mark into the sine's exact peak:
+  `markDb + 0.691 − K(f)`, K the K-weighting's gain at the sine's frequency. No sine is ever measured.
+- **A level that FOLLOWS A DRAWN CURVE is read through the HOST's reader, handed in:** `opts.curveAt(ref, { layer, startTime,
+  endTime }, n)` → n heights 0 … 1 over the span, or null where nothing is drawn. `ref` is the piece's (the first piece: its three
+  reference curves `A · B · C`, or `lane`). Read AT THE FIRE, eight points — a curve redrawn between two passes is heard at the
+  next. Height 0 … 1 = ppp … fff. The module leans on no file of the piece's; without a reader the level is the flat mark.
+- **A playhead that STARTS INSIDE the brick starts it for what is left** — its lines taken up where they stand, a curve read again.
+- **A stop reaches the engine:** the host's `stopPlay` is WRAPPED (once, at the attach) to send `/le/sinestop`. A restart or a jump
+  of the playhead needs no message of its own: every `/le/sine` carries the pass's number, and a new one lets the old sines go.
+- **The label** says what it is: `∿ A3 +12c ↗ −28c → 0 · 6.0 s · mf` · `… · curve A ▁▃▅▆█▆▅▃` · `… · curve A — none drawn: p`.
+
+**Proven** (the Decibel piece's 12.1 … 12.3, RUNNING_LOG §47 · §48): the engine's half by `sc/sine_test.scd` (offline renders, measured);
+the page's half by `tools/sine_page_test.js` under a stub window (33 checks). NOT yet by a browser's real input or a living engine.
+
 ## The level — a sample's loudness, a return's dynamic, the drive, the bus, the house (part 13)
 
 *(Built in the Decibel piece, 2026-10-06 — its PLAN 1.4; this repo's RUNNING_LOG §42 … §45. NO line of a piece's stack files changes for any of it: the page's part is in the two modules already tagged, the engine's in files `boot.scd` loads.)*
@@ -303,7 +331,7 @@ through a living engine or by a browser's eye.
 
 ## The lines a stack file must change, per piece
 
-*(The message route, 4.2 — the Decibel piece's 6.2 commit of 2026-10-04. The objects, part 11 — its 6.3 … 6.6 commit, the same day.)* *(The process brick — the Decibel piece's 10.1 commit of 2026-10-05: one more tag, one more key.)* *(The processed return — its 10.8 commit of the same day: NO line; a presets file where the page fetches it, `/bank/presets.json`.)*
+*(The message route, 4.2 — the Decibel piece's 6.2 commit of 2026-10-04. The objects, part 11 — its 6.3 … 6.6 commit, the same day.)* *(The process brick — the Decibel piece's 10.1 commit of 2026-10-05: one more tag, one more key.)* *(The processed return — its 10.8 commit of the same day: NO line; a presets file where the page fetches it, `/bank/presets.json`.)* *(The sine brick — the Decibel piece's 12.2 · 12.3 commit of 2026-10-06: one more tag, one more key, one reader in the attach line.)*
 
 **The piece's score server (`score/server.js`) — three lines:**
 
@@ -314,14 +342,15 @@ through a living engine or by a browser's eye.
 | 3 | `if (url.startsWith('/electronics/')) { base = path.join(__dirname, '..', 'electronics', 'score'); rel = url.slice('/electronics'.length); }` | in the static block, beside `/bank/` |
 | 2c | `if (url === '/api/candidates') { … }` — GET the kept settings · POST one more (the piece's `tools/candidates.js` writes `bank/candidates.json` and renders `docs/CANDIDATES.md`) | after row 2 — THE SHELF (2026-10-05, the Decibel piece's §113); the panel's Shelf menu and "keep → shelf" button are the module's (`opts.shelfUrl`, '/api/candidates' by default) |
 
-**The piece's composer page (`score/public/composer.html`) — five lines:**
+**The piece's composer page (`score/public/composer.html`) — six lines:**
 
 | # | the line | where |
 |---|---|---|
 | 1 | `<script src="/electronics/le_msg.js"></script>` | after the last panel's script tag |
 | 2 | `<script src="/electronics/le_objects.js"></script>` | after it |
 | 2b | `<script src="/electronics/le_process.js"></script>` | after it — the process brick (2026-10-05); its key is `process` in line 3's `keys` |
-| 3 | `if (window.LEObjects) LEObjects.attach(Composer, { keys: { open: 'm', play: 'r', process: 'e' }, lanes: META_LAYER, indexUrl: '/bank/samples/index.json', accel: window.AccelCalc, containers: window.TimeContainers, portOf: (l) => (Composer.trackInstrument(l) \|\| {}).port, laneLabel: (l) => (TRACKS[l] \|\| {}).short \|\| ('lane ' + l) });` | just BEFORE `Composer.init()` is called — so a loaded score's first drawing has the bricks' labels. The keys, the lanes and the index's address are the PIECE's |
+| 2c | `<script src="/electronics/le_sine.js"></script>` | after it — the sine brick (2026-10-06); its key is `sine` in line 3's `keys`, its curve reader `curveAt` there too |
+| 3 | `if (window.LEObjects) LEObjects.attach(Composer, { keys: { open: 'm', play: 'r', process: 'e', sine: 's' }, lanes: META_LAYER, indexUrl: '/bank/samples/index.json', accel: window.AccelCalc, containers: window.TimeContainers, curveAt: (ref, z, n) => …, portOf: (l) => (Composer.trackInstrument(l) \|\| {}).port, laneLabel: (l) => (TRACKS[l] \|\| {}).short \|\| ('lane ' + l) });` | just BEFORE `Composer.init()` is called — so a loaded score's first drawing has the bricks' labels. The keys, the lanes and the index's address are the PIECE's. `curveAt` (2026-10-06) is the sine brick's level from a drawn curve: the piece's own curve readers behind one function — n heights 0 … 1 over a span, or null |
 | 4 | `if (window.LEObjects) LEObjects.tick(this, timeSec);` | in `applyScroll`, the last of the playback ticks |
 
 *(4.2's test hook — `LE.noteOn(…)` in `tickCurvePlayback` — is OUT: the mic opening is the message.)*
