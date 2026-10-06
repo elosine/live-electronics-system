@@ -15,7 +15,10 @@
 //       `openMs` (500) long, the crop finds the attack — or, with no note selected, at the playhead on the active lane.
 //       Its name: the player's name and the next free letter (bcl-A, bcl-B …), the composer's to rename in the panel.
 //
-//   midiModel 'elecPlay'   THE RETURN.   elec: { name, behaviour?, label? }   (label: a tag shown first on the brick — a number, a word)
+//   midiModel 'elecPlay'   THE RETURN.   elec: { name, behaviour?, label?, dyn? }   (label: a tag shown first on the brick — a number, a word)
+//       dyn (2026-10-06, the first piece's "score the electronics like players"): THE DYNAMIC — { mode 'played' | 'mark' | 'rel',
+//       mark, rel, floor, ceil, shape }; absent = as played. Sent on /le/play as  dyn · env · envCurve  (the methods under
+//       "THE DYNAMIC" below); the engine turns the marks into decibels against each sample's own loudness (sc/level.scd).
 //       behaviour 'ar' (2026-10-05, step 9): the brick is a REGION around its CENTRE, the live note; the message points at the
 //       centre and names the behaviour; the ENGINE rolls where the sample lands (before, after, lazily after, near unison, a
 //       miss) — never the page: the score stays still, the simulation runs the same dice. Its panel chooses the behaviour.
@@ -256,6 +259,7 @@
                 if ((e.behaviour === 'chain' || e.behaviour === 'arChain') && Array.isArray(e.names) && e.names.length) text = M.sign + ' ' + (e.names.includes('*') ? 'ALL ' + this.captured().length + ' samples' : e.names.map(lab).join(' + '));
                 if (e.behaviour === 'pattern') { const n = Array.isArray(e.pattern) ? e.pattern.length : 0; text = M.sign + ' ' + (n ? n + ' samples · ' + Math.round((zone.endTime - zone.startTime) * 1000) + ' ms' + (e.pattern.some((p) => p && p.variant) ? ' · a preset each' : '') : 'no sample picked'); }
                 if (e.behaviour) text += ' ~ ' + String(e.behaviour).toUpperCase();
+                if (e.dyn) text += ' · ' + this.dynLabel(e);   // its dynamic, where one is written
                 if (e.behaviour !== 'pattern' && !this.row(e.name)) text += ' — not captured yet';
                 if (e.label) text = M.sign + ' ' + String(e.label).slice(0, 48) + ' · ' + text.slice(M.sign.length + 1);   // a brick's own tag, first: a number in an audition, a chord's name, a word of his
             }
@@ -349,7 +353,7 @@
                 sec.appendChild(rowEl('Window (ms)', win));
                 sec.appendChild(rowEl('Player', el('span', { textContent: p ? p + '  (' + this.opts.laneLabel(zone.layer) + ')' : p === null ? 'no microphone on this lane yet' : '—', style: 'font-size:11px;color:#666' })));
                 const row = this.row(e.name);
-                sec.appendChild(note(row ? 'in the bank: ' + Math.round(row.lengthMs) + ' ms, peak ' + row.peakDb + ' dB, taken ' + String(row.captured || '').replace('T', ' ')
+                sec.appendChild(note(row ? 'in the bank: ' + Math.round(row.lengthMs) + ' ms, peak ' + row.peakDb + ' dB' + this.loudText(row) + ', taken ' + String(row.captured || '').replace('T', ' ')
                     : 'not in the bank yet — play through it with the engine up; the engine crops the window to the attack'));
             } else if (zone.midiModel === 'elecProcess') {
                 if (this.processPanel) this.processPanel(zone, sec, { el, rowEl, note, commit });   // le_process.js
@@ -411,11 +415,96 @@
                         : 'rolled by the engine: which sample follows the live note (the brick\'s start) and the rest follow the one before — just after · lazily after · near unison; the dials return.chain (G · H · I), the ranges ar\'s B'));
                 }
                 const row = this.row(e.name);
-                if (e.behaviour !== 'pattern') sec.appendChild(note(row ? 'from ' + row.player + (row.category ? ' · ' + row.category : '') + ' · ' + Math.round(row.lengthMs) + ' ms · peak ' + row.peakDb + ' dB · taken ' + String(row.captured || '').replace('T', ' ')
+                if (e.behaviour !== 'pattern') sec.appendChild(note(row ? 'from ' + row.player + (row.category ? ' · ' + row.category : '') + ' · ' + Math.round(row.lengthMs) + ' ms · peak ' + row.peakDb + ' dB' + this.loudText(row) + ' · taken ' + String(row.captured || '').replace('T', ' ')
                     : 'its length becomes the sample\'s once it is captured'));
+                this.dynPanel(zone, sec, { el, rowEl, note, commit });   // the dynamic: as played · a mark · relative; a hairpin, a step, a line
                 if (e.behaviour !== 'pattern') this.variantPanel(zone, sec, { el, rowEl, note, commit });
             }
             panelEl.appendChild(sec);
+        },
+
+        // ---- THE DYNAMIC (the first piece's 11.3, 2026-10-06): a return is SCORED like a player, ppp … fff -------------------------
+        // elec.dyn = { mode: 'played' | 'mark' | 'rel', mark, rel, floor, ceil, shape } — absent = AS PLAYED: the capture's own
+        // loudness leads (the player's agency). mark: AT that dynamic, whatever was captured. rel: as played, n steps up or down, held
+        // inside a floor and a ceiling. shape: a hairpin to a level over the sample's length · a step at a time · a line of ms:level
+        // points — each from the SAMPLE'S OWN start. The page only NAMES it (dyn · env · envCurve on /le/play); the engine knows how
+        // loud each sample is and turns the marks into decibels (sc/level.scd) — the same in concert and in simulation.
+        MARKS: ['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff'],
+        loudText(row) { return row && row.loudDb != null && isFinite(+row.loudDb) ? ' · loud ' + Math.round(+row.loudDb) + ' LUFS' + (row.played ? ' (' + row.played + ')' : '') : ''; },
+        // a level of a shape, as the engine reads it: a mark · '=' the brick's own dynamic · '+n' / '-n' steps from it
+        dynLevel(x) { const t = String(x == null ? '' : x).trim(); return this.MARKS.includes(t) ? t : /^[+-]\d$/.test(t) ? t : '='; },
+        // what a brick's dynamic adds to its /le/play: nothing at all when it has none
+        dynFields(e) {
+            const d = e && e.dyn; if (!d) return {};
+            const ok = (m) => this.MARKS.includes(m), n = Math.max(-7, Math.min(7, Math.round(+d.rel) || 0));
+            const out = { dyn: d.mode === 'mark' && ok(d.mark) ? 'mark:' + d.mark
+                : d.mode === 'rel' ? 'rel:' + (n > 0 ? '+' : '') + n + (ok(d.floor) ? ':floor:' + d.floor : '') + (ok(d.ceil) ? ':ceil:' + d.ceil : '') : 'played' };
+            const s = d.shape;
+            if (s && s.kind === 'hairpin') out.env = '0:=,end:' + this.dynLevel(s.to);
+            else if (s && s.kind === 'step') { const at = Math.max(0, Math.round(+s.atMs || 0)); out.env = '0:=,' + at + ':=,' + (at + 5) + ':' + this.dynLevel(s.to); }
+            else if (s && s.kind === 'line' && Array.isArray(s.points) && s.points.length) out.env = s.points.slice(0, 8).map((p) => Math.max(0, Math.round(+p[0] || 0)) + ':' + this.dynLevel(p[1])).join(',');
+            if (out.env && s.kind === 'hairpin' && +s.curve) out.envCurve = Math.max(-8, Math.min(8, +s.curve));
+            return out;
+        },
+        // the brick's label says its dynamic: mf · mp→ff · mf|p (a step) · mf~ (a line) · ▲ = as played (shown only where a dynamic is set)
+        dynLabel(e) {
+            const d = e && e.dyn; if (!d) return '';
+            const n = Math.round(+d.rel) || 0, s = d.shape;
+            const base = d.mode === 'mark' && this.MARKS.includes(d.mark) ? d.mark : d.mode === 'rel' ? '▲' + (n > 0 ? '+' : '') + n : '▲';
+            return base + (!s ? '' : s.kind === 'hairpin' ? '→' + (s.to || '?') : s.kind === 'step' ? '|' + (s.to || '?') : s.kind === 'line' ? '~' : '');
+        },
+        dynPanel(zone, sec, ui) {
+            const e = zone.elec, { el, rowEl, note, commit } = ui, M = this.MARKS, small = 'font-size:11px';
+            const d = e.dyn || { mode: 'played' }, s = d.shape || null;
+            const set = (fn) => commit(() => {
+                const x = Object.assign({ mode: 'played' }, e.dyn || {});
+                if (x.shape) x.shape = JSON.parse(JSON.stringify(x.shape));
+                fn(x);
+                if (!x.shape) delete x.shape;
+                if (x.mode === 'played' && !x.shape) delete e.dyn; else e.dyn = x;   // as played with no shape = no field at all: the default
+            });
+            const sel = (opts, cur, on, title) => {
+                const n = el('select', { style: small, title: title || '' });
+                for (const [v, t] of opts) n.appendChild(el('option', { value: v, textContent: t, selected: v === cur }));
+                n.addEventListener('change', () => { if (n.blur) n.blur(); on(n.value); });
+                return n;
+            };
+            const num = (val, w, on, title, step) => { const n = el('input', { type: 'number', value: String(val), step: String(step || 1), title: title || '', style: 'width:' + w + 'px;' + small }); n.addEventListener('change', () => on(+n.value || 0)); return n; };
+            const tiny = (t) => el('span', { textContent: t, style: 'font-size:10px;color:#888;white-space:nowrap' });
+            const pair = (...kids) => el('span', { style: 'display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;' + small }, kids);
+            const marks = M.map((m) => [m, m]), opt = [['', '—']].concat(marks);
+            const to = (cur, on) => sel(marks.concat([['+1', 'a step up'], ['+2', 'two steps up'], ['-1', 'a step down'], ['-2', 'two steps down']]), cur, on, 'where it goes — a mark, or steps from the level above');
+            sec.appendChild(el('h5', { textContent: 'Dynamic' }));
+            const lv = [sel([['played', 'as played'], ['mark', 'written — a mark'], ['rel', 'relative to as played']], d.mode || 'played',
+                (v) => set((x) => { x.mode = v; if (v === 'mark' && !M.includes(x.mark)) x.mark = 'mf'; if (v === 'rel' && !Number.isFinite(+x.rel)) x.rel = 0; }),
+                'as played: as loud as the microphone caught it — the player leads · a mark: AT that dynamic, whatever was captured · relative: as played, a number of steps up or down')];
+            if (d.mode === 'mark') lv.push(sel(marks, M.includes(d.mark) ? d.mark : 'mf', (v) => set((x) => { x.mark = v; }), 'the dynamic this return sounds at — a step is 4 dB, the players\' own ladder'));
+            if (d.mode === 'rel') lv.push(num(Math.round(+d.rel) || 0, 44, (v) => set((x) => { x.rel = Math.max(-7, Math.min(7, Math.round(v))); }), 'steps up (+) or down (−) from as played — a step is 4 dB'), tiny('steps · not under'),
+                sel(opt, M.includes(d.floor) ? d.floor : '', (v) => set((x) => { if (v) x.floor = v; else delete x.floor; }), 'a floor: never quieter than this mark'), tiny('not over'),
+                sel(opt, M.includes(d.ceil) ? d.ceil : '', (v) => set((x) => { if (v) x.ceil = v; else delete x.ceil; }), 'a ceiling: never louder than this mark'));
+            sec.appendChild(rowEl('Level', pair(...lv)));
+            const sh = [sel([['', 'none'], ['hairpin', 'hairpin to'], ['step', 'step, at'], ['line', 'line']], s ? s.kind : '',
+                (v) => set((x) => { x.shape = v === 'hairpin' ? { kind: 'hairpin', to: 'ff', curve: 0 } : v === 'step' ? { kind: 'step', atMs: 400, to: 'p' } : v === 'line' ? { kind: 'line', points: [[0, 'mf'], [1000, 'ff']] } : null; }),
+                'a hairpin: from the level above to another, over the sample\'s whole length · a step: subito, at a time · a line: your own breakpoints')];
+            if (s && s.kind === 'hairpin') sh.push(to(String(s.to || 'ff'), (v) => set((x) => { x.shape.to = v; })), tiny('curve'),
+                num(+s.curve || 0, 44, (v) => set((x) => { x.shape.curve = Math.max(-8, Math.min(8, v)); }), '0 = an even hairpin to the ear · below 0 it moves early, above 0 late — −8 … 8', 0.5));
+            if (s && s.kind === 'step') sh.push(num(Math.round(+s.atMs || 0), 60, (v) => set((x) => { x.shape.atMs = Math.max(0, Math.round(v)); }), 'ms from the sample\'s own start', 10), tiny('ms, to'),
+                to(String(s.to || 'p'), (v) => set((x) => { x.shape.to = v; })));
+            sec.appendChild(rowEl('Shape', pair(...sh)));
+            if (s && s.kind === 'line') {
+                const box = el('input', { type: 'text', value: (s.points || []).map((p) => p[0] + ':' + p[1]).join(', '), title: 'ms:level pairs from the sample\'s own start, up to eight — 0:mf, 1200:ff, 1250:p   (a level: a mark · = the level above · +1 / -1 steps from it)', style: 'width:100%;box-sizing:border-box;font:11px monospace' });
+                box.addEventListener('change', () => set((x) => {
+                    const pts = String(box.value || '').split(',').map((t) => t.trim().split(':')).filter((b) => b.length === 2 && b[0].trim() !== '' && isFinite(+b[0]))
+                        .map((b) => [Math.max(0, Math.round(+b[0])), this.dynLevel(b[1])]).sort((p, q) => p[0] - q[0]).slice(0, 8);
+                    x.shape = pts.length ? { kind: 'line', points: pts } : null;
+                }));
+                sec.appendChild(rowEl('', box));
+            }
+            // what the bank knows of what this brick plays: the capture's own place on the ladder
+            const rows = this.samplesOf(e).map((n) => this.row(this.vname(e, n)) || this.row(n)).filter(Boolean), known = rows.filter((r) => r.loudDb != null);
+            sec.appendChild(note(!rows.length ? 'played: not captured yet — a mark is reached once the engine has the sample and its loudness'
+                : !known.length ? 'played: not measured yet — the engine measures the bank at its start; until then a mark plays as captured'
+                : 'played: ' + known.slice(0, 5).map((r) => (rows.length > 1 ? r.name + ' ' : '') + (r.played || '?') + ' (' + Math.round(+r.loudDb) + ' LUFS)').join(' · ') + (known.length > 5 ? ' …' : '')));
         },
 
         // ---- the processed return, in the panel: per sample the brick plays — a preset · an envelope · ▶; and the button for them all ----
@@ -443,7 +532,7 @@
                 const es = el('select', { style: small, disabled: !cur.key, title: envs.map((k) => k + ' — ' + ((P.envelopes[k] || {}).what || '')).join('\n') });
                 for (const k of envs) es.appendChild(el('option', { value: k, textContent: k, selected: k === cur.env }));
                 es.addEventListener('change', () => { es.blur(); set(cur.key, es.value); });
-                const hear = btn('▶', () => { if (window.LE) LE.send('play', { name: this.vname(e, name), id: 'audition', lane: -1, t: 0, dueMs: 0 }); this.say('▶ ' + this.vname(e, name)); },
+                const hear = btn('▶', () => { if (window.LE) LE.send('play', { name: this.vname(e, name), id: 'audition', lane: -1, t: 0, dueMs: 0, ...this.dynFields(e) }); this.say('▶ ' + this.vname(e, name)); },
                     'this sample as the brick will ask for it, now — raw if its variant is not rendered yet (the engine\'s window says)');
                 const made = cur.key ? this.row(safe(name) + '~' + this.variantOf(e, name)) : null;
                 sec.appendChild(rowEl(name, pair(ps, es, hear, tiny(!cur.key ? '' : made ? Math.round(made.lengthMs) + ' ms' : 'not rendered'))));
@@ -723,21 +812,21 @@
                 const names = (Array.isArray(e.names) && e.names.length ? e.names : [e.name]).map((n) => this.vname(e, n));   // each sample's variant, if it has one (10.8)
                 const ref = r3(z.startTime + this.opts.arRegionMs / 1000), perfR = host.playStartTime + (ref - host.playStartOffset / host.pixelsPerSecond) * 1000;
                 const dueR = Math.max(0, Math.round(((Number.isFinite(perfR) ? perfR : performance.now()) - performance.now()) * 10) / 10);
-                LE.send('play', { name: names[0], names: names.join(','), id: String(z.id), lane: z.layer, t: ref, dueMs: dueR, behaviour: 'arChain' });
+                LE.send('play', { name: names[0], names: names.join(','), id: String(z.id), lane: z.layer, t: ref, dueMs: dueR, behaviour: 'arChain', ...this.dynFields(e) });
             } else if (e.behaviour === 'chain') {   // the live note is the brick's START; the samples, in order, go with the message
                 const names = (Array.isArray(e.names) && e.names.length ? e.names : [e.name]).map((n) => this.vname(e, n));
-                LE.send('play', { name: names[0], names: names.join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'chain' });
+                LE.send('play', { name: names[0], names: names.join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'chain', ...this.dynFields(e) });
             } else if (e.behaviour === 'pattern') {   // the composed rhythm: ONE message, every onset from the brick's START; the engine plays each on time, no dice
                 const pat = Array.isArray(e.pattern) ? e.pattern.filter((p) => p && safe(p.name)) : [];
                 if (!pat.length) { this.say('pattern on ' + this.opts.laneLabel(z.layer) + ': no sample picked — nothing is played'); return; }
                 const nm = (p) => (p.variant ? safe(safe(p.name) + '~' + safe(p.variant)) : this.vname(e, p.name));   // a preset per impact (DEC-28), else the brick's per-sample variant
-                LE.send('play', { name: nm(pat[0]), pattern: pat.map((p) => nm(p) + ':' + (Math.round((+p.atMs || 0) * 10) / 10) + (p.db != null && isFinite(+p.db) ? ':' + (Math.round(+p.db * 10) / 10) : '')).join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'pattern' });
+                LE.send('play', { name: nm(pat[0]), pattern: pat.map((p) => nm(p) + ':' + (Math.round((+p.atMs || 0) * 10) / 10) + (p.db != null && isFinite(+p.db) ? ':' + (Math.round(+p.db * 10) / 10) : '')).join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'pattern', ...this.dynFields(e) });
             } else if (e.behaviour) {   // the message points at the CENTRE (the live note) and names the behaviour; the engine rolls
                 const c = r3((z.startTime + z.endTime) / 2), perfC = host.playStartTime + (c - host.playStartOffset / host.pixelsPerSecond) * 1000;
                 const dueC = Math.max(0, Math.round(((Number.isFinite(perfC) ? perfC : performance.now()) - performance.now()) * 10) / 10);
-                LE.send('play', { name: this.vname(e, e.name), id: String(z.id), lane: z.layer, t: c, dueMs: dueC, behaviour: String(e.behaviour) });
+                LE.send('play', { name: this.vname(e, e.name), id: String(z.id), lane: z.layer, t: c, dueMs: dueC, behaviour: String(e.behaviour), ...this.dynFields(e) });
             } else {
-                LE.send('play', { name: this.vname(e, e.name), id: String(z.id), lane: z.layer, t: r3(at), dueMs });
+                LE.send('play', { name: this.vname(e, e.name), id: String(z.id), lane: z.layer, t: r3(at), dueMs, ...this.dynFields(e) });
             }
         },
     };

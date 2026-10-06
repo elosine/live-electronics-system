@@ -474,7 +474,7 @@
 // the rendered file -> the sample: its start found, its end made (shape | tail), its level set, written, indexed, loaded
 ~le[\processDone] = { |self, o, src, out, id, effect, argsText, endMode, sr, srcPeak, nrtPath, oscPath, code|
 	var s = self[\server], dir = self[\bankDir], rel = out ++ ".wav", sf = SoundFile.new;
-	var data, peak, thr, head, last, start, stop, n, take, nA, nR, c, g, outPeak, fadeMs, capped = false, held = false, srcRow, row, old, lenMs, mode;
+	var data, peak, thr, head, last, start, stop, n, take, nA, nR, c, g, outPeak, fadeMs, capped = false, held = false, srcRow, row, old, lenMs, mode, loud;
 	if(File.exists(nrtPath) and: { sf.openRead(nrtPath) }) {
 		data = FloatArray.newClear(sf.numFrames * sf.numChannels);
 		sf.readData(data);
@@ -544,6 +544,7 @@
 			self.say("LE_RESULT", self.json((msg: "processed", name: out, source: src, openingId: id, failed: true)));
 		} {
 			lenMs = (take.size / sr * 1000).round(0.1);
+			loud = if(self[\loudOf].notNil) { try { self.loudOf(take, sr) } { nil } };   // 11.1: how loud the render is (level.scd)
 			if(self[\indexRows].isNil) { self[\indexRows] = List.new };
 			srcRow = self[\indexRows].detect({ |r| r[\name].asString == src });
 			row = (id: "prc_" ++ self.nowIso.select({ |ch| ch.isDecDigit }), name: out,
@@ -551,6 +552,7 @@
 				category: "processed", scoreTime: 0, lengthMs: lenMs, peakDb: self.db(outPeak), file: rel, raw: "raw/" ++ out ++ ".nrt.wav",
 				openingId: id, windowMs: 0, attackMs: (head / sr * 1000).round(0.1), captured: self.nowIso,
 				kind: "processed", source: src, effect: effect, args: argsText, end: endMode);
+			if(loud.notNil) { self.loudInto(row, loud) };
 			if(o[\planned].notNil) { row[\planned] = 1 };   // a variant of the plan (below): a page keeps it out of its pickers
 			self[\indexRows] = self[\indexRows].reject({ |r| r[\name].asString == out }).asList;   // a List: add() in place (bank.scd, §84)
 			self[\indexRows].add(row);
@@ -567,6 +569,7 @@
 				if(self[\planStale].notNil) { self[\planStale].remove(out.asSymbol) };
 			};
 			self.say("LE_INFO", "processed · " ++ out ++ " ← " ++ src ++ " · " ++ effect ++ " · " ++ endMode ++ " · " ++ lenMs.round(1).asInteger ++ " ms · peak " ++ self.db(outPeak) ++ " dB"
+				++ if(loud.notNil) { " · loud " ++ loud[\loudDb] ++ " LUFS" } { "" }
 				++ if(capped) { " · STILL SOUNDING at the cap: faded" } { "" } ++ if(held) { " · held under full scale" } { "" }
 				++ if(old.notNil) { " · REPLACES the earlier render" } { "" });
 			self.say("LE_RESULT", self.json(row.copy.putAll((msg: "processed", capped: capped, held: held, replaced: old.notNil))));

@@ -18,7 +18,10 @@
 // leLatency  a click out and a listener in: the seconds between them, to '/le/latency' (latency.scd).
 // leOnset    a rise out of silence on a bus, told ONCE to '/le/heard' — when a player's sound arrives (boot.scd § the onset probe).
 // leCapture  a player's bus into a buffer, ONCE, from the moment it starts until the buffer is full; then it frees itself (bank.scd).
-// leSample   a buffer to the master, ONCE, dual mono at UNITY — as loud as it was captured; then it frees itself (bank.scd).
+// leSample   a buffer to the master, ONCE, dual mono; then it frees itself (bank.scd). At UNITY — as loud as it was captured —
+//            unless it is given a DYNAMIC: envDb (8 levels, dB of gain) over envDt (7 times, s) on envCurve — a flat level, a
+//            hairpin, a step, a line (level.scd levelFor makes them from a brick's marks). The levels are joined IN DECIBELS:
+//            curve 0 is an even hairpin to the ear. All at 0 dB it multiplies by exactly 1.
 (
 SynthDef(\leIn, { |in = 0, out = 0, amp = 1|
 	Out.ar(out, In.ar(in, 1) * amp);
@@ -74,7 +77,9 @@ SynthDef(\leCapture, { |in = 0, buf = 0|
 }).add;
 
 SynthDef(\leSample, { |out = 0, buf = 0, amp = 1|
-	var sig = PlayBuf.ar(1, buf, BufRateScale.kr(buf), doneAction: 2) * amp;
+	var db = \envDb.ir(0 ! 8), dt = \envDt.ir(0.01 ! 7), cv = \envCurve.ir(0);
+	var lvl = EnvGen.kr(Env(db, dt, cv)).dbamp;
+	var sig = PlayBuf.ar(1, buf, BufRateScale.kr(buf), doneAction: 2) * amp * lvl;
 	Out.ar(out, [sig, sig]);
 }).add;
 )

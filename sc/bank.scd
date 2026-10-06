@@ -17,9 +17,11 @@
 //       or the BACKUP bank the players recorded in rehearsal); captures are WRITTEN to `dir`; with record = false an opening changes
 //       nothing. THE SAFETY NET: a capture with no attack above the floor leaves the buffer as it was (the backup, or the earlier take)
 //       and says so — the analysis that decides this must be made foolproof before the concert (the piece's NITS).
-//   /le/play  name · id · lane · t · dueMs
-//       THE RETURN. The sample is played to the master at UNITY, dueMs from now ON THE ENGINE'S CLOCK — it lands where
-//       the score's brick is, with no clock shared between the score and the engine.
+//   /le/play  name · id · lane · t · dueMs · [dyn · env · envCurve]
+//       THE RETURN. The sample is played to the master, dueMs from now ON THE ENGINE'S CLOCK — it lands where
+//       the score's brick is, with no clock shared between the score and the engine. AS LOUD AS IT WAS CAPTURED unless the
+//       message says a DYNAMIC (level.scd): dyn  played | mark:mf | rel:+1[:floor:p][:ceil:f]   ·   env  0:mf,end:ff  (a hairpin,
+//       a step, a line — ms:level from the sample's own start). A chain's and a pattern's samples each take it from their own start.
 //       A name may be a VARIANT of the plan, <base>~<key>-<env> (process.scd): played before its render is in, it falls back to
 //       the earlier render or to its base, raw — ~le.sampleFor, said in the window.
 //
@@ -103,7 +105,7 @@
 // ---- the index --------------------------------------------------------------------------------------------------------
 // (a JSON file read by the language comes back all strings: the numbers of the schema are made numbers again here)
 ~le[\indexRead] = { |self|
-	var path = self[\bankDir] +/+ "index.json", doc, rows = List.new, numbers = [\scoreTime, \lengthMs, \peakDb, \windowMs, \attackMs];
+	var path = self[\bankDir] +/+ "index.json", doc, rows = List.new, numbers = [\scoreTime, \lengthMs, \peakDb, \windowMs, \attackMs, \loudDb, \loudIntDb, \floorDb];
 	self[\indexBroken] = false;
 	if(File.exists(path)) {
 		try { doc = path.parseJSONFile } { doc = nil };
@@ -127,7 +129,7 @@
 
 // the rows of ANY folder's index, read without touching the write bank's state — the source the buffers are filled from (§71)
 ~le[\indexRowsOf] = { |self, dir|
-	var path = dir.asString +/+ "index.json", doc, rows = List.new, numbers = [\scoreTime, \lengthMs, \peakDb, \windowMs, \attackMs];
+	var path = dir.asString +/+ "index.json", doc, rows = List.new, numbers = [\scoreTime, \lengthMs, \peakDb, \windowMs, \attackMs, \loudDb, \loudIntDb, \floorDb];
 	if(File.exists(path)) {
 		try { doc = path.parseJSONFile } { doc = nil };
 		if(doc.notNil and: { doc["samples"].notNil }) {
@@ -216,7 +218,7 @@
 ~le[\captureDone] = { |self, d, who, name, id, winMs, data|
 	var s = self[\server], sr = s.sampleRate, dir = self[\bankDir], rawRel = "raw/" ++ id ++ ".wav", rel = name ++ ".wav";
 	var rawMs = (data.size / sr * 1000).round(1).asInteger, rawPeak = if(data.size > 0) { data.abs.maxItem } { 0 };
-	var c, out, row, old, lenMs, atMs;
+	var c, out, row, old, lenMs, atMs, loud;
 	self.wavWrite(dir +/+ rawRel, data, sr);
 	self.say("LE_INFO", "captured · " ++ name ++ " · raw · " ++ rawMs ++ " ms · peak " ++ self.db(rawPeak) ++ " dB");
 	c = self.cropFind(data, sr, self[\cropOpts]);
@@ -238,6 +240,9 @@
 			row = (id: "smp_" ++ self.nowIso.select(_.isDecDigit), name: name, player: who.asString, lane: (d[\lane] ? -1).asInteger,
 				category: (d[\category] ? "").asString, scoreTime: (d[\t] ? 0).asFloat.round(0.001), lengthMs: lenMs,
 				peakDb: self.db(c[\peak]), file: rel, raw: rawRel, openingId: id, windowMs: winMs, attackMs: atMs, captured: self.nowIso);
+			// the Decibel piece's 11.1: HOW LOUD it is, on the players' scale (level.scd) — its own try: a figure that cannot be made
+			// costs the figure, never the row
+			if(self[\loudOf].notNil) { loud = try { self.loudOf(out, sr) } { nil }; if(loud.notNil) { self.loudInto(row, loud) } };
 			// §84: a FIRST take lost its row every time, a re-take never did — reject() hands back a collection of exactly the size left,
 			// and add() on a full Array returns a NEW array that was being thrown away. A List adds in place: made one, every time.
 			self[\indexRows] = self[\indexRows].reject({ |r| r[\name].asString == name }).asList;
@@ -249,6 +254,7 @@
 			});
 			self.say("LE_INFO", "cropped · " ++ name ++ " · " ++ lenMs.round(1).asInteger ++ " ms of " ++ rawMs
 				++ " · the attack at " ++ atMs.round(1).asInteger ++ " ms · peak " ++ self.db(c[\peak]) ++ " dB"
+				++ if(loud.notNil) { " · loud " ++ loud[\loudDb] ++ " LUFS (" ++ row[\played] ++ ")" } { "" }
 				++ if(old.notNil) { " · REPLACES the earlier take" } { "" });
 			self.say("LE_RESULT", self.json(row.copy.putAll((msg: "captured", cropped: true, rawMs: rawMs, replaced: old.notNil))));
 			// the Decibel piece's 10.8: the take is in its file and its row — the variants the score PLANNED for this sample are rendered
@@ -389,16 +395,21 @@
 ~le[\samplePlay] = { |self, d|
 	var s = self[\server], name = self.safeName(d[\name]), due = ((d[\dueMs] ? 0).asFloat / 1000).clip(0, 5);
 	var smp, beh = (d[\behaviour] ? "").asString, roll, at = due, clipped = false;   // smp: looked up where ONE sample is played — sampleFor says a late variant
+	// the Decibel piece's 11.3 · 11.6: each sample is played AT ITS DYNAMIC — the message's dyn · env against the sample's OWN loudness
+	// (level.scd levelFor) — and EARLIER by the master's look-ahead (masterDelay), so it still lands where the brick is
+	var la = (self[\masterDelay] ? 0), lvOne;
+	var lvl = { |e, extra = 0| if(self[\levelFor].notNil) { self.levelFor(e[\row], d, extra) } };
+	var envArgs = { |lv| if(lv.notNil) { self.levelArgs(lv) } { [] } }, said = { |lv| if(lv.notNil) { self.levelSaid(lv) } { "" } };
 	if(beh == "pattern") {   // §97 (the piece's): a COMPOSED rhythm — the page's onsets, each from the live note; no roll
 		var onsets = self.patternOnsets(d[\pattern]);
 		onsets.do({ |k|
-			var sk = self.sampleFor(k[\name]), when = (due + (k[\atMs] / 1000)).max(0);
+			var sk = self.sampleFor(k[\name]), when = (due + (k[\atMs] / 1000) - la).max(0), lv = if(sk.notNil) { lvl.(sk) };
 			if(sk.isNil) { self.say("LE_INFO", "pattern · " ++ k[\name] ++ " — no such sample in the bank") } {
 				s.makeBundle(if(when > 0.005) { when }, {
-					Synth(\leSample, [\out, self[\busMaster].index, \buf, sk[\buf].bufnum, \amp, k[\db].dbamp], self[\grpFx], \addToTail);
+					Synth(\leSample, [\out, self[\busMaster].index, \buf, sk[\buf].bufnum, \amp, k[\db].dbamp] ++ envArgs.(lv), self[\grpFx], \addToTail);
 				});
 				self.say("LE_INFO", "pattern · " ++ k[\name] ++ " · in " ++ (when * 1000).round(1).asInteger ++ " ms · "
-					++ k[\atMs].round(1).asInteger ++ " ms after the live note" ++ if(k[\db] != 0) { " · " ++ k[\db].round(0.1) ++ " dB" } { "" });
+					++ k[\atMs].round(1).asInteger ++ " ms after the live note" ++ if(k[\db] != 0) { " · " ++ k[\db].round(0.1) ++ " dB" } { "" } ++ said.(lv));
 			};
 		});
 		if(onsets.size == 0) { self.say("LE_INFO", "pattern · nothing to play — the message carried no onsets") };
@@ -409,13 +420,13 @@
 		var list = self.chainNames(d[\names] ? name), links;   // §94: the names resolved in one place — "*" before the scrub, see chainNames
 		links = self.chainRoll(list, beh == "arChain");
 		links.do({ |k|
-			var sk = self.sampleFor(k[\name]), when = (due + (k[\atMs] / 1000)).max(0);
+			var sk = self.sampleFor(k[\name]), when = (due + (k[\atMs] / 1000) - la).max(0), lv = if(sk.notNil) { lvl.(sk) };
 			if(sk.isNil) { self.say("LE_INFO", "chain · " ++ k[\name] ++ " — no such sample in the bank") } {
 				s.makeBundle(if(when > 0.005) { when }, {
-					Synth(\leSample, [\out, self[\busMaster].index, \buf, sk[\buf].bufnum], self[\grpFx], \addToTail);
+					Synth(\leSample, [\out, self[\busMaster].index, \buf, sk[\buf].bufnum] ++ envArgs.(lv), self[\grpFx], \addToTail);
 				});
 				self.say("LE_INFO", "chain · " ++ k[\name] ++ " · in " ++ (when * 1000).round(1).asInteger ++ " ms · " ++ k[\stance] ++ " "
-					++ k[\offsetMs].round(1).asInteger ++ " ms after the " ++ k[\ref]);
+					++ k[\offsetMs].round(1).asInteger ++ " ms after the " ++ k[\ref] ++ said.(lv));
 			};
 		});
 		self.say("LE_RESULT", self.json((msg: "play", behaviour: beh, id: (d[\id] ? "").asString, dueMs: (due * 1000).round(0.1),
@@ -428,12 +439,13 @@
 			if(beh == "ar") {   // the roll: the sample moves from the centre by the offset; a "before" the message came too late for lands now
 				roll = self.arRoll; at = due + (roll[\offsetMs] / 1000); clipped = at < 0; at = at.max(0);
 			};
+			at = (at - la).max(0); lvOne = lvl.(smp);
 			s.makeBundle(if(at > 0.005) { at }, {
-				Synth(\leSample, [\out, self[\busMaster].index, \buf, smp[\buf].bufnum], self[\grpFx], \addToTail);
+				Synth(\leSample, [\out, self[\busMaster].index, \buf, smp[\buf].bufnum] ++ envArgs.(lvOne), self[\grpFx], \addToTail);
 			});
 			self.say("LE_INFO", "play · " ++ name ++ " · in " ++ (at * 1000).round(1).asInteger ++ " ms · "
 				++ smp[\row][\lengthMs].round(1).asInteger ++ " ms long"
-				++ if(roll.notNil) { " · AR " ++ roll[\stance] ++ " " ++ roll[\offsetMs].round(1).asInteger ++ " ms" ++ if(clipped) { " (too late to be early: now)" } { "" } } { "" });
+				++ if(roll.notNil) { " · AR " ++ roll[\stance] ++ " " ++ roll[\offsetMs].round(1).asInteger ++ " ms" ++ if(clipped) { " (too late to be early: now)" } { "" } } { "" } ++ said.(lvOne));
 			self.say("LE_RESULT", self.json((msg: "play", name: name, id: (d[\id] ? "").asString, dueMs: (at * 1000).round(0.1),
 				lengthMs: smp[\row][\lengthMs], peakDb: smp[\row][\peakDb], behaviour: beh,
 				stance: if(roll.notNil) { roll[\stance].asString } { "" }, offsetMs: if(roll.notNil) { roll[\offsetMs] } { 0 })));

@@ -200,6 +200,8 @@
 
 // ---- the bank: the capture, the crop, the index, the sample player (the engine plan's 4.3 … 4.4) — its own file ----
 (~le[\dir] +/+ "bank.scd").load;
+// ---- the level: a sample's loudness, the ladder of marks, the dynamic a return is played at (the engine plan's part 13) — its own file ----
+(~le[\dir] +/+ "level.scd").load;
 // ---- the processing: a banked sample through the chain, offline, banked again (the engine plan's part 6) — its own file ----
 (~le[\dir] +/+ "process.scd").load;
 )
