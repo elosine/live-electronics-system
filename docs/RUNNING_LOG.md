@@ -664,3 +664,16 @@ re-rendered re-rendering those made from it — the label already says which are
 - **§37 c (the same day; the piece's §125):** the resonator bank's four pitches are controls (`resF1 … resF4`; the row has the dials) — so a piece can draw them per variant (the Decibel piece's DEC-23). `process_test.scd` PASS.
 
 - **§37 d (the same day; the piece's §129):** a return brick honours `elec.label` — a tag shown first on its label (`score/le_objects.js` `decorate`); a piece's tool may number an audition with it.
+
+## §38. A pattern brick deals a preset per impact — the composed rhythm meets the plan (2026-10-05, Fable; the Decibel piece's §131 · DEC-28)
+
+**What prompted it (the composer, in the Decibel piece):** *"I guess you can do a round robin of impulses, but each one will be processed differently"* — and the brick's two rows of boxes were to offer *"just the raw ones, not the processed ones"*.
+
+**What is the engine's here (`score/le_objects.js`):**
+- `raw(r)` — a RAW sample of the index: not `kind processed`, not `planned`, no `~` in its name. The pattern brick's Players · Impulses boxes and `picked()` use it: no render of any kind joins a composed rhythm's deal (before: the boxes listed a piece's workshop renders as if they were impulses).
+- `elec.fx = { mode 'none' | 'each', env, cls, seed }` and **`dealVariants(n, fx)`**: n variants `<key>-<env>` for n onsets — the piece's presets (`opts.presetsUrl`; `fxPool`: all, or one class) shuffled once by the seed (mulberry32, `seed * 7919 + 3`) and dealt round robin, none twice until all are used, past the pool round again; the envelope the one asked for, or the file's `mix` as exact shares of n (largest remainders), shuffled (`seed * 104729 + 17`). The rule is the Decibel piece's `tools/deal_variants.js`, carried in: the tool deals a score's returns, the module deals one brick's onsets.
+- `generate()` writes `pattern[i].variant`; `fire()` names each onset `<sample>~<key>-<env>`; **`planRows()` carries a pattern's variants at the ONSET'S time** (`startTime + atMs`), not the brick's — the engine's soonest-first queue then spreads a long run's renders through the pass. A brick without `fx` (saved before) plays as it did.
+- The panel: an **Effects** row (mode · envelope · class · seed · redeal) and a note of the pool; the label `· a preset each`; the readout `name~preset-env ms`.
+- NOT changed: `sc/bank.scd` (its pattern branch already resolved a `~` name through `sampleFor`) · the seams.
+
+**Proven once, headless:** the module under a stub window with that piece's real index (310 rows) and its 49 presets — 17 checks pass (the raw 25 only · 25 distinct presets for 25 onsets · reproducible by seed · the plan's rows timed by onset · the message per onset · a class narrows the pool and a 25th onset over 24 comes round again · the mix's shares · mode none plans nothing). NOT heard.

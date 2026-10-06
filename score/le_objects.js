@@ -28,7 +28,7 @@
 //       elec.rhythm is the dials — the Strikes drawer's menu (DEC-15b): unison · even · front-loaded · back-loaded · centre · edges ·
 //       random (this module's own) · accel · round robin and containers (the HOST's calculators, opts.accel · opts.containers, the
 //       samples DEALT onto the run's onsets under the re-attack rule) · order · seed · reverse · rotate; Generate writes
-//       elec.pattern = [{ name, atMs, db? }]
+//       elec.pattern = [{ name, atMs, db?, variant? }]
 //       from the brick's START (the live note), its length the span. ONE message carries the onsets and the engine plays each
 //       on time — the same in concert and in simulation. A message onset is name:atMs or name:atMs:db (a level ramp). The simple
 //       shapes are this file's own (rhythm()); a run's calculator comes in through attach() — the module leans on no file of a
@@ -44,7 +44,12 @@
 //       <sample>~<key>-<env>. The score is a PLAN:   /le/plan   stamp · part · of · rows · [render]   tells the engine every
 //       variant the bricks will ask for, with the time of its first use (at a pass's start · a second after a change · with the
 //       panel's button, render 1); the engine renders each right after its sample's capture and falls back to the sample, raw,
-//       when one is asked for too early (sc/process.scd · sc/bank.scd sampleFor). A pattern's samples take a variant too.
+//       when one is asked for too early (sc/process.scd · sc/bank.scd sampleFor).
+//       A PATTERN DEALS A PRESET PER IMPACT (the first piece's DEC-28, 2026-10-05): elec.fx = { mode 'none' | 'each', env, cls, seed }
+//       — at Generate every onset gets its own preset, round robin through the file's presets (one shuffle by the seed, none twice
+//       until all are used; cls narrows the pool to one class), under ONE envelope or the file's mix; written as
+//       pattern[i].variant = '<key>-<env>', so that onset asks for <sample>~<key>-<env> and the plan carries each variant at the
+//       onset's own time. The brick's two rows of boxes offer the RAW samples only — captured, never a render of any kind.
 //
 //   midiModel 'elecProcess'   A STAGE OF A CHAIN (2026-10-05) — the THIRD object: a banked sample through one configuration of
 //       the engine's chain, banked again under a name of its own (<root>~1, ~2 …). Its catalogue, its panel and its render are
@@ -83,6 +88,8 @@
         // containers — the host's roller (opts.containers = the stack's TimeContainers); values in units of cUnit seconds, filling cTotal
         cValues: '2 5 7 15', cWeights: '', cUnit: 1, cTotal: 20, cStick: 0.8, cJump: 0.1, cContour: 'flat', cTurn: 0.5, cBow: 1, cDepth: 1,
     };
+    // a pattern's effects (DEC-28): none — the samples raw · each — a preset per impact; env one of the file's envelopes or 'mix'; cls 'all' or one class
+    const DEFAULT_FX = { mode: 'none', env: 'tail', cls: 'all', seed: 1 };
     const SHAPES = [['unison', 'unison'], ['even', 'even'], ['front', 'front-loaded'], ['back', 'back-loaded'], ['centre', 'centre'], ['edges', 'edges'], ['random', 'random'], ['accel', 'accel · round robin'], ['containers', 'containers']];
     const DIAL_KEY = { curve: 'aCurve', ease: 'aEase', knee: 'aKnee', gamma: 'aGamma' };   // a run shape's one dial (AccelCalc.SHAPES[].dial.key) → the brick's field
     const shuffled = (arr, rnd) => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -99,6 +106,7 @@
         row(name) { return this.index.find((x) => x.name === name) || null; },
         captured() { return this.index.filter((x) => x.kind !== 'processed'); },   // what '*' plays: a render is not one of "every sample"
         choosable() { return this.index.filter((x) => !x.planned); },             // what a picker offers: a plan's variant is chosen on its brick, never as a sample
+        raw(r) { return !!r && r.kind !== 'processed' && !r.planned && !String(r.name || '').includes('~'); },   // a RAW sample: captured, not a render of any kind — what a pattern's boxes offer (DEC-28)
         say(text) { const h = this.host; if (h && h.saveStatus) h.saveStatus.textContent = text; },
         // the engine's player on this lane: a name · null (the lane has no microphone) · undefined (the route table has not come yet)
         playerOf(layer) {
@@ -167,19 +175,23 @@
         planRows() {
             const P = this.presets, out = new Map();
             if (!P) return [];
+            const add = (name, v, t) => {
+                const { key, env } = this.splitVariant(v), p = P.presets.find((x) => x.key === key), E = (P.envelopes || {})[env];
+                if (!p || !E) return;   // a preset or an envelope the file no longer has: the sample returns raw
+                const id = safe(name) + '~' + v, was = out.get(id), cls = (P.classes || {})[p.class] || {};
+                if (was) { if (t < was.t) was.t = t; return; }
+                out.set(id, { base: safe(name), suffix: v, effect: String(p.effect || '').replace(/[^A-Za-z0-9 _+-]/g, '').slice(0, 40), end: env === 'tail' ? 'tail' : env,
+                    atkMs: +E.atkMs || 0, durX: +(p.durX || cls.durX || 1), match: p.match === 0 ? 0 : 1, t, capMs: env === 'tail' ? (p.capMs || E.capMs || 4000) : 0, args: p.args || {} });   // capMs may be a range [lo, hi]: drawn at the send
+            };
             for (const z of this.zones('elecPlay')) {
                 const e = z.elec;
-                if (!e || !e.variants) continue;
-                for (const name of this.samplesOf(e)) {
-                    const v = this.variantOf(e, name);
-                    if (!v) continue;
-                    const { key, env } = this.splitVariant(v), p = P.presets.find((x) => x.key === key), E = (P.envelopes || {})[env];
-                    if (!p || !E) continue;   // a preset or an envelope the file no longer has: the sample returns raw
-                    const id = safe(name) + '~' + v, t = r3(z.startTime), was = out.get(id), cls = (P.classes || {})[p.class] || {};
-                    if (was) { if (t < was.t) was.t = t; continue; }
-                    out.set(id, { base: safe(name), suffix: v, effect: String(p.effect || '').replace(/[^A-Za-z0-9 _+-]/g, '').slice(0, 40), end: env === 'tail' ? 'tail' : env,
-                        atkMs: +E.atkMs || 0, durX: +(p.durX || cls.durX || 1), match: p.match === 0 ? 0 : 1, t, capMs: env === 'tail' ? (p.capMs || E.capMs || 4000) : 0, args: p.args || {} });   // capMs may be a range [lo, hi]: drawn at the send
+                if (!e) continue;
+                if (e.behaviour === 'pattern') {   // a preset per impact (DEC-28): each onset's own variant, at the onset's own time — else the brick's per-sample one
+                    for (const p of (Array.isArray(e.pattern) ? e.pattern : [])) { const v = p && p.name ? (p.variant ? safe(p.variant) : this.variantOf(e, p.name)) : ''; if (v) add(p.name, v, r3(z.startTime + (+p.atMs || 0) / 1000)); }
+                    continue;
                 }
+                if (!e.variants) continue;
+                for (const name of this.samplesOf(e)) { const v = this.variantOf(e, name); if (v) add(name, v, r3(z.startTime)); }
             }
             return [...out.values()].sort((a, b) => a.t - b.t);
         },
@@ -242,7 +254,7 @@
                 const lab = (n) => { const v = this.variantOf(e, n); return n + (v ? '~' + this.splitVariant(v).key : ''); };   // a PROCESSED return says its preset: bfl-impulse-1~crush4
                 text = M.sign + ' ' + (e.name ? lab(e.name) : '?');
                 if ((e.behaviour === 'chain' || e.behaviour === 'arChain') && Array.isArray(e.names) && e.names.length) text = M.sign + ' ' + (e.names.includes('*') ? 'ALL ' + this.captured().length + ' samples' : e.names.map(lab).join(' + '));
-                if (e.behaviour === 'pattern') { const n = Array.isArray(e.pattern) ? e.pattern.length : 0; text = M.sign + ' ' + (n ? n + ' samples · ' + Math.round((zone.endTime - zone.startTime) * 1000) + ' ms' : 'no sample picked'); }
+                if (e.behaviour === 'pattern') { const n = Array.isArray(e.pattern) ? e.pattern.length : 0; text = M.sign + ' ' + (n ? n + ' samples · ' + Math.round((zone.endTime - zone.startTime) * 1000) + ' ms' + (e.pattern.some((p) => p && p.variant) ? ' · a preset each' : '') : 'no sample picked'); }
                 if (e.behaviour) text += ' ~ ' + String(e.behaviour).toUpperCase();
                 if (e.behaviour !== 'pattern' && !this.row(e.name)) text += ' — not captured yet';
                 if (e.label) text = M.sign + ' ' + String(e.label).slice(0, 24) + ' · ' + text.slice(M.sign.length + 1);   // a brick's own tag, first: a number in an audition, a word of his
@@ -457,7 +469,7 @@
         // the samples a brick picks: no pick = every sample the bank holds today; a pick = the players ticked × the tags ticked
         picked(e) {
             const P = e.pick && Array.isArray(e.pick.players) ? e.pick.players : null, T = e.pick && Array.isArray(e.pick.impulses) ? e.pick.impulses : null;
-            return this.index.filter((r) => (!P || P.includes(String(r.player))) && (T ? T.includes(this.tagOf(r)) : r.kind !== 'processed'));   // a PROCESSED sample only by its own box: a render does not change what "every sample" is
+            return this.index.filter((r) => this.raw(r) && (!P || P.includes(String(r.player))) && (!T || T.includes(this.tagOf(r))));   // RAW samples only (DEC-28): a render — the workshop's or the plan's — never joins a pattern's deal
         },
         // the simple shapes: n onsets in ms over a span — the first at 0 (the live note), the last at the span; seeded
         rhythm(n, cfg) {
@@ -541,8 +553,26 @@
             }
             return { events: out, info: 'round robin · ' + laps + (laps === 1 ? ' lap' : ' laps') + (shuffledLaps ? ' · ' + shuffledLaps + ' shuffled' : '') + (again ? ' · ' + again + ' in order again (no shuffle kept the rule)' : '') + flag() };
         },
-        // Generate: the samples picked, in the order asked, on the shape's onsets → elec.pattern = [{ name, atMs, db? }]; the brick
-        // runs from the live note to the last onset (a simple shape: to its span)
+        // THE EFFECTS OF A PATTERN (DEC-28): the pool — the file's presets, or one class of them
+        fxPool(fx) { const P = this.presets; if (!P) return []; return fx && fx.cls && fx.cls !== 'all' ? P.presets.filter((p) => p.class === fx.cls) : P.presets; },
+        // a preset per impact: n variants '<key>-<env>' — the pool shuffled ONCE by the seed and dealt round robin (none twice until
+        // all are used; past the pool it comes round again), under the one envelope asked for, or the file's mix as exact shares of
+        // the n (the largest remainders round it), shuffled by the seed — tools/deal_variants.js's rule, for the onsets of one brick
+        dealVariants(n, fx) {
+            const P = this.presets, pool = this.fxPool(fx);
+            if (!P || !pool.length || !(n > 0)) return [];
+            const seed = +fx.seed || 0, order = shuffled(pool, mulberry32(seed * 7919 + 3)), envsAll = Object.keys(P.envelopes || {});
+            let envs;
+            if (fx.env === 'mix') {
+                const mix = Object.entries(P.mix || { perc: 1 }).filter(([k, w]) => envsAll.includes(k) && w > 0), wSum = mix.reduce((s, [, w]) => s + w, 0) || 1;
+                const share = mix.map(([k, w]) => ({ k, exact: n * w / wSum })); share.forEach((s) => { s.n = Math.floor(s.exact); });
+                for (let left = n - share.reduce((s, x) => s + x.n, 0); left > 0; left--) share.slice().sort((a, b) => (b.exact - b.n) - (a.exact - a.n))[0].n++;
+                envs = shuffled(share.flatMap((s) => Array(s.n).fill(s.k)), mulberry32(seed * 104729 + 17));
+            } else envs = Array(n).fill(envsAll.includes(fx.env) ? fx.env : (envsAll[0] || 'tail'));
+            return [...Array(n)].map((_, i) => order[i % order.length].key + '-' + envs[i]);
+        },
+        // Generate: the samples picked, in the order asked, on the shape's onsets → elec.pattern = [{ name, atMs, db?, variant? }]; the brick
+        // runs from the live note to the last onset (a simple shape: to its span); with fx.mode 'each', a preset per onset (DEC-28)
         generate(zone) {
             const e = zone.elec, cfg = e.rhythm || (e.rhythm = Object.assign({}, DEFAULT_RHYTHM));
             for (const k of Object.keys(DEFAULT_RHYTHM)) if (cfg[k] === undefined) cfg[k] = DEFAULT_RHYTHM[k];   // a brick saved before a dial existed
@@ -560,6 +590,9 @@
             if (run.dealt) { const d = this.deal(rows, on, cfg, mulberry32((+cfg.seed || 1) * 7727 + 29)); events = d.events; info = [run.info, d.info].filter(Boolean).join(' · '); }
             else events = rows.map((r, i) => ({ name: r.name, atMs: on[i] }));
             if (lv) events.forEach((ev, i) => { if (lv[i] != null && isFinite(lv[i])) ev.db = Math.round(lv[i] * 10) / 10; });
+            const fx = e.fx || (e.fx = Object.assign({}, DEFAULT_FX));
+            for (const k of Object.keys(DEFAULT_FX)) if (fx[k] === undefined) fx[k] = DEFAULT_FX[k];
+            if (fx.mode === 'each') { const vs = this.dealVariants(events.length, fx); events.forEach((ev, i) => { if (vs[i]) ev.variant = vs[i]; }); }   // a preset per impact (DEC-28)
             e.pattern = events;
             this._info[String(zone.id)] = info;
             if (events.length) e.name = events[0].name;
@@ -581,9 +614,10 @@
             const tiny = (t) => el('span', { textContent: t, style: 'font-size:10px;color:#888;white-space:nowrap' });
             const pair = (...kids) => el('span', { style: 'display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;' + small }, kids);
             // THE SAMPLES — two rows of boxes: the players × the tags after them
-            const players = [...new Set(this.choosable().map((r) => String(r.player)))].sort(byName);
-            const tags = [...new Set(this.choosable().map((r) => this.tagOf(r)))].sort(byName);   // a plan's variants are not boxes: thirty of them would bury the five
-            const P = e.pick && Array.isArray(e.pick.players) ? e.pick.players : players, T = e.pick && Array.isArray(e.pick.impulses) ? e.pick.impulses : tags.filter((t) => !this.index.some((r) => r.kind === 'processed' && this.tagOf(r) === t));
+            const rawRows = this.index.filter((r) => this.raw(r));   // the RAW samples only (DEC-28): no render of the workshop's, none of the plan's
+            const players = [...new Set(rawRows.map((r) => String(r.player)))].sort(byName);
+            const tags = [...new Set(rawRows.map((r) => this.tagOf(r)))].sort(byName);
+            const P = e.pick && Array.isArray(e.pick.players) ? e.pick.players : players, T = e.pick && Array.isArray(e.pick.impulses) ? e.pick.impulses : tags;
             const boxes = (all, on, label, write) => {
                 const wrap = el('span', { style: 'display:inline-flex;flex-wrap:wrap;gap:2px 8px;' + small });
                 for (const v of all) {
@@ -634,10 +668,26 @@
                 btn('rotate' + (+cfg.rotate ? ' (' + cfg.rotate + ')' : ''), () => regen(() => { cfg.rotate = (Math.round(+cfg.rotate) || 0) + 1; }), 'the gaps turned by one more place'),
                 btn('reset rhythm', () => regen(() => { e.rhythm = Object.assign({}, DEFAULT_RHYTHM); }), 'every dial back to its default'))));
             const pat = Array.isArray(e.pattern) ? e.pattern : [], info = this._info[String(zone.id)] || '';
+            // THE EFFECTS — a preset per impact (DEC-28): the file's presets dealt round robin onto the onsets, under one envelope or the mix
+            const fx = e.fx || (e.fx = Object.assign({}, DEFAULT_FX)), PR = this.presets;
+            for (const k of Object.keys(DEFAULT_FX)) if (fx[k] === undefined) fx[k] = DEFAULT_FX[k];
+            const fsel = (key, options) => { const s = el('select'); for (const [v, t] of options) s.appendChild(el('option', { value: v, textContent: t, selected: String(fx[key]) === String(v) })); s.addEventListener('change', () => { s.blur(); regen(() => { fx[key] = s.value; }); }); return s; };
+            if (!PR) sec.appendChild(rowEl('Effects', tiny('this piece has no presets file — the samples play raw')));
+            else {
+                const pool = this.fxPool(fx), envs = Object.keys(PR.envelopes || {});
+                const fseed = el('input', { type: 'number', value: String(fx.seed), min: '0', max: '999999', step: '1', style: 'width:62px' });
+                fseed.addEventListener('change', () => regen(() => { fx.seed = Math.max(0, +fseed.value || 0); }));
+                const more = fx.mode === 'each' ? [tiny('envelope'), fsel('env', envs.map((k) => [k, k === 'tail' ? 'tail — the ring version' : k]).concat([['mix', 'the mix (' + Object.entries(PR.mix || {}).map(([k, w]) => k + ' ' + Math.round(w * 100)).join(' · ') + ')']])),
+                    tiny('class'), fsel('cls', [['all', 'all']].concat(Object.keys(PR.classes || {}).map((c) => [c, c]))),
+                    tiny('seed'), fseed, btn('redeal', () => regen(() => { fx.seed = (+fx.seed || 0) + 1; }), 'the presets dealt again: seed + 1')] : [];
+                sec.appendChild(rowEl('Effects', pair(fsel('mode', [['none', 'none — the samples raw'], ['each', 'a preset for every impact']]), ...more)));
+                if (fx.mode === 'each') sec.appendChild(note(pool.length + ' presets' + (fx.cls !== 'all' ? ' of class ' + fx.cls : '') + ' dealt round robin, none twice until all are used'
+                    + (pat.length > pool.length ? ' — ' + pat.length + ' onsets: a preset comes round again after ' + pool.length : '') + ' · ' + (fx.env === 'mix' ? 'the envelopes by the mix' : 'envelope ' + fx.env) + ' · each onset asks for <sample>~<preset>-<envelope>; the plan renders each by its own time'));
+            }
             if (info) sec.appendChild(note(info));
             sec.appendChild(note(pat.length ? pat.length + ' onsets over ' + Math.round((zone.endTime - zone.startTime) * 1000) + ' ms from the brick\'s start (the live note) · one message carries them all; the engine plays each on time, no dice'
                 : 'no sample picked — tick a player and an impulse, or play through the openings with the engine up'));
-            if (pat.length) sec.appendChild(note(pat.slice(0, 12).map((p) => p.name + ' ' + Math.round(p.atMs) + (p.db != null ? ' (' + p.db + ' dB)' : '')).join(' · ') + (pat.length > 12 ? ' · … (' + pat.length + ')' : '')));
+            if (pat.length) sec.appendChild(note(pat.slice(0, 12).map((p) => p.name + (p.variant ? '~' + p.variant : '') + ' ' + Math.round(p.atMs) + (p.db != null ? ' (' + p.db + ' dB)' : '')).join(' · ') + (pat.length > 12 ? ' · … (' + pat.length + ')' : '')));
         },
 
         // ---- the transport: each brick's message, once, ahead of its start ------------------------------------------------
@@ -679,7 +729,8 @@
             } else if (e.behaviour === 'pattern') {   // the composed rhythm: ONE message, every onset from the brick's START; the engine plays each on time, no dice
                 const pat = Array.isArray(e.pattern) ? e.pattern.filter((p) => p && safe(p.name)) : [];
                 if (!pat.length) { this.say('pattern on ' + this.opts.laneLabel(z.layer) + ': no sample picked — nothing is played'); return; }
-                LE.send('play', { name: this.vname(e, pat[0].name), pattern: pat.map((p) => this.vname(e, p.name) + ':' + (Math.round((+p.atMs || 0) * 10) / 10) + (p.db != null && isFinite(+p.db) ? ':' + (Math.round(+p.db * 10) / 10) : '')).join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'pattern' });
+                const nm = (p) => (p.variant ? safe(safe(p.name) + '~' + safe(p.variant)) : this.vname(e, p.name));   // a preset per impact (DEC-28), else the brick's per-sample variant
+                LE.send('play', { name: nm(pat[0]), pattern: pat.map((p) => nm(p) + ':' + (Math.round((+p.atMs || 0) * 10) / 10) + (p.db != null && isFinite(+p.db) ? ':' + (Math.round(+p.db * 10) / 10) : '')).join(','), id: String(z.id), lane: z.layer, t: r3(at), dueMs, behaviour: 'pattern' });
             } else if (e.behaviour) {   // the message points at the CENTRE (the live note) and names the behaviour; the engine rolls
                 const c = r3((z.startTime + z.endTime) / 2), perfC = host.playStartTime + (c - host.playStartOffset / host.pixelsPerSecond) * 1000;
                 const dueC = Math.max(0, Math.round(((Number.isFinite(perfC) ? perfC : performance.now()) - performance.now()) * 10) / 10);
