@@ -9,10 +9,10 @@ var dir = thisProcess.nowExecutingPath.dirname;
 (dir +/+ "bank.scd").load;
 // the piece's dials as the engine gets them (tools/elec.js: LE_AR · LE_CHAIN), parsed as session.scd does
 ~le[\arOpts] = ();
-"before=0.35,after=0.35,lazy=0.15,unison=0.15,afterLo=150,afterHi=270,beforeLo=90,beforeHi=225,lazyLo=270,lazyHi=600,unisonLo=10,unisonHi=40,skew=2,missRate=0.1,missLateShare=0.67,missLateLo=0,missLateHi=120,missEarlyLo=225,missEarlyHi=450"
+"before=0.35,after=0.35,lazy=0.15,far=0.15,unison=0,afterLo=175,afterHi=300,beforeLo=105,beforeHi=240,lazyLo=300,lazyHi=500,farLo=500,farHi=750,unisonLo=10,unisonHi=40,skew=2,missRate=0.1,missLateShare=0.67,missLateLo=0,missLateHi=120,missEarlyLo=250,missEarlyHi=480"
 	.split($,).do({ |kv| var b = kv.split($=); ~le[\arOpts][b[0].asSymbol] = b[1].asFloat });
 ~le[\chainOpts] = ();
-"after=0.7,lazy=0.2,unison=0.1,before=0,follow=1,shuffle=1".split($,).do({ |kv| var b = kv.split($=); ~le[\chainOpts][b[0].asSymbol] = b[1].asFloat });
+"after=0.7,lazy=0.2,far=0.1,unison=0,before=0,follow=1,shuffle=1".split($,).do({ |kv| var b = kv.split($=); ~le[\chainOpts][b[0].asSymbol] = b[1].asFloat });
 "ROLL_TEST arChain — 8 rolls of three samples:".postln;
 8.do({ |n|
 	var links = ~le.chainRoll(["vc-impulse-1", "vc-impulse-2", "vc-impulse-3"], true);
@@ -23,6 +23,15 @@ var dir = thisProcess.nowExecutingPath.dirname;
 	var links = ~le.chainRoll(["a", "b", "c"], false);
 	("  roll " ++ (n + 1) ++ ": " ++ links.size ++ " links · " ++ links.collect({ |k| k[\name] ++ " " ++ k[\stance] ++ " at " ++ k[\atMs].round(1).asInteger ++ " ms (" ++ k[\ref] ++ ")" }).join(" · ")).postln;
 });
+"ROLL_TEST far — the fifth tier (DEC-30): every link far after, the offsets in 500 … 750 ms:".postln;
+~le[\chainOpts].putAll((after: 0, lazy: 0, far: 1, unison: 0, before: 0));
+{
+	var links = ~le.chainRoll(["a", "b", "c", "d"], false), ok;
+	ok = links.every({ |k| (k[\stance] == \far) and: { k[\offsetMs] >= 500 } and: { k[\offsetMs] <= 750 } });
+	("  " ++ links.collect({ |k| k[\stance] ++ " +" ++ k[\offsetMs].round(1).asInteger }).join(" · ") ++ if(ok) { "  PASS" } { "  FAIL" }).postln;
+	if(ok.not) { "ROLL_TEST FAIL".postln; 1.exit };
+}.value;
+~le[\chainOpts].putAll((after: 0.7, lazy: 0.2, far: 0.1, unison: 0));
 "ROLL_TEST ar — 6 rolls:".postln;
 6.do({ |n| var r = ~le.arRoll; ("  " ++ r[\stance] ++ " " ++ r[\offsetMs].round(1).asInteger ++ " ms").postln });
 "ROLL_TEST chainNames — the names a chain plays:".postln;

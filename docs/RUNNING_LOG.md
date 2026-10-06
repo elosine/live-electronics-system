@@ -677,3 +677,9 @@ re-rendered re-rendering those made from it — the label already says which are
 - NOT changed: `sc/bank.scd` (its pattern branch already resolved a `~` name through `sampleFor`) · the seams.
 
 **Proven once, headless:** the module under a stub window with that piece's real index (310 rows) and its 49 presets — 17 checks pass (the raw 25 only · 25 distinct presets for 25 onsets · reproducible by seed · the plan's rows timed by onset · the message per onset · a class narrows the pool and a 25th onset over 24 comes round again · the mix's shares · mode none plans nothing). NOT heard.
+
+## §39. A fifth stance in the rolls — FAR after (2026-10-05, Fable; the Decibel piece's §135 · DEC-30)
+
+**What prompted it (the composer, in the Decibel piece):** *"get rid of unison and create a tier after lazily after … make lazily after 300 to 500, and then after that, 500 to 750. But then keep that longest one similarly 10% … like the unison was."*
+
+**What is the engine's:** `sc/bank.scd` — the stances of a return were before · after · lazy · unison (+ the miss); now **far** sits between lazy and unison: `arDefaults` `far: 0, farLo: 500, farHi: 750`, `chainDefaults` `far: 0`, a fourth `case` and a `switch` arm in `arRoll` and in `chainRoll` (`o[\far] ? 0` — a piece's dials that predate the tier roll as before). The engine's own defaults give far a share of 0: a piece that says nothing hears no change; the Decibel piece sets far 0.15 (ar) · 0.10 (chain) and unison 0 in its `bank/elec_route.json`, flattened by its `tools/elec.js` to `LE_AR` · `LE_CHAIN` as before (one word added to its list of ranges). `roll_test.scd` carries that piece's current dials and a case that forces every link far and checks the band — `PASS`. NOT heard.

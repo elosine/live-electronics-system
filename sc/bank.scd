@@ -285,13 +285,13 @@
 
 // ---- the behaviours of a return (the Decibel piece's step 9, 2026-10-05; the engine plan's part 11) --------------------
 // 'ar' — ANTICIPATION-REACTION: the sample lands BEFORE or AFTER the brick's centre (the live note), as a LISTENING player
-// would who does not know when the other will play: just before (a guess) · just after (a reaction) · lazily after · near
-// unison; a guess can MISS (late, or far too early). Rolled HERE at every playback, never in the page — the composer score
+// would who does not know when the other will play: just before (a guess) · just after (a reaction) · lazily after · FAR after
+// (a fifth tier, the Decibel piece's DEC-30 — its share 0 by default) · near unison; a guess can MISS (late, or far too early). Rolled HERE at every playback, never in the page — the composer score
 // stays still and the simulation runs the same dice (the piece's D15). Each value is a DEFAULT, overridden by the piece
 // (LE_AR, session.scd; the piece letters them A the shares · B the ranges, ms, drawn skewed to the fast edge by `skew` ·
 // C the miss). No leanings per player: fresh dice at every note (his word).
-~le[\arDefaults] = (before: 0.35, after: 0.35, lazy: 0.15, unison: 0.15,
-	afterLo: 100, afterHi: 180, beforeLo: 60, beforeHi: 150, lazyLo: 180, lazyHi: 400, unisonLo: 10, unisonHi: 40, skew: 2,
+~le[\arDefaults] = (before: 0.35, after: 0.35, lazy: 0.15, far: 0, unison: 0.15,
+	afterLo: 100, afterHi: 180, beforeLo: 60, beforeHi: 150, lazyLo: 180, lazyHi: 400, farLo: 500, farHi: 750, unisonLo: 10, unisonHi: 40, skew: 2,
 	missRate: 0.10, missLateShare: 0.67, missLateLo: 0, missLateHi: 80, missEarlyLo: 150, missEarlyHi: 300);
 ~le[\arRoll] = { |self|
 	var o = self[\arDefaults].copy, u = 1.0.rand, stance, off, draw;
@@ -300,11 +300,13 @@
 	stance = case { u < o[\before] } { \before }
 		{ u < (o[\before] + o[\after]) } { \after }
 		{ u < (o[\before] + o[\after] + o[\lazy]) } { \lazy }
+		{ u < (o[\before] + o[\after] + o[\lazy] + (o[\far] ? 0)) } { \far }
 		{ true } { \unison };
 	off = switch(stance,
 		\before, { draw.(o[\beforeLo], o[\beforeHi]).neg },
 		\after,  { draw.(o[\afterLo], o[\afterHi]) },
 		\lazy,   { draw.(o[\lazyLo], o[\lazyHi]) },
+		\far,    { draw.(o[\farLo], o[\farHi]) },
 		\unison, { draw.(o[\unisonLo], o[\unisonHi]) * [1, -1].choose });
 	if((stance == \before) and: { 1.0.rand < o[\missRate] }) {
 		if(1.0.rand < o[\missLateShare]) { stance = \missLate; off = draw.(o[\missLateLo], o[\missLateHi]) }
@@ -317,7 +319,7 @@
 // note (the brick's start), each next one follows the sample before it; whispers: the error accumulates. A follower's stances
 // (G) have no "before"; the ranges and the draw are ar's (B); no miss. H: whom a link listens to (1 = the previous, always;
 // 0 = the live note; between = a coin per link). I: the order shuffled at every roll (his word) or as named.
-~le[\chainDefaults] = (after: 0.70, lazy: 0.20, unison: 0.10, before: 0.0, follow: 1.0, shuffle: 1);
+~le[\chainDefaults] = (after: 0.70, lazy: 0.20, far: 0.0, unison: 0.10, before: 0.0, follow: 1.0, shuffle: 1);
 ~le[\chainRoll] = { |self, names, arFirst = false|
 	var o = self[\chainDefaults].copy, a = self[\arDefaults].copy, order, links = List.new, prevAt = 0;
 	if(self[\chainOpts].notNil) { o.putAll(self[\chainOpts]) };
@@ -333,11 +335,13 @@
 			stance = case { u < o[\before] } { \before }
 				{ u < (o[\before] + o[\after]) } { \after }
 				{ u < (o[\before] + o[\after] + o[\lazy]) } { \lazy }
+				{ u < (o[\before] + o[\after] + o[\lazy] + (o[\far] ? 0)) } { \far }
 				{ true } { \unison };
 			off = switch(stance,
 				\before, { draw.(a[\beforeLo], a[\beforeHi]).neg },
 				\after,  { draw.(a[\afterLo], a[\afterHi]) },
 				\lazy,   { draw.(a[\lazyLo], a[\lazyHi]) },
+				\far,    { draw.(a[\farLo], a[\farHi]) },
 				\unison, { draw.(a[\unisonLo], a[\unisonHi]) * [1, -1].choose });
 		};
 		at = ref + off;
