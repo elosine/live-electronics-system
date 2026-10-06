@@ -61,6 +61,8 @@
 //   ADDED the same day (DEC-18 · DEC-19 · §110): `feedback` after `cab` — the slap held to the amp, six strings in a loop (LocalIn/Out).
 //   ADDED the same day (§120): the GRANULAR FREEZE after the spectral block — the cloud: long overlapping grains from one moment (GrainBuf
 //   on a buffer the chain writes), the first of the granular voices (the engine plan's 10.2; after the sandbox's \roadsCloudBuf).
+//   ADDED the same day (§122): `icy` — HIS OWN FREEZE of 2015 … 2016 (github.com/elosine/freeze): Warp1 over that buffer, a crawling read
+//   point, 0.6 … 0.8 s windows, 17 … 40 overlaps, his ten grain windows (grainEnv/). The render loads them into buffers 1 … 10.
 // The sc3-plugins stages are looked up BY NAME when the synth is built: one that is not installed is left out of the graph and
 // named once (~le[\processMissing]) — the file still loads.
 (
@@ -97,9 +99,11 @@
 			fbMix = 0, fbS1 = 82.41, fbS2 = 110, fbS3 = 146.83, fbS4 = 196, fbS5 = 246.94, fbS6 = 329.63,
 			fbBloom = 1, fbHold = 2, fbDrive = 6, fbTone = 2500, fbPath = 8, fbClimb = 0, fbWobble = 0,
 			gfMix = 0, gfAtMs = 80, gfDur = 200, gfDens = 40, gfSpread = 20, gfPitch = 0,
+			icMix = 0, icSpeed = 0.03, icFromMs = 60, icWin = 0.6, icOverlaps = 17, icRand = 0.2, icPitch = 0, icEnv = 4,
 			amp = 1, lag = 0.04|
 			var sig, play, dry, pre, soft, bank, shaped, filtered, chainA, chainF, specA, specF, frz, wet, back;
 			var gfBufL, gfW, gfOn, gfD, gfTrig, gfOv, gfPos, gfRate, gfCloud;
+			var icOn, icWr, icPtr, icEnvBuf, icSig;
 			var ovrBufL, ovrFrames, wr, ovrTrig, startPos, miniSamps, fadeSamps, period, ph, firstRep, gA, rdA, rdB, ovr;
 			var od, fz, oc, cabSig, cr, chx, chx2, ch;
 			var fbRt, fbProg, fbGain, fbIn, fbExc, fbStr, fbNone, fbAmp, fbToneNow, fbCol, fbPathNow;
@@ -254,6 +258,18 @@
 			gfRate = 2 ** (TRand.ar(gfPitch.clip(0, 24).neg, gfPitch.clip(0, 24), gfTrig) / 12);
 			gfCloud = GrainBuf.ar(1, gfTrig, gfD, gfBufL, gfRate, gfPos, 2, 0, -1, 512) * gfOv.sqrt.reciprocal;
 			sig = mix.(sig, gfCloud, gfMix * Lag.kr(gfOn, 0.05));
+			// --- icy — HIS FREEZE (github.com/elosine/freeze, 2015 … 2016: \icy · \icy_live · \icy_s; the Decibel piece's §122): Warp1 over
+			//     the same buffer the cloud writes — LONG windows (0.6 … 0.8 s), MANY overlapping grains (17 … 40), each window's place
+			//     randomised a little, and the read point CRAWLING from icFromMs at icSpeed of real time (0 = held there; 0.03 = thirty times
+			//     slower); the grain window one of his ten (grainEnv/, read into buffers 1 … 10 by the render; expodec his favourite) or
+			//     Warp1's own Hann (0). A STRETCH, not a snapshot: the sound moves. It ends where the material does. Level by 1/sqrt(overlaps).
+			icWr = gfW / SampleRate.ir;   // seconds of material written so far: the read point never runs ahead of it
+			icOn = (icMix > 0) * (Sweep.kr(0, 1) >= ((icFromMs.clip(0, 3000) / 1000) + (icWin.clip(0.05, 2) * 0.5)));
+			icPtr = ((icFromMs.clip(0, 3000) / 1000) + Sweep.kr(icOn, icSpeed.clip(0, 4))).min(icWr) / (BufFrames.ir(gfBufL) / SampleRate.ir);
+			icEnvBuf = Select.kr(icEnv.clip(0, 10), [-1] ++ (1..10));
+			icSig = Warp1.ar(1, gfBufL, icPtr, 2 ** (icPitch.clip(-24, 24) / 12), icWin.clip(0.05, 2), icEnvBuf, icOverlaps.clip(1, 64), icRand.clip(0, 1), 2)
+				* icOverlaps.clip(1, 64).sqrt.reciprocal;
+			sig = mix.(sig, icSig, icMix * Lag.kr(icOn, 0.05));
 			// --- the reverbs, last: they hear the result ----------------------------------------------------------------
 			wet = GVerb.ar(sig, revRoom.clip(1, 90), revTime.lag(lag).clip(0.1, 20), revDamp.lag(lag).clip(0, 1), 0.5, 15, 0, 0.7, 0.5).sum * 0.4;
 			sig = mix.(sig, wet, revMix);
@@ -298,7 +314,7 @@
 	var src = self.safeName(d[\source]), out = self.safeName(d[\out]), id = self.safeName(d[\id]);
 	var effect = (d[\effect] ? "").asString.select({ |c| c.isAlphaNum or: { " -_+".includes(c) } }).keep(40);
 	var lim = (floorDb: [-120, -6], capMs: [100, 60000], fadeOutMs: [0, 2000], atkMs: [0, 10000], durMs: [10, 120000], relMs: [0, 120000], curve: [-12, 12], gainDb: [-60, 24], match: [0, 1]);
-	var endMode, srcPath, sf, sr, srcData, srcPeak, parsed, args, argsText, rate = 1, total, lead = 0.02, oscPath, nrtPath, opts, score;
+	var endMode, srcPath, sf, sr, srcData, srcPeak, parsed, args, argsText, rate = 1, total, lead = 0.02, oscPath, nrtPath, opts, score, envPaths;
 	var endModes = ["shape", "tail", "perc", "gauss", "quasi", "tri", "expodec", "rexpodec"];
 	var durX = (d[\durX] ? 0).asString.asFloat;
 	lim.keysValuesDo({ |k, r| if(d[k].notNil) { o[k] = d[k].asString.asFloat.clip(r[0], r[1]) } });
@@ -338,9 +354,12 @@
 			nrtPath = dir +/+ "raw" +/+ out ++ ".nrt.wav";
 			if(File.exists(nrtPath)) { File.delete(nrtPath) };   // a render that fails must not be mistaken for the one before it
 			opts = ServerOptions.new.numOutputBusChannels_(1).memSize_(131072).numWireBufs_(256);
+			// his ten grain windows (grainEnv/gEnv_*.aif, §122) into buffers 1 … 10, in name order — the icy stage picks one by number
+			envPaths = (self[\dir] +/+ "grainEnv" +/+ "gEnv_*.aif").pathMatch.sort;
 			score = Score([
 				[0.0, ['/d_recv', self.processDef.asBytes]],
-				[0.0, ['/b_allocRead', 0, srcPath, 0, 0]],
+				[0.0, ['/b_allocRead', 0, srcPath, 0, 0]]
+			] ++ envPaths.collect({ |p, i| [0.0, ['/b_allocRead', i + 1, p, 0, 0]] }) ++ [
 				[lead, ['/s_new', \leProcess, 1000, 0, 0, \buf, 0, \out, 0] ++ args],
 				[lead + total, ['/c_set', 0, 0]]
 			]);

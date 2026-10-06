@@ -651,3 +651,10 @@ re-rendered re-rendering those made from it — the label already says which are
 - **Why a buffer the chain writes, not the source buffer:** the grains are of whatever the stages before it made — a chain is a chain.
 - **Proven:** `sc/process_test.scd` PASS — the cloud holds a second past its 350 ms source (−12.6 dB under its peak at 0.6 … 1.1 s) and is cut at the tail's cap. Not heard.
 - **Not yet:** the cloud's envelopes across its length (the sandbox's density/length curves) · the spectral freeze's own tuning (window · hop · the re-draw rate) · stereo.
+
+## §37. `icy` — the composer's own freeze of 2015 … 2016 (Warp1) ported as a stage; his ten grain windows in the engine (2026-10-05, Fable; the Decibel piece's §122)
+
+- **What prompted it:** the cloud (§36) held a snapshot; he wanted a STRETCH — *"the classic time stretching algorithms, like … the amazing slow downer"* — and pointed at his repo `github.com/elosine/freeze`: `\icy` · `\icy_live` · `\icy_s`, all Warp1 with a crawling pointer, 0.6 … 0.8 s windows, 17 … 40 overlaps, a window-offset random of 0.1 … 0.2, and ten grain envelopes of his own.
+- **What:** `sc/process.scd` — the stage `icy` after the cloud, reading the same LocalBuf the cloud writes: `Warp1.ar(1, buf, ptr, 2 ** (icPitch/12), icWin, envBuf, icOverlaps, icRand, 2)`, the pointer `icFromMs + Sweep.kr(on, icSpeed)` clipped to the material written so far, normalised to the buffer; `icEnv` 0 = Warp1's Hann, 1 … 10 = `sc/grainEnv/gEnv_*.aif` in name order, which `processRender` now reads into buffers 1 … 10 of every offline score (`pathMatch`, so a missing folder costs nothing but the Hann). Level × 1/√overlaps. `score/le_process.js`: the row, seven dials, hints, four presets (his three versions · held).
+- **Proven:** `sc/process_test.scd` PASS (ten renders) — the stretch sounding a second past a 0.35 s source, cut at the cap. Not heard.
+- **Not yet:** his `\icy_live`'s duration envelope (linen with `rel` on curve −6) — the piece's endings do that job here · stereo (his `\icy_s` ran two buffers) · the speed map of `Freezer.scd` read exactly.

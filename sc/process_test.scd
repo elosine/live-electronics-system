@@ -33,7 +33,7 @@ check = { |what, ok, detail| ("  " ++ if(ok) { "ok   " } { "FAIL " } ++ what ++ 
 fork {
 	var r1, r2, r3, r4, r5, r6, r7, r8, f4, d4, held, f7, d7, fbHeld, f8, d8, late8, srcDb = ~le.db(src.abs.maxItem), t0 = Main.elapsedTime;
 	var p1, p2, p3, fb, lenOf = { |r| if(r.notNil) { r[\lengthMs] } { -1 } };
-	var r9, f9, d9, gfHeld;
+	var r9, f9, d9, gfHeld, r10, f10, d10, icHeld;
 	waitFor = { |name, secs = 30|
 		var t = 0;
 		while { rowOf.(name).isNil and: { t < secs } } { 0.25.wait; t = t + 0.25 };
@@ -119,7 +119,19 @@ fork {
 		check.("~9 the cloud holds and is cut at the cap", (gfHeld > -20) and: { r9[\lengthMs] > 1500 } and: { r9[\lengthMs] < 1900 },
 			"0.6 … 1.1 s into it, " ++ gfHeld ++ " dB under its peak (the source ended at 0.35 s) · " ++ r9[\lengthMs] ++ " ms long, the cap 1500 past the source");
 	};
-	check.("the index on disk holds the nine", ~le.indexRowsOf(tmp).size == 9, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
+	// §122: ICY — his Warp1 freeze: the read point crawls from 60 ms at 0.03 of real time, 0.6 s windows, 17 grains, his expodec window
+	// (buffer 4 of the ten the render loads) — it must be SOUNDING a second in, and be cut at the cap
+	~le.processRender((source: 't-src', out: 't-src~10', effect: 'icy', args: 'icMix:1,icSpeed:0.03,icFromMs:60,icWin:0.6,icOverlaps:17,icRand:0.2,icPitch:0,icEnv:4', end: 'tail', capMs: 1500, id: 'test-10'));
+	r10 = waitFor.("t-src~10");
+	check.("~10 icy · tail", r10.notNil and: { File.exists(tmp +/+ "t-src~10.wav") }, if(r10.notNil) { r10[\lengthMs].asString ++ " ms · peak " ++ r10[\peakDb] ++ " dB" } { "no row" });
+	if(r10.notNil) {
+		f10 = SoundFile.new;
+		if(f10.openRead(tmp +/+ "t-src~10.wav")) { d10 = FloatArray.newClear(f10.numFrames); f10.readData(d10); f10.close };
+		icHeld = if(d10.notNil and: { d10.size > (1.1 * sr) }) { (d10.copyRange((0.6 * sr).asInteger, (1.1 * sr).asInteger).abs.maxItem / d10.abs.maxItem).ampdb.round(0.1) } { -999 };
+		check.("~10 icy stretches past its source and is cut at the cap", (icHeld > -20) and: { r10[\lengthMs] > 1500 } and: { r10[\lengthMs] < 1900 },
+			"0.6 … 1.1 s into it, " ++ icHeld ++ " dB under its peak (the source ended at 0.35 s) · " ++ r10[\lengthMs] ++ " ms long, the cap 1500 past the source");
+	};
+	check.("the index on disk holds the ten", ~le.indexRowsOf(tmp).size == 10, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
 	// what a chain's "*" plays: every CAPTURED sample — a render does not join it (bank.scd chainNames)
 	~le[\samples].put('t-src', (row: (name: "t-src")));
 	if(r1.notNil) { ~le[\samples].put('t-src~1', (row: r1)) };
