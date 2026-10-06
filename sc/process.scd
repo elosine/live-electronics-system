@@ -263,13 +263,17 @@
 			//     randomised a little, and the read point CRAWLING from icFromMs at icSpeed of real time (0 = held there; 0.03 = thirty times
 			//     slower); the grain window one of his ten (grainEnv/, read into buffers 1 … 10 by the render; expodec his favourite) or
 			//     Warp1's own Hann (0). A STRETCH, not a snapshot: the sound moves. It ends where the material does. Level by 1/sqrt(overlaps).
+			//     §124 (his ear: "an attack, then a gap, then the frozen sustain"; "quiet"): the stretch runs FROM THE START, its windows
+			//     filling as the material is written — it swells in under the attack, no gap; the mix is the whole story: 1 = the stretch
+			//     alone (the attack suppressed, the peak-match then lifts the sustain to the source's peak) · 0.5 = attack and sustain
+			//     together · 0 = the sample as it is. The read point waits at icFromMs until the sound reaches it, then crawls.
 			icWr = gfW / SampleRate.ir;   // seconds of material written so far: the read point never runs ahead of it
-			icOn = (icMix > 0) * (Sweep.kr(0, 1) >= ((icFromMs.clip(0, 3000) / 1000) + (icWin.clip(0.05, 2) * 0.5)));
+			icOn = Sweep.kr(0, 1) >= (icFromMs.clip(0, 3000) / 1000);
 			icPtr = ((icFromMs.clip(0, 3000) / 1000) + Sweep.kr(icOn, icSpeed.clip(0, 4))).min(icWr) / (BufFrames.ir(gfBufL) / SampleRate.ir);
 			icEnvBuf = Select.kr(icEnv.clip(0, 10), [-1] ++ (1..10));
 			icSig = Warp1.ar(1, gfBufL, icPtr, 2 ** (icPitch.clip(-24, 24) / 12), icWin.clip(0.05, 2), icEnvBuf, icOverlaps.clip(1, 64), icRand.clip(0, 1), 2)
 				* icOverlaps.clip(1, 64).sqrt.reciprocal;
-			sig = mix.(sig, icSig, icMix * Lag.kr(icOn, 0.05));
+			sig = mix.(sig, icSig, icMix);
 			// --- the reverbs, last: they hear the result ----------------------------------------------------------------
 			wet = GVerb.ar(sig, revRoom.clip(1, 90), revTime.lag(lag).clip(0.1, 20), revDamp.lag(lag).clip(0, 1), 0.5, 15, 0, 0.7, 0.5).sum * 0.4;
 			sig = mix.(sig, wet, revMix);

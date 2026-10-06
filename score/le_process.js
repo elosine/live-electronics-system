@@ -120,6 +120,7 @@
         smear: ['the spectrum blurred across this many bins: the pitch goes, the colour stays', '4 … 12'],
         gate: ['only the bins this far above the rest survive: higher keeps less', '1 … 10'],
         freezeAtMs: ['the moment the spectrum is caught and held, from the sample\'s start', '20 … 200'],
+        icMix: ['1 is the stretch alone — the attack suppressed, the sustain swells in and is lifted to the source\'s peak · 0.5 is the attack and the sustain together · 0 is the sample as it is', '0.5 … 1'],
         icSpeed: ['how fast the read point moves through the sample, as a fraction of real time: 1 is the sample as it is, 0.03 is thirty times longer, 0 is held in one place', '0 … 0.1'],
         icFromMs: ['where the read point starts, from the sample\'s start', '20 … 200'],
         icWin: ['each grain\'s window, in seconds — his freezes used 0.6 … 0.8: very long, very smooth; short is grainy', '0.3 … 0.8'],
