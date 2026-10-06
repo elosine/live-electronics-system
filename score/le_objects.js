@@ -257,7 +257,7 @@
                 if (e.behaviour === 'pattern') { const n = Array.isArray(e.pattern) ? e.pattern.length : 0; text = M.sign + ' ' + (n ? n + ' samples · ' + Math.round((zone.endTime - zone.startTime) * 1000) + ' ms' + (e.pattern.some((p) => p && p.variant) ? ' · a preset each' : '') : 'no sample picked'); }
                 if (e.behaviour) text += ' ~ ' + String(e.behaviour).toUpperCase();
                 if (e.behaviour !== 'pattern' && !this.row(e.name)) text += ' — not captured yet';
-                if (e.label) text = M.sign + ' ' + String(e.label).slice(0, 24) + ' · ' + text.slice(M.sign.length + 1);   // a brick's own tag, first: a number in an audition, a word of his
+                if (e.label) text = M.sign + ' ' + String(e.label).slice(0, 48) + ' · ' + text.slice(M.sign.length + 1);   // a brick's own tag, first: a number in an audition, a chord's name, a word of his
             }
             if (label) label.textContent = text;
         },
@@ -554,7 +554,8 @@
             return { events: out, info: 'round robin · ' + laps + (laps === 1 ? ' lap' : ' laps') + (shuffledLaps ? ' · ' + shuffledLaps + ' shuffled' : '') + (again ? ' · ' + again + ' in order again (no shuffle kept the rule)' : '') + flag() };
         },
         // THE EFFECTS OF A PATTERN (DEC-28): the pool — the file's presets, or one class of them
-        fxPool(fx) { const P = this.presets; if (!P) return []; return fx && fx.cls && fx.cls !== 'all' ? P.presets.filter((p) => p.class === fx.cls) : P.presets; },
+        // (a preset marked `deal: false` is never dealt — a piece's audition sets, kept beside the ones it deals; the first piece's §151)
+        fxPool(fx) { const P = this.presets; if (!P) return []; const pool = P.presets.filter((p) => p.deal !== false); return fx && fx.cls && fx.cls !== 'all' ? pool.filter((p) => p.class === fx.cls) : pool; },
         // a preset per impact: n variants '<key>-<env>' — the pool shuffled ONCE by the seed and dealt round robin (none twice until
         // all are used; past the pool it comes round again), under the one envelope asked for, or the file's mix as exact shares of
         // the n (the largest remainders round it), shuffled by the seed — tools/deal_variants.js's rule, for the onsets of one brick

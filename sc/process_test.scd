@@ -10,6 +10,9 @@
 //     t-src~6   t-src   through FUZZ INTO A CABINET, ended by its tail         (two of the new stages in ONE brick, by the JSON road)
 //     t-src~7   t-src   through the FEEDBACK, ended by its tail               (DEC-18 · 19, §110: six strings in a loop — it must BLOOM and HOLD past the source)
 //     t-src~8   t-src   through NONE, ended by PERC over 700 ms                (§111: a fixed-curve ending — exactly its length, nearly gone at 90 % of it)
+//     t-src~9 · ~10   the two granular voices (the cloud · icy), each cut at its cap
+//     t-src~11 · ~12  HIS PETALS OF RESONANCE — the original · the cleaned path (the Decibel piece's DEC-32, §151): each rings past its source
+//     t-src~13        the FEEDBACK with EVERY STRING SINGING (fbOwn 1, §151): a chord that shares no harmonic holds, each pitch in it
 //     THE PLAN  three variants of t-src (t-src~x1-perc …) sent in two parts, out of order; planRender as a capture's end calls it —
 //               a queue two wide, lengths as multiples of the source's (durX), a tape's speed counted in; the fallback to the base
 //   "C:/Program Files/SuperCollider-3.14.1/sclang.exe" electronics/sc/process_test.scd
@@ -34,6 +37,7 @@ fork {
 	var r1, r2, r3, r4, r5, r6, r7, r8, f4, d4, held, f7, d7, fbHeld, f8, d8, late8, srcDb = ~le.db(src.abs.maxItem), t0 = Main.elapsedTime;
 	var p1, p2, p3, fb, lenOf = { |r| if(r.notNil) { r[\lengthMs] } { -1 } };
 	var r9, f9, d9, gfHeld, r10, f10, d10, icHeld;
+	var r11, r12, tP, r13, f13, d13, own, tones;
 	waitFor = { |name, secs = 30|
 		var t = 0;
 		while { rowOf.(name).isNil and: { t < secs } } { 0.25.wait; t = t + 0.25 };
@@ -131,7 +135,43 @@ fork {
 		check.("~10 icy stretches past its source and is cut at the cap", (icHeld > -20) and: { r10[\lengthMs] > 1500 } and: { r10[\lengthMs] < 1900 },
 			"0.6 … 1.1 s into it, " ++ icHeld ++ " dB under its peak (the source ended at 0.35 s) · " ++ r10[\lengthMs] ++ " ms long, the cap 1500 past the source");
 	};
-	check.("the index on disk holds the ten", ~le.indexRowsOf(tmp).size == 10, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
+	// DEC-32 (the Decibel piece's §151): HIS PETALS OF RESONANCE, twice — the original (his SynthDef UGen for UGen: 26 DynKlanks, the
+	// limiter, his fade) and the cleaned path (one bank of 26 Ringz, the draws per render) — fund 110 (partials on the source's 330 and
+	// 660), a ring of 1 … 2 s, a cap of 5 s past the source: each must RING well past its source (over at 0.35 s) and die before the cap
+	tP = Main.elapsedTime;
+	~le.processRender((source: 't-src', out: 't-src~11', effect: 'petalsOrig', args: 'poMix:1,poFund:110,poFirst:2,poSpread:1,poOffset:3,poRingLo:1,poRingHi:2,poInLen:1', end: 'tail', capMs: 5000, id: 'test-11'));
+	~le.processRender((source: 't-src', out: 't-src~12', effect: 'petals', args: 'ptMix:1,ptFund:110,ptFirst:2,ptSpread:1,ptOffset:3,ptRingLo:1,ptRingHi:2,ptInLen:1', end: 'tail', capMs: 5000, id: 'test-12'));
+	r11 = waitFor.("t-src~11", 120);
+	r12 = waitFor.("t-src~12", 120);
+	tP = (Main.elapsedTime - tP).round(0.1);
+	check.("~11 petals, his original · tail", r11.notNil and: { File.exists(tmp +/+ "t-src~11.wav") }, if(r11.notNil) { r11[\lengthMs].asString ++ " ms · peak " ++ r11[\peakDb] ++ " dB" } { "no row" });
+	check.("~12 petals, the cleaned path · tail", r12.notNil and: { File.exists(tmp +/+ "t-src~12.wav") }, if(r12.notNil) { r12[\lengthMs].asString ++ " ms · peak " ++ r12[\peakDb] ++ " dB" } { "no row" });
+	if(r11.notNil and: { r12.notNil }) {
+		check.("the petals ring past their source and die before the cap", (r11[\lengthMs] > 1000) and: { r11[\lengthMs] < 5000 } and: { r12[\lengthMs] > 1000 } and: { r12[\lengthMs] < 5000 },
+			"the source 300 ms, the ring 1 … 2 s, the cap 5000 — the original " ++ r11[\lengthMs] ++ " ms · the cleaned " ++ r12[\lengthMs] ++ " ms · the two renders of 5.35 s, side by side, took " ++ tP ++ " s");
+	};
+	// DEC-32 (§151): EVERY STRING SINGS (fbOwn 1) — a chord whose notes share no harmonic: E4 (on the source's 330) · F#4 · A4 (both
+	// barely touched by it). In the loop of ~7 none of it would bloom; here the chord must HOLD at its peak a second in, EACH of the
+	// three pitches must be in it (a Goertzel on each, 0.9 … 1.4 s: the weakest within 12 dB of the strongest), and it must ring down
+	~le.processRender((source: 't-src', out: 't-src~13', effect: 'feedback', args: 'fbMix:1,fbOwn:1,fbBloom:0.5,fbHold:1.5,fbDrive:4,fbS1:329.63,fbS2:369.99,fbS3:440,fbS4:0,fbS5:0,fbS6:0', end: 'tail', capMs: 5000, id: 'test-13'));
+	r13 = waitFor.("t-src~13", 60);
+	check.("~13 feedback, every string sings · tail", r13.notNil and: { File.exists(tmp +/+ "t-src~13.wav") }, if(r13.notNil) { r13[\lengthMs].asString ++ " ms · peak " ++ r13[\peakDb] ++ " dB" } { "no row" });
+	if(r13.notNil) {
+		f13 = SoundFile.new;
+		if(f13.openRead(tmp +/+ "t-src~13.wav")) { d13 = FloatArray.newClear(f13.numFrames); f13.readData(d13); f13.close };
+		if(d13.notNil and: { d13.size > (1.5 * sr) }) {
+			own = (d13.copyRange((0.9 * sr).asInteger, (1.4 * sr).asInteger).abs.maxItem / d13.abs.maxItem).ampdb.round(0.1);
+			tones = [329.63, 369.99, 440].collect({ |f|
+				var c = 2 * cos(2pi * f / sr), s0 = 0, s1 = 0, s2 = 0, from = (0.9 * sr).asInteger;
+				(0.5 * sr).asInteger.do({ |k| s0 = d13[from + k] + (c * s1) - s2; s2 = s1; s1 = s0 });
+				((s1 * s1) + (s2 * s2) - (c * s1 * s2)).max(1e-30).sqrt.ampdb
+			});
+			tones = (tones - tones.maxItem).round(0.1);
+		} { own = -999; tones = [-999, -999, -999] };
+		check.("~13 the chord holds, all three strings in it, then it dies", (own > -6) and: { tones.minItem > -12 } and: { r13[\lengthMs] > 1500 } and: { r13[\lengthMs] < 4800 },
+			"0.9 … 1.4 s into it, " ++ own ++ " dB under its peak · E4 · F#4 · A4 at " ++ tones ++ " dB of the strongest · " ++ r13[\lengthMs] ++ " ms long (the hold 1.5 s, the cap 5000)");
+	};
+	check.("the index on disk holds the thirteen", ~le.indexRowsOf(tmp).size == 13, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
 	// what a chain's "*" plays: every CAPTURED sample — a render does not join it (bank.scd chainNames)
 	~le[\samples].put('t-src', (row: (name: "t-src")));
 	if(r1.notNil) { ~le[\samples].put('t-src~1', (row: r1)) };

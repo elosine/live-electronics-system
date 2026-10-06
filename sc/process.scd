@@ -63,6 +63,11 @@
 //   on a buffer the chain writes), the first of the granular voices (the engine plan's 10.2; after the sandbox's \roadsCloudBuf).
 //   ADDED the same day (§122): `icy` — HIS OWN FREEZE of 2015 … 2016 (github.com/elosine/freeze): Warp1 over that buffer, a crawling read
 //   point, 0.6 … 0.8 s windows, 17 … 40 overlaps, his ten grain windows (grainEnv/). The render loads them into buffers 1 … 10.
+//   ADDED 2026-10-06 (the Decibel piece's DEC-32 · PLAN 10.3 · RUNNING_LOG §151; the engine's §40): HIS PETALS OF RESONANCE
+//   (github.com/elosine/SynthDef_petalsOfResonance), twice, after the resonator bank — `petalsOrig` (po…), his SynthDef UGen for UGen
+//   with the microphone replaced by the chain's signal, and `petals` (pt…), the same instrument by a cleaned signal path.
+//   AND `fbOwn` on the feedback: 0 (default) the loop as it was · 1 every string sings — a CHORD on the six strings (the loop only
+//   takes off where two strings share a harmonic; measured on 54 chords, none bloomed).
 // The sc3-plugins stages are looked up BY NAME when the synth is built: one that is not installed is left out of the graph and
 // named once (~le[\processMissing]) — the file still loads.
 (
@@ -97,9 +102,11 @@
 			sqMix = 0, sqRatio = 2, sqChunks = 1,
 			wlMix = 0, wlDrop = 20, wlOf = 40, wlMode = 2,
 			fbMix = 0, fbS1 = 82.41, fbS2 = 110, fbS3 = 146.83, fbS4 = 196, fbS5 = 246.94, fbS6 = 329.63,
-			fbBloom = 1, fbHold = 2, fbDrive = 6, fbTone = 2500, fbPath = 8, fbClimb = 0, fbWobble = 0,
+			fbBloom = 1, fbHold = 2, fbDrive = 6, fbTone = 2500, fbPath = 8, fbClimb = 0, fbWobble = 0, fbOwn = 0,
 			gfMix = 0, gfAtMs = 80, gfDur = 200, gfDens = 40, gfSpread = 20, gfPitch = 0,
 			icMix = 0, icSpeed = 0.03, icFromMs = 60, icWin = 0.6, icOverlaps = 17, icRand = 0.2, icPitch = 0, icEnv = 4,
+			poMix = 0, poFund = 200, poFirst = 2, poSpread = 0.33, poOffset = 0.25, poRingLo = 7.75, poRingHi = 9.5, poInLen = 1,
+			ptMix = 0, ptFund = 200, ptFirst = 2, ptSpread = 0.33, ptOffset = 0.25, ptRingLo = 7.75, ptRingHi = 9.5, ptInLen = 1,
 			amp = 1, lag = 0.04|
 			var sig, play, dry, pre, soft, bank, shaped, filtered, chainA, chainF, specA, specF, frz, wet, back;
 			var gfBufL, gfW, gfOn, gfD, gfTrig, gfOv, gfPos, gfRate, gfCloud;
@@ -107,7 +114,10 @@
 			var ovrBufL, ovrFrames, wr, ovrTrig, startPos, miniSamps, fadeSamps, period, ph, firstRep, gA, rdA, rdB, ovr;
 			var od, fz, oc, cabSig, cr, chx, chx2, ch;
 			var fbRt, fbProg, fbGain, fbIn, fbExc, fbStr, fbNone, fbAmp, fbToneNow, fbCol, fbPathNow;
-			var mix = { |a, b, m| XFade2.ar(a, b, (m.lag(lag) * 2 - 1).clip(-1, 1)) };
+			var fbRise, fbKnee, fbCount, fbOwnSig;
+			var poTuneA, poTuneB, poPa, poPb, poIn, poRes, poOut;
+			var ptIn, ptBase, ptTuned, ptLo, ptHi, ptRings, pt;
+			var mix ={ |a, b, m| XFade2.ar(a, b, (m.lag(lag) * 2 - 1).clip(-1, 1)) };
 			// a stage whose class is not installed is left out: `otherwise` stands in its place
 			var opt = { |name, f, otherwise|
 				var c = name.asClass;
@@ -147,6 +157,58 @@
 			// --- resonator bank: four ringing bands — their pitches controls since §125 (the Decibel piece's DEC-23: drawn per variant) -----
 			bank = Ringz.ar(sig, [resF1, resF2, resF3, resF4].collect({ |f| f.lag(lag).clip(20, 12000) }), resDcy.lag(lag).clip(0.02, 3.0)) * [rlo.lag(lag), rlomid.lag(lag), rhimid.lag(lag), rhi.lag(lag)];
 			sig = mix.(sig, bank.sum * 0.2, resMix);
+			// --- THE PETALS OF RESONANCE — HIS ORIGINAL (github.com/elosine/SynthDef_petalsOfResonance @ e87a5d4, SynthDef_petalsOfResonance.scd;
+			//     the Decibel piece's DEC-32 · PLAN 10.3 · RUNNING_LOG §151), kept UGEN FOR UGEN and in his order: two banks of 13 partials over
+			//     one fundamental — fund × (firstPartial + spread × n) — bank B bank2MidiOffset semitones up, every partial's pitch wobbling
+			//     ± 0.5 semitone on a slow sine of its own; 26 DynKlanks of ONE partial each, at -40 dB, shuffled, mixed, limited, faded out
+			//     after ringL2. ONE LINE IS CHANGED: the microphone, SoundIn.ar(ibs), is the chain's signal. LEFT OUT: masteramp (the render
+			//     sets the level) · obs · doneAction: 2 (it would end the whole chain — his fade is kept). His 26 lines of each kind are
+			//     written as loops; no clip on a dial, as his (the page's row bounds them).
+			//     WHAT HIS CODE DOES, kept on purpose — the cleaned path below differs exactly here:
+			//       · SinOsc.kr(rrand(0.07, 0.013)): the LANGUAGE's rrand, on two numbers — the 26 wobble rates are drawn ONCE, when this
+			//         SynthDef is built (once per engine start), and are the same in every render; all 26 wobbles start at phase 0.
+			//       · rrand(ringL1, ringL2): on two CONTROLS it is the SERVER's rrand — a new value at EVERY CONTROL BLOCK (measured, §151).
+			//         Every resonator's ring time flickers between the two 750 times a second, so all 26 ring down together at ONE
+			//         effective time (7 … 15 s → about 10.5 s) — not 26 different rings.
+			poTuneA = { |partialNum|
+				var freq, freqMidi, tuner, freqTunedMidi;
+				freq = poFund * (poFirst + (poSpread * partialNum));
+				freqMidi = freq.cpsmidi;
+				tuner = SinOsc.kr(rrand(0.07, 0.013), 0, 0.5);
+				freqTunedMidi = freqMidi + tuner;
+				freqTunedMidi.midicps
+			};
+			poTuneB = { |partialNum|
+				var freq, freqMidi, tuner, freqTunedMidi;
+				freq = poFund * (poFirst + (poSpread * partialNum));
+				freqMidi = freq.cpsmidi;
+				tuner = SinOsc.kr(rrand(0.07, 0.013), 0, 0.5);
+				freqTunedMidi = freqMidi + tuner + poOffset;
+				freqTunedMidi.midicps
+			};
+			poPa = 13.collect({ |i| poTuneA.value(i) });
+			poPb = 13.collect({ |i| poTuneB.value(i) });
+			poIn = sig * 1.0 * EnvGen.ar(Env.perc(0.02, poInLen, 1.0, -1), 1);
+			poRes = (poPa ++ poPb).collect({ |p| DynKlank.ar(`[[p], nil, [rrand(poRingLo, poRingHi)]], poIn) });
+			poOut = Mix.ar((poRes * -40.dbamp).scramble);
+			poOut = Limiter.ar(poOut, 0.98, 0.01) * EnvGen.ar(Env.linen(0.01, poRingHi, 0.3), 1);
+			sig = mix.(sig, poOut, poMix);
+			// --- THE PETALS OF RESONANCE — THE CLEANED PATH (DEC-32): the same instrument and the same dials, the signal path tidied —
+			//       · ONE bank of 26 Ringz, summed (a DynKlank of one partial IS a Ringz); no shuffle (it does nothing to a mono mix)
+			//       · each partial's wobble rate (0.013 … 0.07 Hz) and its START PHASE drawn PER RENDER (Rand — an offline render is seeded
+			//         by the clock, measured §151): his 2025 note, "a new set … for every synth instance"
+			//       · each partial's RING drawn ONCE per render between ring lo and ring hi — 26 different rings, as rrand(ringL1, ringL2)
+			//         reads: the chord thins out partial by partial instead of sinking as one
+			//       · no limiter, no fade: the render is floating point and its ending is the engine's (tail: to -60 dB, or the cap)
+			//       · the input envelope KEPT as his (20 ms up, inputLen down on curve -1): it was the microphone's gate, and it softens
+			//         the first 20 ms of what excites the bank — in both, so a pair differs only by the lines above
+			ptIn = sig * EnvGen.ar(Env.perc(0.02, ptInLen.clip(0.02, 20), 1.0, -1), 1);
+			ptBase = 13.collect({ |n| (ptFund.clip(20, 400) * (ptFirst.clip(1, 8) + (ptSpread.clip(0.05, 3) * n))).cpsmidi });
+			ptTuned = (ptBase ++ (ptBase + ptOffset.clip(0, 12))).collect({ |m| (m + SinOsc.kr(Rand(0.013, 0.07), Rand(0, 2pi), 0.5)).midicps.clip(20, 18000) });
+			ptLo = ptRingLo.clip(0.1, 30); ptHi = ptRingHi.clip(0.1, 30);
+			ptRings = ptTuned.collect({ ptLo + ((ptHi - ptLo) * Rand(0, 1)) });
+			pt = Ringz.ar(ptIn, ptTuned, ptRings).sum * -40.dbamp;
+			sig = mix.(sig, pt, ptMix);
 			// --- complex resonator: one ringing partial ---------------------------------------------------------------
 			sig = opt.(\ComplexRes, { |c| mix.(sig, c.ar(sig, cresFreq.lag(lag).clip(20, 8000), cresDcy.lag(lag).clip(0.01, 0.99)) * 0.5, cresMix) }, sig);
 			// --- drive: six shapers, tamed by a lowpass ----------------------------------------------------------------
@@ -193,6 +255,31 @@
 			fbCol = HPF.ar(LPF.ar(fbAmp, fbToneNow), 120);
 			fbPathNow = (fbPath.clip(1, 50) / 1000) * (1 - (0.4 * fbClimb.clip(0, 1) * fbProg)) * (1 + (0.2 * fbWobble.clip(0, 1) * LFNoise1.kr(1.5)));
 			LocalOut.ar(DelayC.ar(fbCol, 0.06, fbPathNow.clip(0.0005, 0.06)) * fbGain);
+			// --- EVERY STRING SINGS (fbOwn 1 — the Decibel piece's DEC-32 · RUNNING_LOG §151; the engine's §40). MEASURED there: in the
+			//     loop above a string alone has a loop gain of 0.5 — it can only ring down. The loop takes off where TWO strings share a
+			//     harmonic (the open guitar's two E's) AND the path's phase agrees; on a chord whose notes share nothing (a cluster, any
+			//     chord with no octave in it) nothing blooms: 54 chords rendered, none held. So, for a CHORD, the loop's RESULT is made
+			//     without its lottery, under the same dials:
+			//       · each string is a comb that barely decays — it keeps what the sound gave it: which of its harmonics, and how much
+			//       · the BLOOM is the gain a loop would have given it: 60 dB in fbBloom s, from that level — so the strings the sound
+			//         excites most arrive first, and a string it barely touched arrives late, or not before the hold ends
+			//       · the CEILING is the amp, one per string (the chord stays a chord: no string is clipped by another): a singing string
+			//         sits fbDrive / 4 into the tanh — drive 4 is mild, 12 is hard
+			//       · tone · climb · hold as above; then the strings ring down 1.5 s. wobble: each string drifts in pitch by itself (± 5
+			//         cents at 1), so a chord's beating moves. path does nothing here — there is no loop.
+			//     With no string at all (all six at 0) it is the loop above, whatever fbOwn says.
+			fbRise = (60 * Sweep.kr(0, 1) / fbBloom.clip(0.05, 10)).min(120).dbamp;
+			fbKnee = (fbDrive.clip(1, 40) / 4).clip(0.5, 10);
+			fbCount = [fbS1, fbS2, fbS3, fbS4, fbS5, fbS6].collect({ |f| f > 0 }).sum.max(1);
+			fbOwnSig = [fbS1, fbS2, fbS3, fbS4, fbS5, fbS6].collect({ |f|
+				var on = f > 0, d = (1 / f.max(20)) * (1 + (0.003 * fbWobble.clip(0, 1) * LFNoise1.kr(0.7)));
+				var str = CombC.ar(sig * on, 0.06, d.clip(0.0004, 0.06), 100) * (1 - 10.pow(-3 * d / 1.5));   // at the level of the loop's string (above): the bloom starts where the loop's would
+				var lvl = Amplitude.ar(str, 0.01, 0.3);
+				var g = fbRise.min(fbKnee / (lvl * fbDrive.clip(1, 40)).max(0.000001));
+				(str * g * fbDrive.clip(1, 40)).tanh / fbDrive.clip(1, 40) * on
+			}).sum / fbCount.sqrt;
+			fbOwnSig = HPF.ar(LPF.ar(fbOwnSig, fbToneNow), 120) * EnvGen.kr(Env([1, 1, 0.001, 0.00001], [fbHold.clip(0.01, 20), 1.5, 0.5], \exp));
+			fbCol = Select.ar((fbOwn > 0.5) * (1 - fbNone), [fbCol, fbOwnSig]);
 			sig = mix.(sig, fbCol * 2, fbMix);
 			// --- crush: a TRUE bit depth, and the sample rate (the `drive` stage's "bitcrush" is the rate alone) -------------------------
 			cr = Latch.ar(sig, Impulse.ar(crRate.lag(lag).clip(500, 48000))).round(2.pow(1 - crBits.lag(lag).clip(2, 16)));
