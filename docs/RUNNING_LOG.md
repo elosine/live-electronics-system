@@ -705,3 +705,13 @@ re-rendered re-rendering those made from it — the label already says which are
 **SEAMS:** unchanged — no line of a piece's stack.
 
 **NOT CLAIMED:** the composer's ear on either; a render of the new stages through a living engine.
+
+## §41. The cleaned petals lose the fade-in (2026-10-06, Opus; the Decibel piece's §152)
+
+**What prompted it** — the composer, on the offer made at §40's wrap: *"Go ahead and drop 20ms fade from cleaned petals"*.
+
+**The change, one line of the `petals` stage (`sc/process.scd`):** the input envelope `Env.perc(0.02, inputLen, 1, -1)` becomes `Env([1, 0], [inputLen], -1)` — no rise; the same fall, on his curve, over `inputLen`. His 20 ms rise was the microphone's gate (a window opening on a live input); on a banked impulse, cropped to its attack, it shaved the first 20 ms of the very thing that excites the bank. `petalsOrig` keeps it, as his. So a pair now differs in four ways: the attack · the ring · the wobble · the ending.
+
+**The proof:** `sc/process_test.scd` — PROCESS_TEST PASS (case `~12`, the cleaned path: 2089 ms; before the change 1657 ms on the same source — the bank is struck harder and falls under −60 dB later; the lengths also move with each render's draws).
+
+**NOT CLAIMED:** the composer's ear.

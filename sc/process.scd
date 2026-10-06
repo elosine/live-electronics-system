@@ -200,9 +200,10 @@
 			//       · each partial's RING drawn ONCE per render between ring lo and ring hi — 26 different rings, as rrand(ringL1, ringL2)
 			//         reads: the chord thins out partial by partial instead of sinking as one
 			//       · no limiter, no fade: the render is floating point and its ending is the engine's (tail: to -60 dB, or the cap)
-			//       · the input envelope KEPT as his (20 ms up, inputLen down on curve -1): it was the microphone's gate, and it softens
-			//         the first 20 ms of what excites the bank — in both, so a pair differs only by the lines above
-			ptIn = sig * EnvGen.ar(Env.perc(0.02, ptInLen.clip(0.02, 20), 1.0, -1), 1);
+			//       · NO FADE-IN on the input (his word 2026-10-06, the Decibel piece's §152): his 20 ms rise was the microphone's gate, and
+			//         it softened the first 20 ms of what excites the bank — here the sound enters as it is. The fall over inputLen (his
+			//         curve, -1) is kept: how long the bank listens.
+			ptIn = sig * EnvGen.ar(Env([1, 0], [ptInLen.clip(0.02, 20)], -1), 1);
 			ptBase = 13.collect({ |n| (ptFund.clip(20, 400) * (ptFirst.clip(1, 8) + (ptSpread.clip(0.05, 3) * n))).cpsmidi });
 			ptTuned = (ptBase ++ (ptBase + ptOffset.clip(0, 12))).collect({ |m| (m + SinOsc.kr(Rand(0.013, 0.07), Rand(0, 2pi), 0.5)).midicps.clip(20, 18000) });
 			ptLo = ptRingLo.clip(0.1, 30); ptHi = ptRingHi.clip(0.1, 30);

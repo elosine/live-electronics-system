@@ -111,7 +111,7 @@
         ptOffset: ['the second bank is the first, this many semitones higher — the beating and the colour of the chord', '2 … 8'],
         ptRingLo: ['the shortest ring: every partial draws its own ring between "from" and "to" at each render', '7 … 10'],
         ptRingHi: ['the longest ring; the render needs a tail (or a cap) at least this long', '9 … 15'],
-        ptInLen: ['how long the bank listens: the sound going in fades up over 20 ms and down over this long', '0.5 … 2'],
+        ptInLen: ['how long the bank listens: the sound goes in as it is (no fade-in) and fades down over this long', '0.5 … 2'],
         poFund: ['the fundamental under both banks of partials: a partial is fundamental × (first partial + spread × n), n = 0 … 12', '35 … 150'],
         poFirst: ['where the series starts: 2 begins an octave above the fundamental, 5 two octaves and a third', '2 … 5'],
         poSpread: ['the step from one partial to the next, in fundamentals: 1 is the harmonic series, below 1 is denser, above 1 wider', '0.33 … 1.33'],
