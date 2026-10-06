@@ -784,3 +784,21 @@ re-rendered re-rendering those made from it — the label already says which are
 **The proof — `sc/process_test.scd`, PASS:** two renders of the 0.35 s burst at half speed, cap 1500 — looping (~14) and holding (~15). 1.0 … 1.4 s in, the looper is −14.0 dB under its peak (still reading the burst, a wrap every 0.7 s); the holder's render ENDED at 671 ms — its tail fell under −60 dB on the source's silent end — while the looper ran to the cap (1804 ms). The tally is fifteen rows. The first run failed on the test's own tally (thirteen) and on a −999 detail for the holder (shorter than the measured window): both fixed, re-run, PASS.
 
 **Not measured, said as such:** a grain whose window straddles the wrap reads silence beyond the write head — a possible bump at the seam; the piece's audition has a brick for the ear (its 10.13, A11), and a crossfade at the wrap is the piece's item (f) if it is heard. **THE SORTING:** the option is the engine's; which pieces loop by default, and the presets, are each piece's.
+
+## §47. A GENERATED VOICE — the sine: `\leSine`, `sc/sine.scd`, `/le/sine` · `/le/sinestop` (2026-10-06, Opus, in the Decibel piece; its §177, its PLAN 1.5 · 12.1)
+
+**What prompted it** — the Decibel piece's composer (its DEC-35 · 35b): *"the next effect I want to build is simple sine wave generators, they will have a pitch and aduration and may have crescend/decres; the musician will pitch bend against and beat with sine tone"* — and, rejecting the piece's beating tool as the vehicle: *"these will be simple generated electronics using sc in the composer score"*. The first thing the engine MAKES rather than catches.
+
+**What was built.** `sc/synths.scd` `\leSine`: a sine to the master, dual mono, `dur` seconds; a level line (`envDb` 8 · `envDt` 7 · `envCurve` — `\leSample`'s envelope shape, here the dB of its PEAK) and a pitch line in cents (`glissCents` 8 · `glissDt` 7, straight in cents, audio rate); a 10 ms rise and 30 ms fall; `gate`. `sc/sine.scd`, loaded by `boot.scd` after `level.scd`; `session.scd` wires `sineHear` whether or not there is a bank.
+
+**The message** — `/le/sine  id · lane · t · dueMs · midi · lengthMs · [level · levelCurve · gliss]`: `midi` carries its cents (57.12); `level` is one mark or a line of `ms:mark` pairs; `gliss` a line of `ms:cents` pairs; `end` = the length; eight points each at the most. The same breakpoint form as `/le/play`'s `env` — one convention. `/le/sinestop`: every sine lets go in 50 ms (twice, 0.2 s apart — one sent ahead of its start has not begun at the first).
+
+**Why its own file and not the bank's:** the bank's kinds are wired only when a session has a bank; a generated voice needs none.
+
+**The level is exact.** A mark is a loudness on the ladder (`markDb`); BS.1770 reads a sine of peak A on both channels as −0.691 + 20·log10(A) + K(f), K the K-weighting's gain at the sine's frequency (`kGainDb`, from `kCoefs` · `kGain2`). So no sine is ever measured: its peak is `markDb + 0.691 − K(f)`. Computed at 44.1 kHz: K = −0.21 dB at 220 Hz · +0.70 at 1 kHz · +3.20 at 2093 Hz · +3.99 at 4186 Hz. One ladder for the samples and the generated voices. A mark may be a number (ppp 0 … fff 7, fractions; below 0 on down) so a drawn curve needs no rounding to names.
+
+**Proven offline** — `sc/sine_test.scd` (new; NRT on `bus_test.scd`'s frame), SINE_TEST PASS, ten checks: the figures · a 3 s glide of 50 cents on the line within 0.02 cents (zero crossings) · the ramp half way in decibels · held at ff it reads −33.6 LUFS by `loudOf` (ff −33.54), its peak the formula's to 0.01 dB · C7 at mf reads −41.7 (mf −41.54) · the stop. `sc/level_test.scd` PASS — `session.scd` parses with its line.
+
+**Rejected:** eight fixed values with seven fixed times in the message (the piece's plan as first written) — the engine already speaks `ms:value`; a control-rate frequency (it steps once a block; a glide is audio rate); a per-channel loudness formula (the plan's slip: the sine sounds on both channels, as a sample does).
+
+**NOT claimed:** a sine through a living engine; the composer's ear. **THE SORTING:** the voice, the message and the formula are the engine's; which pitches, which lines, which player it is for are the piece's.

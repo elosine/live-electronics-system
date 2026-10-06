@@ -38,6 +38,11 @@
 //            unless it is given a DYNAMIC: envDb (8 levels, dB of gain) over envDt (7 times, s) on envCurve — a flat level, a
 //            hairpin, a step, a line (level.scd levelFor makes them from a brick's marks). The levels are joined IN DECIBELS:
 //            curve 0 is an even hairpin to the ear. All at 0 dB it multiplies by exactly 1.
+// leSine     A GENERATED VOICE (sine.scd; first built in the Decibel piece, 2026-10-06): a sine to the master, dual mono, for
+//            `dur` seconds, then it frees itself. Its LEVEL is a line — envDb (8 levels, dB of its PEAK) over envDt (7 times, s)
+//            on envCurve, joined in decibels as leSample's is; its PITCH is `freq` moved by a line of CENTS — glissCents (8)
+//            over glissDt (7), straight in cents (an even glide to the ear), at audio rate. A 10 ms rise and a 30 ms fall
+//            stand under both, so it never clicks. sine.scd makes the lines from a brick's marks (sineSpec).
 (
 SynthDef(\leIn, { |in = 0, out = 0, amp = 1, hpfOn = 0, hpfFreq = 90, eq1On = 0, eq1Freq = 250, eq1Db = 0, eq1Rq = 1, eq2On = 0, eq2Freq = 3000, eq2Db = 0, eq2Rq = 1|
 	var sig = In.ar(in, 1) * amp, x;
@@ -151,6 +156,17 @@ SynthDef(\leSample, { |out = 0, buf = 0, amp = 1|
 	var db = \envDb.ir(0 ! 8), dt = \envDt.ir(0.01 ! 7), cv = \envCurve.ir(0);
 	var lvl = EnvGen.kr(Env(db, dt, cv)).dbamp;
 	var sig = PlayBuf.ar(1, buf, BufRateScale.kr(buf), doneAction: 2) * amp * lvl;
+	Out.ar(out, [sig, sig]);
+}).add;
+
+SynthDef(\leSine, { |out = 0, freq = 220, dur = 4, amp = 1, gate = 1|
+	var db = \envDb.ir(-60 ! 8), dt = \envDt.ir(0.01 ! 7), cv = \envCurve.ir(0);
+	var gc = \glissCents.ir(0 ! 8), gt = \glissDt.ir(0.01 ! 7);
+	var lvl = EnvGen.kr(Env(db, dt, cv)).dbamp;
+	var cents = EnvGen.ar(Env(gc, gt, 0));
+	var guard = EnvGen.kr(Env([0, 1, 1, 0], [0.01, (dur - 0.04).max(0.01), 0.03], \sin), doneAction: 2);
+	var let = EnvGen.kr(Env.asr(0, 1, 0.05), gate, doneAction: 2);   // gate 0 = it lets go in 50 ms (sine.scd sineStop)
+	var sig = SinOsc.ar(freq * (cents / 100).midiratio) * amp * lvl * guard * let;
 	Out.ar(out, [sig, sig]);
 }).add;
 )

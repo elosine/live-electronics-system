@@ -72,6 +72,7 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 	// ---- the messages ----
 	if(le.openEar) {
 		if(le[\bankDir].notNil) { le.bankHear };
+		if(le[\sineHear].notNil) { le.sineHear };   // the generated voices (sine.scd) — with or without a bank
 		// a tool's run ends on a message, gracefully — the server quits its device before the process goes (§71: an engine killed from
 		// outside left ReaRoute wedged, and no engine could boot until Reaper was restarted). His own window still closes as before.
 		le.hear(\leave, { |le, d| le.say("LE_INFO", "leaving on request" ++ if(le.loudSaid(\loudMax).size > 0) { " — the session's loudest" ++ le.loudSaid(\loudMax) } { "" }); le.leave(0) });

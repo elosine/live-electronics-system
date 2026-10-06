@@ -319,6 +319,8 @@
 (~le[\dir] +/+ "bank.scd").load;
 // ---- the level: a sample's loudness, the ladder of marks, the dynamic a return is played at (the engine plan's part 13) — its own file ----
 (~le[\dir] +/+ "level.scd").load;
+// ---- the generated voices: a sine with a level line and a pitch line, on the players' ladder (the Decibel piece's 12.1) — its own file ----
+(~le[\dir] +/+ "sine.scd").load;
 // ---- the processing: a banked sample through the chain, offline, banked again (the engine plan's part 6) — its own file ----
 (~le[\dir] +/+ "process.scd").load;
 )
