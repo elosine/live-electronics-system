@@ -167,10 +167,11 @@ fork {
 			"the source 300 ms, the ring 1 … 2 s, the cap 5000 — the original " ++ r11[\lengthMs] ++ " ms · the cleaned " ++ r12[\lengthMs] ++ " ms · the two renders of 5.35 s, side by side, took " ++ tP ++ " s");
 	};
 	// DEC-40 (the Decibel piece's §203, 2026-10-07): THE LOOP AROUND THE PETALS (poBloom > 0) — the bank of ~11 (ring 1 … 2 s), the loop
-	// set to lift it 60 dB in 1 s, held 2 s, the amp at drive 6: at 1.5 … 2 s it must be HELD within 6 dB of its peak (the bare ~11 has
+	// set to lift it 60 dB in a QUARTER SECOND (a loop gain of 7: a break to a quarter of it would still be above unity — the break must
+	// go to nothing, §204), held 2 s, the amp at drive 6: at 1.5 … 2 s it must be HELD within 6 dB of its peak (the bare ~11 has
 	// fallen 40 dB by then), at 3.5 … 4 s (the loop broken at 2 s) it must be at least 6 dB further down, and it must die before the cap.
 	// The profile (RMS per 500 ms) is printed: the bloom's constant is read from it, not asserted.
-	~le.processRender((source: 't-src', out: 't-src~16', effect: 'petalsOrig', args: 'poMix:1,poFund:110,poFirst:2,poSpread:1,poOffset:3,poRingLo:1,poRingHi:2,poInLen:1,poBloom:1,poDrive:6,poHold:2', end: 'tail', capMs: 8000, id: 'test-16'));
+	~le.processRender((source: 't-src', out: 't-src~16', effect: 'petalsOrig', args: 'poMix:1,poFund:110,poFirst:2,poSpread:1,poOffset:3,poRingLo:1,poRingHi:2,poInLen:1,poBloom:0.25,poDrive:6,poHold:2', end: 'tail', capMs: 8000, id: 'test-16'));
 	r16 = waitFor.("t-src~16", 120);
 	check.("~16 petals with the loop around them · tail", r16.notNil and: { File.exists(tmp +/+ "t-src~16.wav") }, if(r16.notNil) { r16[\lengthMs].asString ++ " ms · peak " ++ r16[\peakDb] ++ " dB" } { "no row" });
 	if(r16.notNil) {
@@ -185,12 +186,13 @@ fork {
 		check.("~16 the loop HOLDS the ring (1.5 … 2 s within 6 dB of the peak), is broken at 2 s, and the ring dies before the cap", (poHeld > -6) and: { poLate < (poHeld - 6) } and: { r16[\lengthMs] > 2500 } and: { r16[\lengthMs] < 8000 },
 			"1.5 … 2.0 s: " ++ poHeld ++ " dB under the peak · 3.5 … 4.0 s: " ++ poLate ++ " dB · " ++ r16[\lengthMs] ++ " ms long · RMS per 500 ms: " ++ poProf);
 	};
-	// DEC-40 (§203): THE FEEDBACK'S STRINGS AS RINGING PARTIALS (fbRes 1), twice on the chord of ~13 (E4 on the source's 330 · F#4 · A4):
-	// ~17 in the ONE loop (fbOwn 0) — as combs this chord never bloomed (§151, no shared harmonic); as partials it must take off and HOLD
+	// DEC-40 (§203): THE FEEDBACK'S STRINGS AS RINGING PARTIALS (fbRes 1), twice: ~17 in the ONE loop (fbOwn 0) on a LOW chord — E2 · F2 ·
+	// A2, every string under the comb loop's 120 Hz high-pass, which killed such partials each round trip (§204: B1 · C#2 never bloomed;
+	// 20 Hz for partials now); the source's 330 Hz burst touches them only by its onset — as partials they must take off from that and HOLD
 	// (0.9 … 1.4 s within 6 dB of its peak); which pitches survive is PRINTED (a shared amp lets the strongest win, as a guitar's does);
 	// the level at 0.3 … 0.5 s is printed too (a right normalization is still blooming there; a wrong one is at the ceiling already).
 	// ~18 with EACH STRING SINGING (fbOwn 1) — all three partials must hold within 12 dB of the strongest, as ~13's combs did.
-	~le.processRender((source: 't-src', out: 't-src~17', effect: 'feedback', args: 'fbMix:1,fbOwn:0,fbRes:1,fbRing:1.5,fbBloom:0.5,fbHold:1.5,fbDrive:4,fbS1:329.63,fbS2:369.99,fbS3:440,fbS4:0,fbS5:0,fbS6:0', end: 'tail', capMs: 5000, id: 'test-17'));
+	~le.processRender((source: 't-src', out: 't-src~17', effect: 'feedback', args: 'fbMix:1,fbOwn:0,fbRes:1,fbRing:1.5,fbBloom:0.5,fbHold:1.5,fbDrive:4,fbS1:82.41,fbS2:87.31,fbS3:110,fbS4:0,fbS5:0,fbS6:0', end: 'tail', capMs: 5000, id: 'test-17'));
 	~le.processRender((source: 't-src', out: 't-src~18', effect: 'feedback', args: 'fbMix:1,fbOwn:1,fbRes:1,fbRing:1.5,fbBloom:0.5,fbHold:1.5,fbDrive:4,fbS1:329.63,fbS2:369.99,fbS3:440,fbS4:0,fbS5:0,fbS6:0', end: 'tail', capMs: 5000, id: 'test-18'));
 	r17 = waitFor.("t-src~17", 60);
 	r18 = waitFor.("t-src~18", 60);
@@ -199,8 +201,8 @@ fork {
 		len.do({ |k| s0 = data[from + k] + (c * s1) - s2; s2 = s1; s1 = s0 });
 		((s1 * s1) + (s2 * s2) - (c * s1 * s2)).max(1e-30).sqrt.ampdb
 	};
-	[[r17, "t-src~17", "one loop"], [r18, "t-src~18", "each string sings"]].do({ |row|
-		var r = row[0], nm = row[1], what = row[2], f, d, held, early, tones;
+	[[r17, "t-src~17", "one loop", [82.41, 87.31, 110]], [r18, "t-src~18", "each string sings", [329.63, 369.99, 440]]].do({ |row|
+		var r = row[0], nm = row[1], what = row[2], pitches = row[3], f, d, held, early, tones;
 		check.(nm.copyRange(5, 20) ++ " feedback, the strings as partials, " ++ what ++ " · tail", r.notNil and: { File.exists(tmp +/+ (nm ++ ".wav")) }, if(r.notNil) { r[\lengthMs].asString ++ " ms · peak " ++ r[\peakDb] ++ " dB" } { "no row" });
 		if(r.notNil) {
 			f = SoundFile.new;
@@ -208,12 +210,12 @@ fork {
 			if(d.notNil and: { d.size > (1.5 * sr) }) {
 				held = (d.copyRange((0.9 * sr).asInteger, (1.4 * sr).asInteger).abs.maxItem / d.abs.maxItem).ampdb.round(0.1);
 				early = (d.copyRange((0.3 * sr).asInteger, (0.5 * sr).asInteger).abs.maxItem / d.abs.maxItem).ampdb.round(0.1);
-				tones = [329.63, 369.99, 440].collect({ |fq| goertzel.(d, fq, (0.9 * sr).asInteger, (0.5 * sr).asInteger) });
+				tones = pitches.collect({ |fq| goertzel.(d, fq, (0.9 * sr).asInteger, (0.5 * sr).asInteger) });
 				tones = (tones - tones.maxItem).round(0.1);
 			} { held = -999; early = -999; tones = [-999, -999, -999] };
 			if(what == "one loop") {
 				check.("~17 the partials in the one loop take off and hold, then die", (held > -6) and: { r[\lengthMs] > 1500 } and: { r[\lengthMs] < 4800 },
-					"0.9 … 1.4 s: " ++ held ++ " dB under the peak · 0.3 … 0.5 s: " ++ early ++ " dB (still blooming if well under) · E4 F#4 A4 against the strongest: " ++ tones ++ " dB (the winner is the guitar's) · " ++ r[\lengthMs] ++ " ms");
+					"0.9 … 1.4 s: " ++ held ++ " dB under the peak · 0.3 … 0.5 s: " ++ early ++ " dB (still blooming if well under) · E2 F2 A2 against the strongest: " ++ tones ++ " dB (the winner is the guitar's) · " ++ r[\lengthMs] ++ " ms");
 			} {
 				check.("~18 each partial sings: the chord holds, all three in it, then it dies", (held > -6) and: { tones.minItem > -12 } and: { r[\lengthMs] > 1500 } and: { r[\lengthMs] < 4800 },
 					"0.9 … 1.4 s: " ++ held ++ " dB under the peak · E4 F#4 A4 against the strongest: " ++ tones ++ " dB · " ++ r[\lengthMs] ++ " ms");

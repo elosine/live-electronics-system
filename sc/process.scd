@@ -219,7 +219,7 @@
 			//     middle of the two rings. The amp's ceiling (1/poDrive) is where the bloom stops: the sustain sits in the tanh — the grit.
 			//     Measured in process_test.scd (~16): the profile is printed there.
 			poGainL = Select.kr(poBloom > 0, [0, ((6.9078 / poBloom.max(0.05)) + (6.9078 / ((poRingLo + poRingHi) * 0.5).max(0.1))) / (SampleRate.ir * 0.005)])
-				* EnvGen.kr(Env([1, 1, 0.25], [poHold.clip(0, 60), 0.6], \lin));
+				* EnvGen.kr(Env([1, 1, 0], [poHold.clip(0, 60), 0.6], \lin));   // THE BREAK: to NOTHING — a quarter of a gain of 6.5 (his set line, ring 11 s, bloom 2) was still above unity and the ring never fell (measured, the Decibel piece's §204); the bank then rings down at its own rate
 			poAmp = (poOut * poDrive.clip(1, 40)).tanh / poDrive.clip(1, 40);
 			poSend = poAmp * poGainL;
 			poOut = Select.ar(poBloom > 0, [poOut, poAmp]);
@@ -300,7 +300,7 @@
 			fbStr = Select.ar(fbNone, [fbStr, fbExc]);
 			fbAmp = (fbStr * fbDrive.clip(1, 40)).tanh / fbDrive.clip(1, 40);   // the amp: unity for small signals, a ceiling for large — what the bloom meets
 			fbToneNow = (fbTone.clip(500, 8000) * (1 + (fbClimb.clip(0, 1) * 3 * fbProg))).clip(200, 16000);   // the climb: the colour rises over the hold
-			fbCol = HPF.ar(LPF.ar(fbAmp, fbToneNow), 120);
+			fbCol = HPF.ar(LPF.ar(fbAmp, fbToneNow), Select.kr(fbRes > 0.5, [120, 20]));   // the high-pass guards the comb's loop from rumble; a PARTIAL under 120 Hz was killed by it each round trip (B1 · C#2 never bloomed — measured, §204): 20 Hz when the strings are partials
 			fbPathNow = (fbPath.clip(1, 50) / 1000) * (1 - (0.4 * fbClimb.clip(0, 1) * fbProg)) * (1 + (0.2 * fbWobble.clip(0, 1) * LFNoise1.kr(1.5)));
 			LocalOut.ar([DelayC.ar(fbCol, 0.06, fbPathNow.clip(0.0005, 0.06)) * fbGain, poSend]);   // [0] the feedback's loop · [1] the petals' amp
 			// --- EVERY STRING SINGS (fbOwn 1 — the Decibel piece's DEC-32 · RUNNING_LOG §151; the engine's §40). MEASURED there: in the
