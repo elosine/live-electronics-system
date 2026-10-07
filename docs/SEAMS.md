@@ -300,6 +300,20 @@ engine's half is `sc/sine.scd` and `\leSine` (`sc/synths.scd`), heard with or wi
 **Proven** (the Decibel piece's 12.1 … 12.3, RUNNING_LOG §47 · §48): the engine's half by `sc/sine_test.scd` (offline renders, measured);
 the page's half by `tools/sine_page_test.js` under a stub window (33 checks). NOT yet by a browser's real input or a living engine.
 
+## The composer score — the fifth object: the performer's container, and the simulated ear
+
+*(First built in the Decibel piece, 2026-10-06 — RUNNING_LOG §49 · §50.)*
+
+- **The file:** `score/le_performer.js`, a mixin on `LEObjects` — ONE tag in the piece's page (row 2d below), after `le_objects.js`. No attach option, no key: a piece makes its bricks with a tool of its own, and the panel edits one.
+- **The brick:** a zone, `midiModel: 'elecPerformer'`, `zoneFunction: 'elec'`, `elec: { id, state, from?, to?, target?, targetFrom?, pal: [names], mark, seed, silenceMs?, ear?, dials?, label? }`. Its lane is only where it is drawn.
+- **The messages (page → engine, the road of 4.2):**
+  `/le/performer  id · state · [from · to] · t · dueMs · lengthMs · [offsetMs · wholeMs] · pal · [target · targetFrom] · seed · mark · [silenceMs · ear · dials] · pass · zone · lane` — at the brick's start, or for what is left when the playhead starts inside it ·
+  `/le/performerstop` — at a stop ·
+  `/le/onset  player · lane · id · t · dueMs · sim 1` — THE SIMULATED EAR: every note on a player's lane, as it is about to sound, while a performer's brick is near.
+- **The engine's side:** `sc/performer.scd` (loaded by `boot.scd`; on the ear by `session.scd` — both the engine's own files, no line of a piece's). A performer's dials are `perfDefaults`, overridden by the message's `dials`.
+- **What a piece gives:** the bricks (which performer, in which state, when, listening to whom), the PALETTES (which banked samples each performer plays), the dials — and, in a simulation, the players' notes. The lane → player table is the route table's, as for a mic opening.
+- **`ear`:** `sim` in a simulation · `mic` in a concert (the onset probe of 4.2 e — **it reports a rise out of silence and holds 250 ms: an attack over a ringing sound is not heard. A detector of attacks is the next thing the concert's road needs — NITS.**)
+
 ## The level — a sample's loudness, a return's dynamic, the drive, the bus, the house (part 13)
 
 *(Built in the Decibel piece, 2026-10-06 — its PLAN 1.4; this repo's RUNNING_LOG §42 … §45. NO line of a piece's stack files changes for any of it: the page's part is in the two modules already tagged, the engine's in files `boot.scd` loads.)*
@@ -342,7 +356,7 @@ the page's half by `tools/sine_page_test.js` under a stub window (33 checks). NO
 | 3 | `if (url.startsWith('/electronics/')) { base = path.join(__dirname, '..', 'electronics', 'score'); rel = url.slice('/electronics'.length); }` | in the static block, beside `/bank/` |
 | 2c | `if (url === '/api/candidates') { … }` — GET the kept settings · POST one more (the piece's `tools/candidates.js` writes `bank/candidates.json` and renders `docs/CANDIDATES.md`) | after row 2 — THE SHELF (2026-10-05, the Decibel piece's §113); the panel's Shelf menu and "keep → shelf" button are the module's (`opts.shelfUrl`, '/api/candidates' by default) |
 
-**The piece's composer page (`score/public/composer.html`) — six lines:**
+**The piece's composer page (`score/public/composer.html`) — seven lines:**
 
 | # | the line | where |
 |---|---|---|
@@ -350,6 +364,7 @@ the page's half by `tools/sine_page_test.js` under a stub window (33 checks). NO
 | 2 | `<script src="/electronics/le_objects.js"></script>` | after it |
 | 2b | `<script src="/electronics/le_process.js"></script>` | after it — the process brick (2026-10-05); its key is `process` in line 3's `keys` |
 | 2c | `<script src="/electronics/le_sine.js"></script>` | after it — the sine brick (2026-10-06); its key is `sine` in line 3's `keys`, its curve reader `curveAt` there too |
+| 2d | `<script src="/electronics/le_performer.js"></script>` | after it — the performer's container and the simulated ear (2026-10-06); no key, no attach option |
 | 3 | `if (window.LEObjects) LEObjects.attach(Composer, { keys: { open: 'm', play: 'r', process: 'e', sine: 's' }, lanes: META_LAYER, indexUrl: '/bank/samples/index.json', accel: window.AccelCalc, containers: window.TimeContainers, curveAt: (ref, z, n) => …, portOf: (l) => (Composer.trackInstrument(l) \|\| {}).port, laneLabel: (l) => (TRACKS[l] \|\| {}).short \|\| ('lane ' + l) });` | just BEFORE `Composer.init()` is called — so a loaded score's first drawing has the bricks' labels. The keys, the lanes and the index's address are the PIECE's. `curveAt` (2026-10-06) is the sine brick's level from a drawn curve: the piece's own curve readers behind one function — n heights 0 … 1 over a span, or null |
 | 4 | `if (window.LEObjects) LEObjects.tick(this, timeSec);` | in `applyScroll`, the last of the playback ticks |
 
