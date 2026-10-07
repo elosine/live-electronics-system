@@ -321,6 +321,8 @@
 (~le[\dir] +/+ "level.scd").load;
 // ---- the generated voices: a sine with a level line and a pitch line, on the players' ladder (the Decibel piece's 12.1) — its own file ----
 (~le[\dir] +/+ "sine.scd").load;
+// ---- the computer players: a performer in a state, who hears the players' onsets and plays by the state's rule (the Decibel piece's 14.4) — its own file ----
+(~le[\dir] +/+ "performer.scd").load;
 // ---- the processing: a banked sample through the chain, offline, banked again (the engine plan's part 6) — its own file ----
 (~le[\dir] +/+ "process.scd").load;
 )

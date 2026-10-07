@@ -73,20 +73,26 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 	if(le.openEar) {
 		if(le[\bankDir].notNil) { le.bankHear };
 		if(le[\sineHear].notNil) { le.sineHear };   // the generated voices (sine.scd) — with or without a bank
+		if(le[\performerHear].notNil) { le.performerHear };   // the computer players (performer.scd): /le/performer · /le/performerstop
 		// a tool's run ends on a message, gracefully — the server quits its device before the process goes (§71: an engine killed from
 		// outside left ReaRoute wedged, and no engine could boot until Reaper was restarted). His own window still closes as before.
 		le.hear(\leave, { |le, d| le.say("LE_INFO", "leaving on request" ++ if(le.loudSaid(\loudMax).size > 0) { " — the session's loudest" ++ le.loudSaid(\loudMax) } { "" }); le.leave(0) });
 		le.hear(\master, { |le, d| le.masterSet(d) });   // the bus's dials, moved while it runs
 		le.hear(\tone, { |le, d| le.toneOut(d) });       // the house's line-up tone
 		// an onset is shown; the player's own sound, when it comes, is timed against it (a route check)
+		// … EXCEPT an onset marked `sim`: a score's SIMULATED player, told to the computer players (performer.scd's ear `sim`) — a
+		// line for each would bury the window, so it is not shown
 		le.hear(\onset, { |le, d, time|
 			var name = (d[\player] ? '?').asSymbol;
-			pending[name] = (time: time, id: d[\id], lane: d[\lane], t: d[\t], dueMs: d[\dueMs]);
-			le.say("LE_INFO", "onset · " ++ name ++ " · lane " ++ d[\lane] ++ " · brick " ++ d[\id]
-				++ " · at " ++ (d[\t] ? 0).round(0.001) ++ " s · due in " ++ (d[\dueMs] ? 0).round(1) ++ " ms");
+			if(d[\sim].notNil) { if(le[\perfSimOnset].notNil) { le.perfSimOnset(d) } } {
+				pending[name] = (time: time, id: d[\id], lane: d[\lane], t: d[\t], dueMs: d[\dueMs]);
+				le.say("LE_INFO", "onset · " ++ name ++ " · lane " ++ d[\lane] ++ " · brick " ++ d[\id]
+					++ " · at " ++ (d[\t] ? 0).round(0.001) ++ " s · due in " ++ (d[\dueMs] ? 0).round(1) ++ " ms");
+			};
 		});
 		le[\onHeard] = { |name, time, amp|
 			var pd = pending[name], lead;
+			if(le[\perfMicOnset].notNil) { le.perfMicOnset(name) };   // the computer players' ear `mic`: a player's own sound at its microphone
 			if(pd.notNil and: { (time - pd[\time]) < 3 }) {
 				lead = ((time - pd[\time]) * 1000).round(0.1);
 				le.say("LE_INFO", "heard · " ++ name ++ " · its sound arrived " ++ lead ++ " ms after its message");
