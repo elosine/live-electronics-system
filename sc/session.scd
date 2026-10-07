@@ -11,7 +11,7 @@
 //                 score saying "this player's note is about to sound" — is shown, and when that player's sound then
 //                 ARRIVES a second line says how many ms after its message it came.
 //   LE_PLAYERS   name:channel pairs, comma-separated — the hardware input (0-based) each player's microphone is on
-//   LE_MODE      sim (default) | live | quiet (no hardware, nothing sounds — a tool's test of the messages alone)
+//   LE_MODE      sim (default) | live | remote (a Windows device: listening over a remote desktop — boot.scd) | quiet (no hardware, nothing sounds — a tool's test of the messages alone)
 //   LE_BANK      the bank's folder (the piece's; made if it is not there). Without it nothing is recorded or played.
 //   LE_CROP      the crop's rule, where a piece overrides the defaults:  attackDb=-30,endDb=-45,holdMs=50  (bank.scd)
 //   LE_AR        the return behaviour 'ar', where a piece overrides the defaults:  before=0.35,afterLo=100,…  (bank.scd arDefaults)

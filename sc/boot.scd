@@ -7,6 +7,9 @@
 // THE MODES — the simulation and the concert differ in ONE place, the device:
 //   \sim     a piece's Reaper rack feeds the engine over ReaRoute ASIO (16 in · 16 out). Reaper must be running.
 //   \live    the interface named in the environment variable LE_DEVICE (the microphones in, the PA out).
+//   \remote  a WINDOWS device (LE_DEVICE_IN · LE_DEVICE_OUT; the Windows default by MME when unset), 2 in · 2 out — so a remote
+//            desktop session hears the engine with the DAW (which is then on WASAPI, and ReaRoute is gone): listening from afar
+//            (the Decibel piece's RUNNING_LOG §209; the engine's §55). The microphones are not there: an opening captures nothing.
 //   \quiet   no hardware in the path — every bus private, nothing sounds. The engine's own self-test (selftest.scd).
 //
 // THE SIGNAL, in the order the groups run:
@@ -139,6 +142,12 @@
 	dev = case
 	{ mode == \sim } { asio.detect({ |d| d.toLower.contains("rearoute") }) }
 	{ mode == \live } { "LE_DEVICE".getenv }
+	{ mode == \remote } {
+		o.numInputBusChannels = 2; o.numOutputBusChannels = 2;
+		o.inDevice = "LE_DEVICE_IN".getenv ? "MME : Microsoft Sound Mapper - Input";
+		o.outDevice = "LE_DEVICE_OUT".getenv ? "MME : Microsoft Sound Mapper - Output";
+		o.outDevice
+	}
 	{ mode == \quiet } { o.numInputBusChannels = 0; o.numOutputBusChannels = 2; "" };
 	if(dev.isNil) {
 		if(mode == \sim) {
@@ -149,7 +158,7 @@
 		};
 		self.leave(2);
 	} {
-		if(dev.size > 0) { o.device = dev };
+		if((dev.size > 0) and: { mode != \remote }) { o.device = dev };   // remote: in and out set apart above (their MME names differ)
 		self[\device] = dev;
 		s.waitForBoot({
 			self[\sr] = s.sampleRate;
