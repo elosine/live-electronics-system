@@ -223,7 +223,7 @@
 			poAmp = (poOut * poDrive.clip(1, 40)).tanh / poDrive.clip(1, 40);
 			poSend = poAmp * poGainL;
 			poOut = Select.ar(poBloom > 0, [poOut, poAmp]);
-			poFade = Select.kr(poBloom > 0, [poRingHi, poRingHi.max(poHold + 3)]);
+			poFade = Select.kr(poBloom > 0, [poRingHi, poHold + poRingHi]);   // his fade after the ring that follows the break (hold + 3 cut it at −44 dB — measured, §205)
 			poOut = Limiter.ar(poOut, 0.98, 0.01) * EnvGen.ar(Env.linen(0.01, poFade, 0.3), 1);
 			sig = mix.(sig, poOut, poMix);
 			// --- THE PETALS OF RESONANCE — THE CLEANED PATH (DEC-32): the same instrument and the same dials, the signal path tidied —
@@ -294,7 +294,11 @@
 				// 1 / (2 (1 - R)), R = exp(-6.9078 / (ring × sr)) (a0 0.5, the zeros at ±1) — so × 2 (1 - R). A partial in a loop takes off ALONE:
 				// no shared harmonic needed (the comb's loop needed one, §151)
 				var part = Ringz.ar(fbExc * on, f.max(20), ring) * (2 * (1 - (-6.9078 / (ring * SampleRate.ir)).exp));
-				Select.ar(fbRes > 0.5, [comb, part]) * on
+				// a partial's OWN loop delay (§205): the loop is a comb at 1/path, so a partial grows only where the path is a whole number of
+				// its periods (B1 at 0.84 periods never bloomed; A2 at 1.04 won) — each partial is delayed here by the whole number of its
+				// periods nearest the path, less the block and the common delay's floor, and the common path delay is bypassed below
+				var own = ((((fbPath.clip(1, 50) / 1000) * f.max(20)).round.max(1) / f.max(20)) - (64 / SampleRate.ir) - 0.0005).clip(0, 0.06);
+				Select.ar(fbRes > 0.5, [comb, DelayC.ar(part, 0.06, own)]) * on
 			}).sum * 0.5;
 			fbNone = (fbS1 + fbS2 + fbS3 + fbS4 + fbS5 + fbS6) <= 0;
 			fbStr = Select.ar(fbNone, [fbStr, fbExc]);
@@ -302,7 +306,7 @@
 			fbToneNow = (fbTone.clip(500, 8000) * (1 + (fbClimb.clip(0, 1) * 3 * fbProg))).clip(200, 16000);   // the climb: the colour rises over the hold
 			fbCol = HPF.ar(LPF.ar(fbAmp, fbToneNow), Select.kr(fbRes > 0.5, [120, 20]));   // the high-pass guards the comb's loop from rumble; a PARTIAL under 120 Hz was killed by it each round trip (B1 · C#2 never bloomed — measured, §204): 20 Hz when the strings are partials
 			fbPathNow = (fbPath.clip(1, 50) / 1000) * (1 - (0.4 * fbClimb.clip(0, 1) * fbProg)) * (1 + (0.2 * fbWobble.clip(0, 1) * LFNoise1.kr(1.5)));
-			LocalOut.ar([DelayC.ar(fbCol, 0.06, fbPathNow.clip(0.0005, 0.06)) * fbGain, poSend]);   // [0] the feedback's loop · [1] the petals' amp
+			LocalOut.ar([DelayC.ar(fbCol, 0.06, Select.kr(fbRes > 0.5, [fbPathNow.clip(0.0005, 0.06), 0.0005])) * fbGain, poSend]);   // [0] the feedback's loop (the path; for partials each string carries its own, above) · [1] the petals' amp
 			// --- EVERY STRING SINGS (fbOwn 1 — the Decibel piece's DEC-32 · RUNNING_LOG §151; the engine's §40). MEASURED there: in the
 			//     loop above a string alone has a loop gain of 0.5 — it can only ring down. The loop takes off where TWO strings share a
 			//     harmonic (the open guitar's two E's) AND the path's phase agrees; on a chord whose notes share nothing (a cluster, any
