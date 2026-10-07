@@ -80,6 +80,10 @@
 //   with the microphone replaced by the chain's signal, and `petals` (pt…), the same instrument by a cleaned signal path.
 //   AND `fbOwn` on the feedback: 0 (default) the loop as it was · 1 every string sings — a CHORD on the six strings (the loop only
 //   takes off where two strings share a harmonic; measured on 54 chords, none bloomed).
+//   ADDED 2026-10-07 (the Decibel piece's DEC-40 · RUNNING_LOG §201 · §203; the engine's §52): on `petalsOrig` A LOOP AROUND THE
+//   BANK — `poBloom` (s to lift 60 dB; 0 = no loop, his SynthDef untouched) · `poDrive` (the amp's tanh) · `poHold` (s, then the
+//   loop is broken); and on the feedback `fbRes` (1 = a string is ONE RINGING PARTIAL — a Ringz at unity — instead of a comb) and
+//   `fbRing` (the string's ring, s; 1.5 as it was). The two loops share ONE LocalIn/LocalOut pair (two channels), read before the petals.
 // The sc3-plugins stages are looked up BY NAME when the synth is built: one that is not installed is left out of the graph and
 // named once (~le[\processMissing]) — the file still loads.
 (
@@ -114,10 +118,11 @@
 			sqMix = 0, sqRatio = 2, sqChunks = 1,
 			wlMix = 0, wlDrop = 20, wlOf = 40, wlMode = 2,
 			fbMix = 0, fbS1 = 82.41, fbS2 = 110, fbS3 = 146.83, fbS4 = 196, fbS5 = 246.94, fbS6 = 329.63,
-			fbBloom = 1, fbHold = 2, fbDrive = 6, fbTone = 2500, fbPath = 8, fbClimb = 0, fbWobble = 0, fbOwn = 0,
+			fbBloom = 1, fbHold = 2, fbDrive = 6, fbTone = 2500, fbPath = 8, fbClimb = 0, fbWobble = 0, fbOwn = 0, fbRes = 0, fbRing = 1.5,
 			gfMix = 0, gfAtMs = 80, gfDur = 200, gfDens = 40, gfSpread = 20, gfPitch = 0,
 			icMix = 0, icSpeed = 0.03, icFromMs = 60, icWin = 0.6, icOverlaps = 17, icRand = 0.2, icPitch = 0, icEnv = 4, icLoop = 0,
 			poMix = 0, poFund = 200, poFirst = 2, poSpread = 0.33, poOffset = 0.25, poRingLo = 7.75, poRingHi = 9.5, poInLen = 1,
+			poBloom = 0, poDrive = 6, poHold = 6,
 			ptMix = 0, ptFund = 200, ptFirst = 2, ptSpread = 0.33, ptOffset = 0.25, ptRingLo = 7.75, ptRingHi = 9.5, ptInLen = 1,
 			amp = 1, lag = 0.04, srcAmp = 1|
 			var sig, play, dry, pre, soft, bank, shaped, filtered, chainA, chainF, specA, specF, frz, wet, back;
@@ -125,9 +130,9 @@
 			var icOn, icWr, icPos, icLp, icPtr, icEnvBuf, icSig;
 			var ovrBufL, ovrFrames, wr, ovrTrig, startPos, miniSamps, fadeSamps, period, ph, firstRep, gA, rdA, rdB, ovr;
 			var od, fz, oc, cabSig, cr, chx, chx2, ch;
-			var fbRt, fbProg, fbGain, fbIn, fbExc, fbStr, fbNone, fbAmp, fbToneNow, fbCol, fbPathNow;
+			var fbRt, fbProg, fbGain, fbIn, fbExc, fbStr, fbNone, fbAmp, fbToneNow, fbCol, fbPathNow, fbResEnv;
 			var fbRise, fbKnee, fbCount, fbOwnSig;
-			var poTuneA, poTuneB, poPa, poPb, poIn, poRes, poOut;
+			var poTuneA, poTuneB, poPa, poPb, poIn, poRes, poOut, loopIn, poGainL, poAmp, poSend, poFade;
 			var ptIn, ptBase, ptTuned, ptLo, ptHi, ptRings, pt;
 			var mix ={ |a, b, m| XFade2.ar(a, b, (m.lag(lag) * 2 - 1).clip(-1, 1)) };
 			// a stage whose class is not installed is left out: `otherwise` stands in its place
@@ -169,6 +174,7 @@
 			// --- resonator bank: four ringing bands — their pitches controls since §125 (the Decibel piece's DEC-23: drawn per variant) -----
 			bank = Ringz.ar(sig, [resF1, resF2, resF3, resF4].collect({ |f| f.lag(lag).clip(20, 12000) }), resDcy.lag(lag).clip(0.02, 3.0)) * [rlo.lag(lag), rlomid.lag(lag), rhimid.lag(lag), rhi.lag(lag)];
 			sig = mix.(sig, bank.sum * 0.2, resMix);
+			loopIn = LocalIn.ar(2);   // ONE LocalIn/LocalOut pair per synth: [0] the feedback stage's loop · [1] the loop around the petals (2026-10-07, §203)
 			// --- THE PETALS OF RESONANCE — HIS ORIGINAL (github.com/elosine/SynthDef_petalsOfResonance @ e87a5d4, SynthDef_petalsOfResonance.scd;
 			//     the Decibel piece's DEC-32 · PLAN 10.3 · RUNNING_LOG §151), kept UGEN FOR UGEN and in his order: two banks of 13 partials over
 			//     one fundamental — fund × (firstPartial + spread × n) — bank B bank2MidiOffset semitones up, every partial's pitch wobbling
@@ -200,10 +206,25 @@
 			};
 			poPa = 13.collect({ |i| poTuneA.value(i) });
 			poPb = 13.collect({ |i| poTuneB.value(i) });
-			poIn = sig * 1.0 * EnvGen.ar(Env.perc(0.02, poInLen, 1.0, -1), 1);
+			poIn = (sig * 1.0 * EnvGen.ar(Env.perc(0.02, poInLen, 1.0, -1), 1)) + loopIn[1];   // + THE LOOP (below) — nothing while poBloom is 0
 			poRes = (poPa ++ poPb).collect({ |p| DynKlank.ar(`[[p], nil, [rrand(poRingLo, poRingHi)]], poIn) });
 			poOut = Mix.ar((poRes * -40.dbamp).scramble);
-			poOut = Limiter.ar(poOut, 0.98, 0.01) * EnvGen.ar(Env.linen(0.01, poRingHi, 0.3), 1);
+			// --- THE LOOP AROUND HIS FLOWER (the Decibel piece's DEC-40 · RUNNING_LOG §201 route (c) · §203, 2026-10-07): the bank's mix
+			//     through an AMP (tanh at poDrive) and back into the bank's input one block later — a guitar's feedback with his 26 partials as
+			//     the string. poBloom = the seconds the loop takes to lift a partial 60 dB (0 = NO LOOP: his SynthDef exactly as above); the loop
+			//     is held poHold s from the start, then broken (× 0.25 over 0.6 s, as the feedback stage's) and the bank rings down on its own;
+			//     his fade is moved past the hold while the loop is on. THE GAIN FROM THE BLOOM: a partial driven at its resonance grows by about
+			//     sr/2 per second per unit of input (Ringz: a steady gain of T·sr/13.8, reached over T/6.9 s); the bank is mixed at -40 dB, so
+			//     the loop lifts it at g × 0.005 × sr nepers a second, less its own decay 6.9/T — g = (6.9/bloom + 6.9/T) / (0.005 sr), T the
+			//     middle of the two rings. The amp's ceiling (1/poDrive) is where the bloom stops: the sustain sits in the tanh — the grit.
+			//     Measured in process_test.scd (~16): the profile is printed there.
+			poGainL = Select.kr(poBloom > 0, [0, ((6.9078 / poBloom.max(0.05)) + (6.9078 / ((poRingLo + poRingHi) * 0.5).max(0.1))) / (SampleRate.ir * 0.005)])
+				* EnvGen.kr(Env([1, 1, 0.25], [poHold.clip(0, 60), 0.6], \lin));
+			poAmp = (poOut * poDrive.clip(1, 40)).tanh / poDrive.clip(1, 40);
+			poSend = poAmp * poGainL;
+			poOut = Select.ar(poBloom > 0, [poOut, poAmp]);
+			poFade = Select.kr(poBloom > 0, [poRingHi, poRingHi.max(poHold + 3)]);
+			poOut = Limiter.ar(poOut, 0.98, 0.01) * EnvGen.ar(Env.linen(0.01, poFade, 0.3), 1);
 			sig = mix.(sig, poOut, poMix);
 			// --- THE PETALS OF RESONANCE — THE CLEANED PATH (DEC-32): the same instrument and the same dials, the signal path tidied —
 			//       · ONE bank of 26 Ringz, summed (a DynKlank of one partial IS a Ringz); no shuffle (it does nothing to a mono mix)
@@ -254,12 +275,26 @@
 			//     its resonance brought to unity, so the loop gain IS the bloom. No strings (all six at 0) = the material's own spectrum.
 			fbRt = (fbPath.clip(1, 50) / 1000) + (64 / SampleRate.ir);
 			fbProg = (Sweep.kr(0, 1) / fbHold.clip(0.01, 20)).clip(0, 1);
-			fbGain = (60 * fbRt / fbBloom.clip(0.05, 10)).dbamp * EnvGen.kr(Env([1, 1, 0.25], [fbHold.clip(0, 20), 0.6], \lin));
-			fbIn = LocalIn.ar(1);
+			// the loop's gain per round trip: for a COMB string 60 dB in fbBloom s over the round trip (as it was); for a RINGING PARTIAL (fbRes 1)
+			// a resonator at unity grows at (g − 1) / τ a second, τ = ring / 6.9 — so g = 1 + ring / bloom, twice that for the strings' × 0.5
+			// (measured, process_test.scd ~17, 2026-10-07: under the comb's formula the partial FELL instead of blooming)
+			// — and the BREAK: the comb's loop goes to a quarter of its gain; the partial's to an absolute 0.5 (a quarter of unity after the
+			// strings' × 0.5) — a quarter of a gain of 8 is still unity, and the chord sang to the cap (measured, ~17)
+			fbResEnv = EnvGen.kr(Env([1, 1, 0], [fbHold.clip(0, 20), 0.6], \lin));
+			fbGain = Select.kr(fbRes > 0.5, [
+				(60 * fbRt / fbBloom.clip(0.05, 10)).dbamp * EnvGen.kr(Env([1, 1, 0.25], [fbHold.clip(0, 20), 0.6], \lin)),
+				(2 * (1 + (fbRing.clip(0.1, 30) / fbBloom.clip(0.05, 10))) * fbResEnv) + (0.5 * (1 - fbResEnv))
+			]);
+			fbIn = loopIn[0];   // the loop's return — LocalIn is read ONCE, before the petals (two loops share the one pair)
 			fbExc = sig + fbIn;
 			fbStr = [fbS1, fbS2, fbS3, fbS4, fbS5, fbS6].collect({ |f|
-				var on = f > 0, d = 1 / f.max(20);
-				CombC.ar(fbExc * on, 0.05, d, 1.5) * (1 - 10.pow(-3 * d / 1.5)) * on   // the string: it rings 1.5 s; its resonance at unity gain
+				var on = f > 0, d = 1 / f.max(20), ring = fbRing.clip(0.1, 30);
+				var comb = CombC.ar(fbExc * on, 0.05, d, ring) * (1 - 10.pow(-3 * d / ring));   // the string as a COMB: every harmonic of f, its resonance at unity gain; it rings fbRing s (1.5 as it was)
+				// the string as ONE RINGING PARTIAL (fbRes 1 — DEC-40 route (b), §203): a Ringz at f, unity at its resonance — Ringz's gain there is
+				// 1 / (2 (1 - R)), R = exp(-6.9078 / (ring × sr)) (a0 0.5, the zeros at ±1) — so × 2 (1 - R). A partial in a loop takes off ALONE:
+				// no shared harmonic needed (the comb's loop needed one, §151)
+				var part = Ringz.ar(fbExc * on, f.max(20), ring) * (2 * (1 - (-6.9078 / (ring * SampleRate.ir)).exp));
+				Select.ar(fbRes > 0.5, [comb, part]) * on
 			}).sum * 0.5;
 			fbNone = (fbS1 + fbS2 + fbS3 + fbS4 + fbS5 + fbS6) <= 0;
 			fbStr = Select.ar(fbNone, [fbStr, fbExc]);
@@ -267,7 +302,7 @@
 			fbToneNow = (fbTone.clip(500, 8000) * (1 + (fbClimb.clip(0, 1) * 3 * fbProg))).clip(200, 16000);   // the climb: the colour rises over the hold
 			fbCol = HPF.ar(LPF.ar(fbAmp, fbToneNow), 120);
 			fbPathNow = (fbPath.clip(1, 50) / 1000) * (1 - (0.4 * fbClimb.clip(0, 1) * fbProg)) * (1 + (0.2 * fbWobble.clip(0, 1) * LFNoise1.kr(1.5)));
-			LocalOut.ar(DelayC.ar(fbCol, 0.06, fbPathNow.clip(0.0005, 0.06)) * fbGain);
+			LocalOut.ar([DelayC.ar(fbCol, 0.06, fbPathNow.clip(0.0005, 0.06)) * fbGain, poSend]);   // [0] the feedback's loop · [1] the petals' amp
 			// --- EVERY STRING SINGS (fbOwn 1 — the Decibel piece's DEC-32 · RUNNING_LOG §151; the engine's §40). MEASURED there: in the
 			//     loop above a string alone has a loop gain of 0.5 — it can only ring down. The loop takes off where TWO strings share a
 			//     harmonic (the open guitar's two E's) AND the path's phase agrees; on a chord whose notes share nothing (a cluster, any
@@ -286,7 +321,8 @@
 			fbCount = [fbS1, fbS2, fbS3, fbS4, fbS5, fbS6].collect({ |f| f > 0 }).sum.max(1);
 			fbOwnSig = [fbS1, fbS2, fbS3, fbS4, fbS5, fbS6].collect({ |f|
 				var on = f > 0, d = (1 / f.max(20)) * (1 + (0.003 * fbWobble.clip(0, 1) * LFNoise1.kr(0.7)));
-				var str = CombC.ar(sig * on, 0.06, d.clip(0.0004, 0.06), 100) * (1 - 10.pow(-3 * d / 1.5));   // at the level of the loop's string (above): the bloom starts where the loop's would
+				var str = Select.ar(fbRes > 0.5, [CombC.ar(sig * on, 0.06, d.clip(0.0004, 0.06), 100) * (1 - 10.pow(-3 * d / 1.5)),   // at the level of the loop's string (above): the bloom starts where the loop's would
+					Ringz.ar(sig * on, f.max(20), 100) * (2 * (1 - (-6.9078 / (1.5 * SampleRate.ir)).exp))]);   // fbRes 1: the string as one ringing partial, at the same level
 				var lvl = Amplitude.ar(str, 0.01, 0.3);
 				var g = fbRise.min(fbKnee / (lvl * fbDrive.clip(1, 40)).max(0.000001));
 				(str * g * fbDrive.clip(1, 40)).tanh / fbDrive.clip(1, 40) * on
@@ -437,7 +473,7 @@
 	var src = self.safeName(d[\source]), out = self.safeName(d[\out]), id = self.safeName(d[\id]);
 	var effect = (d[\effect] ? "").asString.select({ |c| c.isAlphaNum or: { " -_+".includes(c) } }).keep(40);
 	var lim = (floorDb: [-120, -6], capMs: [100, 60000], fadeOutMs: [0, 2000], atkMs: [0, 10000], durMs: [10, 120000], relMs: [0, 120000], curve: [-12, 12], gainDb: [-60, 24], match: [0, 1]);
-	var endMode, srcPath, sf, sr, srcData, srcPeak, parsed, args, argsText, rate = 1, total, lead = 0.02, oscPath, nrtPath, opts, score, envPaths;
+	var endMode, srcPath, sf, sr, srcData, srcPeak, parsed, args, argsText, rate = 1, total, lead = 0.02, oscPath, nrtPath, opts, score, envPaths, defPath;
 	var lineText = IdentityDictionary.new, steps = List.new, driveMode, driveDb = 0, driveHeld = false, srcLoud;
 	var endModes = ["shape", "tail", "perc", "gauss", "quasi", "tri", "expodec", "rexpodec"];
 	var durX = (d[\durX] ? 0).asString.asFloat;
@@ -506,8 +542,13 @@
 				});
 			});
 			steps = steps.select({ |x| (x[0] > lead) and: { x[0] < (lead + total) } }).sort({ |a, b| a[0] < b[0] });
+			// THE DEF BY FILE (2026-10-07, the engine's §52): the chain's SynthDef is bigger than an OSC message holds (makeSynthMsgWithTags:
+			// buffer overflow once the petals' loop and the strings as partials went in — every render failed); the real-time server gets
+			// it the same way (SynthDef:send falls back to a file past 16 KB). Written once per engine run, next to the raw renders.
+			defPath = dir +/+ "raw" +/+ "leProcess.scsyndef";
+			if(self[\processDefWritten].isNil or: { File.exists(defPath).not }) { self.processDef.writeDefFile(dir +/+ "raw"); self[\processDefWritten] = true };
 			score = Score([
-				[0.0, ['/d_recv', self.processDef.asBytes]],
+				[0.0, ['/d_load', defPath]],
 				[0.0, ['/b_allocRead', 0, srcPath, 0, 0]]
 			] ++ envPaths.collect({ |p, i| [0.0, ['/b_allocRead', i + 1, p, 0, 0]] }) ++ [
 				[lead, ['/s_new', \leProcess, 1000, 0, 0, \buf, 0, \out, 0, \srcAmp, driveDb.dbamp] ++ args]
