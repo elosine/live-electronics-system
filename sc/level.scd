@@ -98,6 +98,11 @@
 		early = kit[\win] * 5;   // a window every 100 ms through the first 2 s — where a struck sound has its most — then side by side
 		while { off < n } {
 			e = self.kEnergy(kit, data, off);
+			// THE BREATH (the Decibel piece's RUNNING_LOG §195, 2026-10-06): a window's energy is ~20 … 50 ms of language time, and a render
+			// measured here held the language for the whole file — the next /le/open was heard late and its recording began inside the
+			// note (ten windows refused by the room rule in one pass). Inside a Routine (captureDone · processDone are forked now) the
+			// loop yields between windows, so a message is never kept waiting longer than one window; the figures are unchanged.
+			if(thisThread.isKindOf(Routine)) { 0.002.wait };
 			best = max(best, e);
 			if(off == nextWhole) { whole = whole + e; nextWhole = nextWhole + kit[\win] };   // the windows that stand side by side: together, the whole sample
 			off = off + if(off < early) { kit[\hop] } { kit[\win] };

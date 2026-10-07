@@ -220,8 +220,9 @@
 		});
 		SystemClock.sched(total + 0.25, {
 			buf.loadToFloatArray(action: { |data|
-				self.captureDone(d, who, name, id, winMs, data);
-				buf.free;
+				// FORKED (§195): the crop, the loudness and the index write run in a Routine that breathes (level.scd loudOf), so the
+				// next /le/open is heard on time while this one is banked
+				{ self.captureDone(d, who, name, id, winMs, data); buf.free }.fork(SystemClock);
 			});
 			nil
 		});

@@ -131,6 +131,8 @@
 	o.numOutputBusChannels = 16;
 	o.numInputBusChannels = 16;
 	o.numAudioBusChannels = 1024;
+	o.numBuffers = 16384;      // every sample AND every render holds a buffer: a bank of 949 reached the default 1024 mid-pass and the
+	                           // captures stopped — "No more buffer numbers" (the Decibel piece's RUNNING_LOG §195 · SWEEP_LIST #8, 2026-10-06)
 	o.memSize = 262144;        // 256 MB: the buffers and the delay lines to come
 	o.blockSize = 64;
 	asio = ServerOptions.devices.select({ |d| d.contains("ASIO") });

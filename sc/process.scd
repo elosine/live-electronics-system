@@ -472,7 +472,11 @@
 			// THE DRIVE (11.4): a gain on the source before the chain — measured HERE, on the samples in hand (a row may have no figure yet)
 			driveMode = (d[\srcDrive] ? if(d[\planned].notNil) { "normalized" } { "played" }).asString.stripWhiteSpace;
 			if(driveMode == "normalized") {
-				srcLoud = if(self[\loudOf].notNil) { try { self.loudOf(srcData, sr) } { nil } };
+				// the source's figure from its row when it has one (the same file, the same measure — §195: no second measure in the
+				// language while a pass runs); measured here only for a source without a row
+				srcLoud = (self[\samples][src.asSymbol] ? ())[\row];
+				srcLoud = if(srcLoud.notNil and: { srcLoud[\loudDb].notNil }) { (loudDb: srcLoud[\loudDb].asFloat, loudIntDb: srcLoud[\loudIntDb]) }
+					{ if(self[\loudOf].notNil) { try { self.loudOf(srcData, sr) } { nil } } };
 				driveDb = if(srcLoud.notNil and: { srcLoud[\loudDb] > -100 }) { self.levelOf[\driveRef] - srcLoud[\loudDb] } { 0 };
 			} {
 				if(driveMode != "played") { driveDb = driveMode.asFloat.clip(-60, 40) };
@@ -517,11 +521,15 @@
 				++ if(parsed[\unknown].size > 0) { " · NOT in the chain, left out: " ++ parsed[\unknown].join(", ") } { "" });
 			score.recordNRT(oscPath, nrtPath, nil, sr, "WAV", "float", opts, "", nil, { |code|
 				self[\processBusy].remove(out.asSymbol);
-				try { self.processDone(o, src, out, id, effect, argsText, endMode, sr, srcPeak, nrtPath, oscPath, code) } { |err|
-					self.say("LE_ERROR", "process · " ++ out ++ " — the render was made and could not be banked · " ++ err.errorString);
-					self.say("LE_RESULT", self.json((msg: "processed", name: out, source: src, openingId: id, failed: true)));
-				};
-				if(self[\planNext].notNil) { self.planNext };   // a render has ended: the plan's queue may start its next
+				// FORKED (the Decibel piece's RUNNING_LOG §195): the banking of a render — its loudness measured in the language, the index
+				// written — held the language for the whole file and the next /le/open was heard late; in a Routine the measure breathes
+				{
+					try { self.processDone(o, src, out, id, effect, argsText, endMode, sr, srcPeak, nrtPath, oscPath, code) } { |err|
+						self.say("LE_ERROR", "process · " ++ out ++ " — the render was made and could not be banked · " ++ err.errorString);
+						self.say("LE_RESULT", self.json((msg: "processed", name: out, source: src, openingId: id, failed: true)));
+					};
+					if(self[\planNext].notNil) { self.planNext };   // a render has ended: the plan's queue may start its next
+				}.fork(SystemClock);
 			});
 		};
 	};
