@@ -104,6 +104,51 @@
 	out
 };
 
+// ---- THE REGIONS (the Decibel piece's drone section, PLAN 15.2 a, 2026-10-08): where a long capture SOUNDS ------------------
+// A 6 … 9 s multiphonic has breaths in it; a stretch that starts its read in one plays a breath for thirty seconds. On the cropped
+// sample: the level in blocks of blockMs (RMS, in dB under the loudest block); a GAP is a quiet run (under gateDb) at least gapMs
+// long; a REGION is a sounding run between gaps at least minMs long — a quiet run shorter than a gap is part of the region around it,
+// a sounding run shorter than minMs is dropped. A sample with no region that long keeps the WHOLE as its one region, said in the
+// window. The numbers are the engine's defaults; a piece's come by LE_REGIONS (session.scd; bank/elec_route.json bank.regions). The
+// row carries them as "0-2340,2910-6100" (ms); the plan's stretch draws its start inside the longest (process.scd regionStart).
+~le[\regionsDefaults] = (blockMs: 20, gateDb: -40, gapMs: 150, minMs: 500);
+~le[\regionsFind] = { |self, data, sr, opts|
+	var o = self[\regionsDefaults].copy, hop, n, env, top, thr, quiet, runs = List.new, merged = List.new, regions = List.new, gapBlocks, minBlocks, lenMs;
+	if(opts.notNil) { o.putAll(opts) };
+	hop = (sr * o[\blockMs] / 1000).round.asInteger.max(1);
+	n = (data.size / hop).ceil.asInteger;
+	lenMs = (data.size / sr * 1000).round(1);
+	env = Array.fill(n, { |b| var acc = 0.0, i0 = b * hop, m = min(hop, data.size - i0); m.do({ |j| acc = acc + (data[i0 + j] * data[i0 + j]) }); if(m > 0) { (acc / m).sqrt } { 0 } });
+	top = if(n > 0) { env.maxItem } { 0 };
+	if(top <= 0) { (list: [[0, lenMs]], whole: true) } {
+		thr = top * o[\gateDb].dbamp;
+		gapBlocks = (o[\gapMs] / o[\blockMs]).round.asInteger.max(1);
+		minBlocks = (o[\minMs] / o[\blockMs]).round.asInteger.max(1);
+		quiet = env.collect({ |v| v < thr });
+		// the runs, [sounding, first block, last block]
+		n.do({ |b| var s = quiet[b].not; if((runs.size > 0) and: { runs.last[0] == s }) { runs.last[2] = b } { runs.add([s, b, b]) } });
+		// a quiet run shorter than a gap, after a sounding run, is absorbed — and so is the sounding run after it
+		runs.do({ |r|
+			var open = (merged.size > 0) and: { merged.last[0] } and: { merged.last[3] };
+			case
+			{ r[0].not and: { (r[2] - r[1] + 1) < gapBlocks } and: { merged.size > 0 } and: { merged.last[0] } } { merged.last[2] = r[2]; merged.last[3] = true }
+			{ r[0] and: { open } } { merged.last[2] = r[2]; merged.last[3] = false }
+			{ true } { if(merged.size > 0) { merged.last[3] = false }; merged.add([r[0], r[1], r[2], false]) };
+		});
+		merged.do({ |r| if(r[0] and: { (r[2] - r[1] + 1) >= minBlocks }) { regions.add([(r[1] * o[\blockMs]).round(1), ((r[2] + 1) * o[\blockMs]).min(lenMs).round(1)]) } });
+		if(regions.size == 0) { (list: [[0, lenMs]], whole: true) } { (list: regions.asArray, whole: false) }
+	}
+};
+~le[\regionsText] = { |self, list| (list ? []).collect({ |r| r[0].asInteger.asString ++ "-" ++ r[1].asInteger }).join(",") };
+// a row's "0-2340,2910-6100" back to pairs of ms; nil when the row has none
+~le[\regionsOf] = { |self, row|
+	var t = if(row.notNil) { row[\regions] }, out;
+	if(t.isNil or: { t.asString.size == 0 }) { nil } {
+		out = t.asString.split($,).collect({ |p| var b = p.split($-); if(b.size == 2) { [b[0].asFloat, b[1].asFloat] } }).reject(_.isNil);
+		if(out.size == 0) { nil } { out }
+	}
+};
+
 // ---- the room (the Decibel piece's 11.7 c — the bleed guard): what was ALREADY sounding when the window opened ----------
 // A window opens before its note (the message's lead, and the opening's own pre-roll), so the first 60 ms of a recording are
 // THE ROOM: the hall, the other players in this microphone. room = their loudest sample · overDb = how far the recording's own
@@ -273,7 +318,7 @@
 ~le[\captureDone] = { |self, d, who, name, id, winMs, data|
 	var s = self[\server], sr = s.sampleRate, dir = self[\bankDir], rawRel = "raw/" ++ id ++ ".wav", rel = name ++ ".wav";
 	var rawMs = (data.size / sr * 1000).round(1).asInteger, rawPeak = if(data.size > 0) { data.abs.maxItem } { 0 };
-	var c, out, row, old, lenMs, atMs, loud, room, refused = false, cropOpts;
+	var c, out, row, old, lenMs, atMs, loud, room, refused = false, cropOpts, regs;
 	self.wavWrite(dir +/+ rawRel, data, sr);
 	self.say("LE_INFO", "captured · " ++ name ++ " · raw · " ++ rawMs ++ " ms · peak " ++ self.db(rawPeak) ++ " dB");
 	// 11.7 c: the room this window opened on — the crop's attack must stand over it; a capture that barely does is BLEED, and in a
@@ -307,6 +352,15 @@
 			if(self[\loudOf].notNil) { loud = try { self.loudOf(out, sr) } { nil }; if(loud.notNil) { self.loudInto(row, loud) } };
 			// 11.7 c: what the room was, where there was one — and the flag, when the attack barely stood over it
 			if(room.notNil and: { room[\room] > 1e-6 }) { row[\floorDb] = room[\floorDb]; row[\overDb] = room[\overDb]; if(room[\bleed]) { row[\bleed] = true } };
+			// 15.2 a (the Decibel piece's drone section): where the capture SOUNDS — a stretch's start is drawn inside a region (process.scd)
+			if(self[\regionsFind].notNil) {
+				regs = try { self.regionsFind(out, sr, self[\regionOpts]) } { nil };
+				if(regs.notNil) {
+					row[\regions] = self.regionsText(regs[\list]);
+					self.say("LE_INFO", "regions · " ++ name ++ " · " ++ if(regs[\whole]) { "none of " ++ (self[\regionOpts] ? self[\regionsDefaults])[\minMs].asInteger ++ " ms or more: the whole (" ++ row[\regions] ++ ") as one" }
+						{ regs[\list].size.asString ++ " — " ++ regs[\list].collect({ |r| r[0].asInteger.asString ++ "-" ++ r[1].asInteger }).join(" · ") ++ " ms" });
+				};
+			};
 			// §84: a FIRST take lost its row every time, a re-take never did — reject() hands back a collection of exactly the size left,
 			// and add() on a full Array returns a NEW array that was being thrown away. A List adds in place: made one, every time.
 			self[\indexRows] = self[\indexRows].reject({ |r| r[\name].asString == name }).asList;
@@ -339,12 +393,21 @@
 // process.scd) whose render is not in yet: the EARLIER render if a buffer still holds one (the take before, or the backup's — it is
 // played and said), else its BASE, raw, said too. A score never waits on a render, and a return is never silent for one.
 ~le[\sampleFor] = { |self, name|
-	var nm = (name ? "").asString, e = if(self[\samples].notNil) { self[\samples][nm.asSymbol] }, cut = nm.indexOf($~), base;
+	var nm = (name ? "").asString, e = if(self[\samples].notNil) { self[\samples][nm.asSymbol] }, cut = nm.indexOf($~), base, planRow;
+	self[\lateSilent] = nil;
 	if(cut.notNil) {
 		if(e.isNil) {
 			base = nm.keep(cut);
-			e = if(self[\samples].notNil) { self[\samples][base.asSymbol] };
-			if(e.notNil) { self.say("LE_INFO", "late · " ++ nm ++ " is not rendered yet — " ++ base ++ " played raw") };
+			// 15.2 d (the Decibel piece's drone section): a SHAPED stretch asked for before its render plays NOTHING — a 7 s multiphonic in
+			// place of a 30 s drone is worse than silence; the plan's row says the ending
+			planRow = if(self[\plan].notNil) { self[\plan].detect({ |r| (r[\base] ++ "~" ++ r[\suffix]) == nm }) };
+			if(planRow.notNil and: { planRow[\end].asString == "shape" }) {
+				self.say("LE_INFO", "late · " ++ nm ++ " is not rendered yet — a shaped stretch: NOTHING played (its recording would be wrong in its place)");
+				self[\lateSilent] = nm;
+			} {
+				e = if(self[\samples].notNil) { self[\samples][base.asSymbol] };
+				if(e.notNil) { self.say("LE_INFO", "late · " ++ nm ++ " is not rendered yet — " ++ base ++ " played raw") };
+			};
 		} {
 			if(self[\planStale].notNil and: { self[\planStale].includes(nm.asSymbol) }) {
 				self.say("LE_INFO", "late · " ++ nm ++ " — this take's render is not in yet: the earlier render played");
@@ -501,7 +564,7 @@
 		live = (beh.size == 0) and: { self[\livePlay].notNil } and: { self.livePlay(d, name, due) };
 		smp = if(live) { nil } { self.sampleFor(name) };
 		if(smp.isNil) {
-			if(live.not) { self.say("LE_INFO", "play · " ++ name ++ " — no such sample in the bank") };
+			if(live.not and: { self[\lateSilent] != name }) { self.say("LE_INFO", "play · " ++ name ++ " — no such sample in the bank") };   // a late shaped stretch was said already (sampleFor)
 		} {
 			if(beh == "ar") {   // the roll: the sample moves from the centre by the offset; a "before" the message came too late for lands now
 				roll = self.arRoll; at = due + (roll[\offsetMs] / 1000); clipped = at < 0; at = at.max(0);

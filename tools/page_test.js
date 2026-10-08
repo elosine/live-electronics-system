@@ -112,6 +112,16 @@ if (typeof LEO.driveTag === 'function') {
     sent.length = 0; LEO.sendPlan(false);
     const line = sent.filter((x) => x.kind === 'plan').map((x) => x.data.rows).join('|').split('|').find((l) => l.startsWith('bcl-impulse-1;fb1-tail_d12;'));
     check('the plan\'s row: eleven fields, a dial as a line kept whole, the drive last', !!line && line.split(';').length === 11 && line.split(';')[9] === 'fbMix:1,fbDrive:2@0,8@6000' && line.split(';')[10] === '+12', String(line));
+    // 15.2 d (the Decibel piece's drone section): a SHAPE envelope — the preset's rise, its ABSOLUTE length as "<ms>ms", its fall and curve as fields 12 · 13;
+    // a start as a fraction of a region and a grain size on a line are sent whole
+    LEO.presets.envelopes.shape = { atkMs: 1000, relMs: 1500, curve: 0 };
+    LEO.presets.presets.push({ key: 'dn1', name: 'a drone', effect: 'icy', class: 'time', end: 'shape', atkMs: 1200, durMs: 30000, relMs: 1800, curve: -2, args: { icMix: 1, icFromMs: 'region@0.37', icWin: '0.1@0,1.5@30000', icOverlaps: 17 } });
+    const zd = zone({ name: 'bcl-drone-1', variants: { 'bcl-drone-1': 'dn1-shape' } }), md = fire(zd);   // its own zone: the checks below go on with z
+    sent.length = 0; LEO.sendPlan(false);
+    const dl = sent.filter((x) => x.kind === 'plan').map((x) => x.data.rows).join('|').split('|').find((l) => l.startsWith('bcl-drone-1;dn1-shape;'));
+    const df = dl ? dl.split(';') : [];
+    check('a shaped row: thirteen fields — shape · the rise · an absolute length · the fall · the curve — the fraction and the line whole', df.length === 13 && df[3] === 'shape' && df[4] === '1200' && df[5] === '30000ms' && df[11] === '1800' && df[12] === '-2' && df[9].includes('icFromMs:region@0.37') && df[9].includes('icWin:0.1@0,1.5@30000') && md.name === 'bcl-drone-1~dn1-shape', String(dl));
+    LEO.host.objects.splice(LEO.host.objects.indexOf(zd), 1);
     p = panelOf(z);
     const dsel = find(p, (n) => n.tag === 'select' && n.children.some((o) => o.value === 'boost'))[0];
     dsel.value = 'played'; dsel.on.change();

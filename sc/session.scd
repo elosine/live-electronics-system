@@ -17,6 +17,7 @@
 //   LE_AR        the return behaviour 'ar', where a piece overrides the defaults:  before=0.35,afterLo=100,…  (bank.scd arDefaults)
 //   LE_CHAIN     the return behaviour 'chain':  after=0.7,lazy=0.2,far=0.1,unison=0,before=0,follow=1,shuffle=1  (bank.scd chainDefaults)
 //   LE_LIVE      the petals live, where a piece overrides the defaults:  on=1,windowMs=300  (petals_live.scd liveDefaults)
+//   LE_REGIONS   the regions of a capture, where a piece overrides the defaults:  blockMs=20,gateDb=-40,gapMs=150,minMs=500  (bank.scd regionsDefaults)
 //   LE_PLAN_HOLD seconds of quiet (no opening, no plan) before the plan's renders run — none while the music plays (process.scd; 6)
 //   LE_LEVEL     the ladder of marks, where a piece overrides the defaults:  reference=-29.54,stepDb=4,liftCapDb=20,floorDb=-60  (level.scd)
 //   LE_MASTER    the bus's dials, where a piece overrides the engine's neutral defaults:  hpfHz=30,glueOn=1,glueThr=-18,ceilingDb=-1,lookaheadMs=5  (boot.scd § the bus)
@@ -41,6 +42,7 @@ var cropSpec = "LE_CROP".getenv;
 var arSpec = "LE_AR".getenv;
 var chainSpec = "LE_CHAIN".getenv;
 var liveSpec = "LE_LIVE".getenv;
+var regionSpec = "LE_REGIONS".getenv;   // the regions' numbers (bank.scd regionsDefaults; the Decibel piece's 15.2 a): blockMs=20,gateDb=-40,gapMs=150,minMs=500
 var source = "LE_SOURCE".getenv;
 var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 (dir +/+ "boot.scd").load;
@@ -73,6 +75,10 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 	if(liveSpec.notNil and: { liveSpec.size > 0 }) {
 		le[\liveOpts] = ();
 		liveSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { le[\liveOpts][b[0].asSymbol] = b[1].asFloat } });
+	};
+	if(regionSpec.notNil and: { regionSpec.size > 0 }) {   // 15.2 a: the regions of a capture (bank.scd regionsFind)
+		le[\regionOpts] = ();
+		regionSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { le[\regionOpts][b[0].asSymbol] = b[1].asFloat } });
 	};
 	if(bank.notNil and: { bank.size > 0 }) { nSamples = le.bankOn(bank, crop, source, record) };
 	s.sync;

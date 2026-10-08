@@ -32,6 +32,13 @@
 play back, then **STOP and ask**. No edits, no builds, no tool calls beyond the resume
 reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, then work.)*
 
+### 2026-10-08 — THE DRONE SECTION'S ADDITIONS; THE ICY STAGE VETTED AGAINST HIS ORIGINAL, in the Decibel piece (Fable; RUNNING_LOG §60)
+
+- **What exists:** the regions of a capture (`sc/bank.scd` `regionsDefaults` · `regionsFind` · `regionsText` · `regionsOf`; the row's `regions`; `LE_REGIONS` in `session.scd`) · a start as a fraction of the longest region (`sc/process.scd` `regionStart`, `icFromMs:region@F`) · the chain's write buffer sized to the source (`\icBufS.ir`; the icy stage's clip to it) · the loop mode silent until its start (`icGate`; the render longer by the start) · the shaped plan row (`planTake` fields 12 · 13, `durX` as `<ms>ms`; `planNext`) · the late rule for a shaped variant (`sampleFor` `lateSilent`) · the page's `planRows` · `sendPlan` for a shape envelope and a `region@` value · `sc/drone_test.scd`.
+- **Proven:** `drone_test` (seven checks) · `process_test` (53) · `level_test` · `tools/page_test.js` — all offline. **Not claimed:** a living engine (the composer's engine predates it; his pass of the piece's `drone-section` is the first run) · the regions on real multiphonics (the piece's 15.1 d).
+- **Measured, for the record (the piece's §249):** the port of `icy` is his 2015 `\icy` within 1.5 dB on every row; a stretch of a steady tone flutters 3 … 8 dB at 40 ms and wanders 5 … 13 dB; a 20 s render's banking costs the language 0.35 s.
+- **Next, here:** nothing until the piece's pass — then whatever its engine window says.
+
 ### 2026-10-08 — THE LIVE ROAD GUARDED, in the Decibel piece (Fable; RUNNING_LOG §58 · §59)
 
 - **What exists:** the clock check at every start (`sc/session.scd`) · the plan's hold (`sc/process.scd` `planHoldS` · `planTouch`; `LE_PLAN_HOLD`) · the live petals made with the as-played level, the mark at `/le/play` (`sc/petals_live.scd`) · `heard · … INSIDE / OUTSIDE the window` · `/le/tree` · InFeedback in the two readers.

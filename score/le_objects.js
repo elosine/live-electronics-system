@@ -206,8 +206,11 @@
                 if (!p || !E) return;   // a preset or an envelope the file no longer has: the sample returns raw
                 const suffix = v + this.driveTag(drive), id = safe(name) + '~' + suffix, was = out.get(id), cls = (P.classes || {})[p.class] || {};
                 if (was) { if (t < was.t) was.t = t; return; }
+                // 15.2 d (the drone section): a `shape` envelope — the preset's own rise · ABSOLUTE length · fall · curve (a drone's source is unknown when the plan is sent)
+                const shape = env === 'shape', pick = (k, d) => (p[k] != null ? +p[k] : E[k] != null ? +E[k] : d);
                 out.set(id, { drive: this.driveWord(drive) || this.driveWord(p.drive) || 'normalized', base: safe(name), suffix, effect: String(p.effect || '').replace(/[^A-Za-z0-9 _+-]/g, '').slice(0, 40), end: env === 'tail' ? 'tail' : env,
-                    atkMs: +E.atkMs || 0, durX: +(p.durX || cls.durX || 1), match: p.match === 0 ? 0 : 1, t, capMs: env === 'tail' ? (p.capMs || E.capMs || 4000) : 0, args: p.args || {} });   // capMs may be a range [lo, hi]: drawn at the send
+                    atkMs: pick('atkMs', 0) || 0, durX: +(p.durX || cls.durX || 1), match: p.match === 0 ? 0 : 1, t, capMs: env === 'tail' ? (p.capMs || E.capMs || 4000) : 0, args: p.args || {},   // capMs may be a range [lo, hi]: drawn at the send
+                    durMs: shape ? pick('durMs', 0) : 0, relMs: shape ? pick('relMs', 1500) : -1, curve: shape ? pick('curve', 0) : null });
             };
             for (const z of this.zones('elecPlay')) {
                 const e = z.elec;
@@ -231,11 +234,12 @@
             const lines = rows.map((r) => {
                 const args = Object.keys(r.args).filter((k) => /^[A-Za-z][A-Za-z0-9]*$/.test(k)).map((k) => {
                     const v = r.args[k], x = Array.isArray(v) && v.length === 2 ? Math.round((Math.min(+v[0], +v[1]) + Math.random() * Math.abs(+v[1] - +v[0])) * 100) / 100 : +v;
-                    if (this.isLine(v)) return k + ':' + String(v).replace(/\s+/g, '');   // a dial as a line in time: sent whole
+                    if (this.isLine(v) || /^\s*region@/.test(String(v))) return k + ':' + String(v).replace(/\s+/g, '');   // a dial as a line in time, or a start as a fraction of a region (15.2 b): sent whole
                     return Number.isFinite(x) ? k + ':' + x : null;
                 }).filter(Boolean).join(',');
                 const cap = Array.isArray(r.capMs) && r.capMs.length === 2 ? Math.round(Math.min(+r.capMs[0], +r.capMs[1]) + Math.random() * Math.abs(+r.capMs[1] - +r.capMs[0])) : (+r.capMs || 0);   // a ring time drawn fresh (the tail's [950, 1350])
-                return [r.base, r.suffix, r.effect, r.end, r.atkMs, r.durX, r.match, r.t, cap, args, r.drive || 'normalized'].join(';');
+                // 15.2 d: an absolute length rides in the durX field as "<ms>ms"; a shape row's fall and curve as fields 12 and 13 (an older engine reads the first eleven)
+                return [r.base, r.suffix, r.effect, r.end, r.atkMs, r.durMs > 0 ? Math.round(r.durMs) + 'ms' : r.durX, r.match, r.t, cap, args, r.drive || 'normalized'].concat(r.end === 'shape' ? [r.relMs, r.curve] : []).join(';');
             });
             const per = 6, n = Math.max(1, Math.ceil(lines.length / per)), stamp = 'p' + Date.now().toString(36);
             for (let i = 0; i < n; i++) LE.send('plan', { stamp, part: i + 1, of: n, rows: lines.slice(i * per, (i + 1) * per).join('|'), render: render ? 1 : 0 });

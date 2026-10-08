@@ -43,8 +43,12 @@
 // captures, <base>~<suffix> (bfl-impulse-1~crush4-perc): one effect under a short envelope. The score is a PLAN; the engine renders
 // each sample's variants RIGHT AFTER ITS CAPTURE, the soonest-needed first — the same in concert and in simulation.
 //   /le/plan        stamp · part · of · rows · [render]
-//       rows     the variants, "|" between them, each  base;suffix;effect;end;atkMs;durX;match;t;capMs;args[;drive]  (t = the score time
-//                of its first use; args as /le/process takes them; drive as srcDrive above — absent = normalized). A plan comes in PARTS that share a stamp; it REPLACES the plan
+//       rows     the variants, "|" between them, each  base;suffix;effect;end;atkMs;durX;match;t;capMs;args[;drive[;relMs[;curve]]]  (t = the score time
+//                of its first use; args as /le/process takes them; drive as srcDrive above — absent = normalized). SINCE 2026-10-08 (the
+//                Decibel piece's drone section, 15.2 d): durX may be ABSOLUTE, "30000ms" — a drone's length, its source unknown when the
+//                plan is sent; a shape row's fall and curve ride as the twelfth and thirteenth fields; and args may say
+//                icFromMs:region@0.37 — a start as a FRACTION of the source's longest sounding region, resolved at the render (regionStart).
+//                A shaped variant asked for before its render plays NOTHING (bank.scd sampleFor), not the recording. A plan comes in PARTS that share a stamp; it REPLACES the plan
 //                before it when the last part is in, in whatever order they arrive. An empty plan clears it. render 1: then every
 //                planned variant whose sample is in the bank is rendered (as /le/planrender).
 //   /le/planrender  every planned variant whose sample is in the bank, rendered again — the simulation's button.
@@ -196,9 +200,9 @@
 			poBloom = 0, poDrive = 6, poHold = 6,
 			ptMix = 0, ptFund = 200, ptFirst = 2, ptSpread = 0.33, ptOffset = 0.25, ptRingLo = 7.75, ptRingHi = 9.5, ptInLen = 1,
 			amp = 1, lag = 0.04, srcAmp = 1|
-			var sig, play, dry, pre, soft, bank, shaped, filtered, chainA, chainF, specA, specF, frz, wet, back;
+			var sig, play, dry, pre, soft, bank, shaped, filtered, chainA, chainF, specA, specF, frz, wet, back, icBufS;
 			var gfBufL, gfW, gfOn, gfD, gfTrig, gfOv, gfPos, gfRate, gfCloud;
-			var icOn, icWr, icPos, icLp, icPtr, icEnvBuf, icSig;
+			var icOn, icWr, icPos, icLp, icPtr, icEnvBuf, icSig, icGate;
 			var ovrBufL, ovrFrames, wr, ovrTrig, startPos, miniSamps, fadeSamps, period, ph, firstRep, gA, rdA, rdB, ovr;
 			var od, fz, oc, cabSig, cr, chx, chx2, ch;
 			var fbRt, fbProg, fbGain, fbIn, fbExc, fbStr, fbNone, fbAmp, fbToneNow, fbCol, fbPathNow, fbResEnv;
@@ -412,7 +416,11 @@
 			//     a random pitch within ± gfPitch semitones. The sound is HELD by many offset readings of one place, not by a held
 			//     snapshot re-synthesised — so nothing repeats at a frame rate. After the sandbox's \roadsCloudBuf (roads-cloud.scd):
 			//     the level compensated by 1/sqrt(overlap), so density is texture, not loudness. Until the first grains, the dry sound.
-			gfBufL = LocalBuf(SampleRate.ir * 4).clear;
+			// 15.2 b (the Decibel piece's drone section, 2026-10-08; its RUNNING_LOG §249): the write buffer AS LONG AS THE SOURCE — it was
+			//     4 s, and the write head WRAPS: a 6 s multiphonic's last two seconds wrote over its first, and a stretch of a long sound read a
+			//     buffer eating its own tail. The render sets icBufS to the source's played length + 0.5 s (processRender); 4 s stays the default.
+			icBufS = \icBufS.ir(4).clip(1, 60);
+			gfBufL = LocalBuf(SampleRate.ir * icBufS).clear;
 			gfW = Phasor.ar(0, 1 - Done.kr(play), 0, BufFrames.ir(gfBufL));
 			BufWr.ar(sig, gfBufL, gfW, 0);
 			gfD = gfDur.clip(20, 2000) / 1000;
@@ -433,8 +441,9 @@
 			//     alone (the attack suppressed, the peak-match then lifts the sustain to the source's peak) · 0.5 = attack and sustain
 			//     together · 0 = the sample as it is. The read point waits at icFromMs until the sound reaches it, then crawls.
 			icWr = gfW / SampleRate.ir;   // seconds of material written so far: the read point never runs ahead of it
-			icOn = Sweep.kr(0, 1) >= (icFromMs.clip(0, 3000) / 1000);
-			icPos = (icFromMs.clip(0, 3000) / 1000) + Sweep.kr(icOn, icSpeed.clip(0, 4));
+			//     15.2 b: the start anywhere in the source (it was clipped to 3 s) — the buffer is as long as the source now (icBufS above)
+			icOn = Sweep.kr(0, 1) >= (icFromMs.clip(0, icBufS * 1000) / 1000);
+			icPos = (icFromMs.clip(0, icBufS * 1000) / 1000) + Sweep.kr(icOn, icSpeed.clip(0, 4));
 			// THE LOOP (the Decibel piece's DEC-34b, its §169 · §171): icLoop 1 = the read point WRAPS at the end of what is written — the
 			//     source read in order from its beginning, again and again (a drone from a held sound); 0 = it HOLDS at the end, as his
 			//     freezes did. The material written so far bounds it both ways (the point never runs ahead of the writing), so a wrap
@@ -442,8 +451,13 @@
 			icLp = icLoop.clip(0, 1);
 			icPtr = ((icPos.min(icWr) * (1 - icLp)) + ((icPos % icWr.max(1e-4)) * icLp)) / (BufFrames.ir(gfBufL) / SampleRate.ir);
 			icEnvBuf = Select.kr(icEnv.clip(0, 10), [-1] ++ (1..10));
+			//     15.2 b: IN THE LOOP MODE the stretch is SILENT until the material reaches its start — before that the wrapped read point fell
+			//     on whatever was written so far (a start of 6 s read the first seconds, wrapped, for six seconds). The render runs icFromMs
+			//     longer (processRender) and the head-finding takes the silence off, so a drone that starts deep in its recording begins there.
+			//     The hold mode (icLoop 0) keeps the sandbox's way: the read point rides the write head until the start, then crawls.
+			icGate = (1 - icLp) + (icLp * Lag.kr(icOn, 0.005));
 			icSig = Warp1.ar(1, gfBufL, icPtr, 2 ** (icPitch.clip(-24, 24) / 12), icWin.clip(0.05, 2), icEnvBuf, icOverlaps.clip(1, 64), icRand.clip(0, 1), 2)
-				* icOverlaps.clip(1, 64).sqrt.reciprocal;
+				* icOverlaps.clip(1, 64).sqrt.reciprocal * icGate;
 			sig = mix.(sig, icSig, icMix);
 			// --- the reverbs, last: they hear the result ----------------------------------------------------------------
 			wet = GVerb.ar(sig, revRoom.clip(1, 90), revTime.lag(lag).clip(0.1, 20), revDamp.lag(lag).clip(0, 1), 0.5, 15, 0, 0.7, 0.5).sum * 0.4;
@@ -496,6 +510,30 @@
 	[self[\bankDir], self[\sourceDir]].reject({ |x| x.isNil }).collect({ |x| x.asString +/+ name ++ ".wav" }).detect({ |p| File.exists(p) })
 };
 
+// 15.2 b (the Decibel piece's drone section): a stretch's START as a FRACTION of its source's longest sounding region — "icFromMs:region@0.37"
+// in the args. The builder writes the plan before any recording exists (the regions come with the capture, bank.scd regionsFind), so the
+// fraction is resolved HERE, the one place that knows the source's row and the drone's read span (its length × its speed):
+// start = the region's start + F × (the region's length − the span), never past the region. A source with no regions in its row
+// resolves along the whole sample. The window says what was drawn.
+~le[\regionStart] = { |self, text, src, srcMs, durMs|
+	var items = (text ? "").asString.split($,), k, frac, speed = 0.03, regs, row, best, span, usable, startMs, said;
+	k = items.detectIndex({ |it| it.asString.stripWhiteSpace.beginsWith("icFromMs:region@") });
+	if(k.isNil) { (args: text, said: nil) } {
+		frac = items[k].asString.split($@)[1].asFloat.clip(0, 1);
+		items.do({ |it| var b = it.asString.stripWhiteSpace.split($:); if((b.size == 2) and: { b[0] == "icSpeed" }) { speed = b[1].asString.split($@)[0].asFloat } });
+		row = if(self[\indexRows].notNil) { self[\indexRows].detect({ |r| r[\name].asString == src }) };
+		regs = if(self[\regionsOf].notNil) { self.regionsOf(row) } ? [[0, srcMs]];
+		best = regs.inject(regs[0], { |a, r| if((r[1] - r[0]) > (a[1] - a[0])) { r } { a } });
+		span = ((durMs ? 0) * speed).max(0);   // ms of the source the drone reads over its length
+		usable = ((best[1] - best[0]) - span).max(0);
+		startMs = (best[0] + (frac * usable)).round(1);
+		items[k] = "icFromMs:" ++ startMs;
+		said = "the start " ++ startMs.asInteger ++ " ms = " ++ frac ++ " of the usable " ++ usable.round(1).asInteger ++ " ms of the longest region " ++ best[0].asInteger ++ "-" ++ best[1].asInteger
+			++ if(row.isNil or: { row[\regions].isNil }) { " (no regions in its row: the whole)" } { "" } ++ " · it reads " ++ span.round(1).asInteger ++ " ms";
+		(args: items.join(","), said: said)
+	}
+};
+
 // ---- the render: /le/process ------------------------------------------------------------------------------------------
 ~le[\processRender] = { |self, d|
 	var o = self[\processDefaults].copy, dir = self[\bankDir];
@@ -503,7 +541,7 @@
 	var effect = (d[\effect] ? "").asString.select({ |c| c.isAlphaNum or: { " -_+".includes(c) } }).keep(40);
 	var lim = (floorDb: [-120, -6], capMs: [100, 60000], fadeOutMs: [0, 2000], atkMs: [0, 10000], durMs: [10, 120000], relMs: [0, 120000], curve: [-12, 12], gainDb: [-60, 24], match: [0, 1]);
 	var endMode, srcPath, sf, sr, srcData, srcPeak, parsed, args, argsText, rate = 1, total, lead = 0.02, oscPath, nrtPath, opts, score, envPaths, defPath;
-	var lineText = IdentityDictionary.new, steps = List.new, driveMode, driveDb = 0, driveHeld = false, srcLoud;
+	var lineText = IdentityDictionary.new, steps = List.new, driveMode, driveDb = 0, driveHeld = false, srcLoud, rs;
 	var endModes = ["shape", "tail", "perc", "gauss", "quasi", "tri", "expodec", "rexpodec"];
 	var durX = (d[\durX] ? 0).asString.asFloat;
 	var preMs = (d[\preMs] ? 0).asString.asFloat.clip(0, 5000), preFrames = 0;
@@ -531,7 +569,10 @@
 			sf.readData(srcData);
 			sf.close;
 			srcPeak = if(srcData.size > 0) { srcData.abs.maxItem } { 0 };
-			parsed = self.processArgs(d[\args]);
+			// 15.2 b: "icFromMs:region@F" resolved against the source's regions and the drone's read span (regionStart) before the parse
+			rs = self.regionStart(d[\args], src, srcData.size / sr * 1000, if(durX > 0) { srcData.size / sr * 1000 * durX } { o[\durMs] });
+			if(rs[\said].notNil) { o[\regionSaid] = rs[\said] };
+			parsed = self.processArgs(rs[\args]);
 			args = parsed[\args];
 			parsed[\lines].do({ |ln| lineText[ln[\key]] = ln[\pts].collect({ |p| p[0].asString ++ "@" ++ p[1].round(1).asInteger }).join(",") });
 			argsText = args.clump(2).collect({ |p| p[0].asString ++ ":" ++ (lineText[p[0]] ? p[1]) }).join(",");
@@ -551,10 +592,16 @@
 			// said in the window and kept in the row — unless the source went in as it is, which is nothing to say
 				o[\driveText] = if((driveMode == "played") and: { driveDb == 0 }) { nil } { driveMode ++ " " ++ if(driveDb >= 0) { "+" } { "" } ++ driveDb.round(0.1) ++ " dB" ++ if(driveHeld) { " (held under full scale)" } { "" } };
 			args.clump(2).do({ |p| if(p[0] == \rate) { rate = p[1].abs.clip(0.05, 8) } });
+			// 15.2 b: the chain's write buffer (the cloud's and the icy stage's) as long as the source plays out, plus a breath — the engine's
+			// own control, never in the row's args text (argsText is made above)
+			args = args ++ [\icBufS, ((srcData.size / sr / rate) + 0.5).clip(1, 60)];
 			// durX: the envelope's length as a multiple of the source's own — of what the effect makes of it, when the tape's speed changes it
 			if(durX > 0) { o[\durMs] = (srcData.size / sr / rate * 1000 * durX).clip(lim[\durMs][0], lim[\durMs][1]) };
 			// shape: the object's length and room for the head · tail: the source, then the cap
 			total = if(endMode != "tail") { (o[\durMs] / 1000) + 0.5 } { (srcData.size / sr / rate) + (o[\capMs] / 1000) };
+			// 15.2 b: a LOOPING stretch that starts deep in its source is silent until the material reaches its start (the stage's gate) —
+			// the render runs that much longer; the head-finding (processDone) takes the silence off
+			{ |a| var ic = (); a.clump(2).do({ |p| ic[p[0]] = p[1] }); if(((ic[\icLoop] ? 0) >= 0.5) and: { (ic[\icMix] ? 0) > 0 } and: { (ic[\icFromMs] ? 0) > 0 }) { total = total + (ic[\icFromMs] / 1000) } }.value(args);
 			// preMs (the Decibel piece's 10.14, 2026-10-07): the source ENTERS the chain this long after the chain starts. A LIVE petals'
 			// window opens before its note and his envelopes start with the window (petals_live.scd); a render made "as live" stands the
 			// same way, so the two are one sound. The buffer is the silence, then the source; the render's own start is found as ever.
@@ -596,6 +643,7 @@
 			self[\processBusy].add(out.asSymbol);
 			self.say("LE_INFO", "process · " ++ out ++ " ← " ++ src ++ " · " ++ effect ++ " · " ++ endMode ++ " · rendering " ++ total.round(0.01) ++ " s offline"
 					++ if(o[\driveText].notNil) { " · driven " ++ o[\driveText] } { "" }
+					++ if(o[\regionSaid].notNil) { " · " ++ o[\regionSaid] } { "" }
 					++ if(parsed[\lines].size > 0) { " · " ++ parsed[\lines].size ++ " dial" ++ if(parsed[\lines].size > 1) { "s" } { "" } ++ " on a line" } { "" }
 				++ if(parsed[\unknown].size > 0) { " · NOT in the chain, left out: " ++ parsed[\unknown].join(", ") } { "" });
 			score.recordNRT(oscPath, nrtPath, nil, sr, "WAV", "float", opts, "", nil, { |code|
@@ -745,9 +793,15 @@
 	(d[\rows] ? "").asString.split($|).do({ |line|
 		var f = line.asString.split($;);
 		if(f.size >= 10) {
+			// 15.2 d (the Decibel piece's drone section): the length may be ABSOLUTE — "30000ms" in the durX field (a drone's source is unknown
+			// when the plan is sent, so no multiple can say it) — and a shape ending brings its fall and its curve as fields 12 and 13; an older
+			// row, ten or eleven fields, reads as before
+			var abs = f[5].asString.stripWhiteSpace.endsWith("ms");
 			rows.add((base: self.safeName(f[0]), suffix: self.safeName(f[1]), effect: f[2].asString, end: f[3].asString,
-				atkMs: f[4].asString.asFloat, durX: f[5].asString.asFloat, match: f[6].asString.asInteger, t: f[7].asString.asFloat,
-				capMs: f[8].asString.asFloat, args: f[9].asString, drive: if(f.size > 10) { f[10].asString.stripWhiteSpace } { "" }));
+				atkMs: f[4].asString.asFloat, durX: if(abs) { 0 } { f[5].asString.asFloat }, durMs: if(abs) { f[5].asString.stripWhiteSpace.drop(-2).asFloat } { 0 },
+				match: f[6].asString.asInteger, t: f[7].asString.asFloat,
+				capMs: f[8].asString.asFloat, args: f[9].asString, drive: if(f.size > 10) { f[10].asString.stripWhiteSpace } { "" },
+				relMs: if(f.size > 11) { f[11].asString.asFloat } { -1 }, curve: if(f.size > 12) { f[12].asString.stripWhiteSpace } { "" }));
 		};
 	});
 	self.planTouch;   // a plan comes at a pass's start: hold the renders (above)
@@ -802,6 +856,10 @@
 				match: r[\match], id: "plan", planned: 1);
 			if(r[\capMs] > 0) { m[\capMs] = r[\capMs] };
 			if(r[\drive].notNil and: { r[\drive].size > 0 }) { m[\srcDrive] = r[\drive] };   // absent: a plan's variant is driven normalized (processRender)
+			// 15.2 d: an absolute length, a fall and a curve of a shaped row (a drone) — the multiple set aside
+			if((r[\durMs] ? 0) > 0) { m[\durMs] = r[\durMs]; m.removeAt(\durX) };
+			if((r[\relMs] ? -1) >= 0) { m[\relMs] = r[\relMs] };
+			if((r[\curve] ? "").size > 0) { m[\curve] = r[\curve] };
 			// 10.14: a petals that is made LIVE at its own opening is rendered as it is heard live — the source entering where the note stood in the window
 			if(self[\liveRowPre].notNil) { pre = self.liveRowPre(r); if(pre.notNil) { m[\preMs] = pre } };
 			self.processRender(m);
