@@ -83,12 +83,35 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 			// arrival, and when the player's sound then arrives (the onset probe, below) a line says how long after the message it came —
 			// against the recording's own span. The recording begins at the message: a sound outside that span was not caught.
 			le.hear(\open, { |le, d, time|
-				lastOpen[(d[\player] ? '?').asSymbol] = (time: time, untilMs: (d[\dueMs] ? 0).asFloat + (d[\lengthMs] ? 500).asFloat);
+				var who = (d[\player] ? '?').asSymbol, p = le[\players][who], nm = le.safeName(d[\name]);
+				var secs = ((d[\dueMs] ? 0).asFloat / 1000) + ((d[\lengthMs] ? 500).asFloat / 1000), shadow;
+				lastOpen[who] = (time: time, untilMs: (d[\dueMs] ? 0).asFloat + (d[\lengthMs] ? 500).asFloat);
 				le.captureOpen(d);
-				// SWEEP_LIST #10: the server's node tree, ONCE per run, printed while the first window is open — who reads the bus before whom
-				if(le[\treeShown].isNil) { le[\treeShown] = true; SystemClock.sched(0.3, { le.say("LE_INFO", "the node tree, during the first mic opening:"); le[\server].queryAllNodes; nil }) };
+				// SWEEP_LIST #10 (2026-10-08): the SAME window recorded a second time by a recorder at the END of the tree (grpMeter's tail, after
+				// every writer), on the same bus number — and the number said. If this one hears the note and the capture does not, the order is wrong.
+				if(p.notNil and: { s.notNil }) {
+					shadow = Buffer.alloc(s, (secs * s.sampleRate).ceil.asInteger, 1, { |b| Synth.basicNew(\leCapture, s).newMsg(le[\grpMeter], [\in, p[\bus].index, \buf, b.bufnum], \addToTail) });
+					SystemClock.sched(secs + 0.3, {
+						shadow.loadToFloatArray(action: { |data|
+							var pk = if(data.size > 0) { data.abs.maxItem } { 0 };
+							le.say("LE_INFO", "SHADOW · " ++ nm ++ " · the same window by a recorder at the tree's END, bus " ++ p[\bus].index ++ ": peak " ++ le.db(pk) ++ " dB");
+							shadow.free;
+						});
+						nil
+					});
+				};
+				// the server's node tree, ONCE per run, while the first window is open — asked with /g_queryTree and SAID by the language (the server's own
+				// print is buffered in its console and never seen)
+				if(le[\treeShown].isNil) {
+					le[\treeShown] = true;
+					SystemClock.sched(0.3, {
+						OSCFunc({ |msg| le.say("LE_INFO", "TREE · " ++ msg[1..].collect(_.asString).join(" ")) }, '/g_queryTree.reply', s.addr).oneShot;
+						s.sendMsg("/g_queryTree", 0, 0);
+						nil
+					});
+				};
 			});
-			le.hear(\tree, { |le, d| le[\server].queryAllNodes });   // on demand: /le/tree
+			le.hear(\tree, { |le, d| OSCFunc({ |msg| le.say("LE_INFO", "TREE · " ++ msg[1..].collect(_.asString).join(" ")) }, '/g_queryTree.reply', s.addr).oneShot; s.sendMsg("/g_queryTree", 0, 0) });   // on demand: /le/tree
 		};
 		if(le[\sineHear].notNil) { le.sineHear };   // the generated voices (sine.scd) — with or without a bank
 		if(le[\performerHear].notNil) { le.performerHear };   // the computer players (performer.scd): /le/performer · /le/performerstop
@@ -129,6 +152,7 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 	le.say("LE_READY", le.json((device: le[\device], sr: s.sampleRate, players: names.asArray.collect(_.asString),
 		msgPort: le[\earPort], samples: nSamples)));
 	le.say("LE_INFO", "the bus · " ++ le.masterSaid);
+	le.say("LE_INFO", "the players' buses · " ++ names.asArray.collect({ |n| n.asString ++ " " ++ le[\players][n][\bus].index ++ " (in " ++ (s.options.numOutputBusChannels + le[\players][n][\ch]) ++ ")" }).join(" · ") ++ " · the master " ++ le[\busMaster].index ++ " · out " ++ le[\busOut].index);
 	if(le[\liveIsOn].notNil and: { le[\bankDir].notNil }) {
 		le.say("LE_INFO", "the petals live · " ++ if(le.liveIsOn) { "ON — a petals return within " ++ le.liveOf[\windowMs].round(1).asInteger
 			++ " ms of its own mic opening is made from the microphone, as it is played" }
