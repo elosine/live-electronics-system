@@ -26,8 +26,9 @@
 //     THE ATTACK ENTERS WHOLE: the window is open before the note. (An offline render of a cropped sample starts his rise ON the
 //     attack, and softens its first 20 ms — which is why the plan's render of a live variant is made "as live": below.)
 //     THE END is a tail's: it frees itself once it has fallen 60 dB under its own peak, or `cap` s after the window (150 ms fade).
-//     THE LEVEL is \leSample's law: envDb (8) · envDt (7) · envCurve, joined in decibels — set by /le/play (`on` 1 · t_go), and
-//     until then the synth is SILENT: a return whose brick is muted in the score makes no sound, though its window was opened.
+//     THE LEVEL is \leSample's law: envDb (8) · envDt (7) · envCurve, joined in decibels. The synth SOUNDS FROM ITS START at the
+//     "as played" level (set with its making — the Decibel piece's §238: the ring never waits for a message), and /le/play then
+//     applies the brick's written mark (t_go restarts the envelope at the new level). A lane muted in the page sends no opening.
 //
 // THE LEVEL IS BY CONSTRUCTION — nothing is measured when it plays. The offline road gives a variant three gains: the DRIVE
 // before the chain (the source brought to driveRef, held under full scale), the LEVEL SET after it (the render's peak matched to
@@ -163,7 +164,7 @@
 // ---- /le/open ---------------------------------------------------------------------------------------------------------
 ~le[\liveOpen] = { |self, d|
 	var s = self[\server], name = self.safeName(d[\name]), who = (d[\player] ? '?').asSymbol, p = if(self[\players].notNil) { self[\players][who] };
-	var openT = (d[\t] ? 0).asFloat, now = SystemClock.seconds, r, kind, variant, ref, node, win, wait, cap, sv, fund;
+	var openT = (d[\t] ? 0).asFloat, now = SystemClock.seconds, r, kind, variant, ref, node, win, wait, cap, sv, fund, lv0;
 	if(self.liveIsOn and: { p.notNil } and: { name.size > 0 } and: { self[\plan].notNil }) {
 		r = self[\plan].detect({ |x| (x[\base] == name) and: { self.liveAt(x, openT) } and: { self.liveKind(x).notNil } });
 	};
@@ -174,13 +175,17 @@
 		win = (d[\lengthMs] ? 500).asFloat.clip(20, 30000) / 1000;
 		wait = ((d[\dueMs] ? 0).asFloat / 1000).clip(0, 5);
 		cap = (if((r[\capMs] ? 0) > 0) { r[\capMs] } { 16000 }) / 1000;
-		// made NOW, its window opening by itself `wait` later: the node is there when /le/play sets its level
+		// made NOW, its window opening by itself `wait` later — AND SOUNDING FROM THE START at the "as played" level (the render's own
+		// gains, no mark): the ring never waits for /le/play. That message then applies the brick's written mark — a few dB — so a
+		// message that lands late (five hits at once, the Decibel piece's §238) is a small step in level, never a late start.
+		lv0 = self.levelFor(ref[\row], (dyn: "played"), ref[\outDb]);
 		if(s.notNil) {
 			node = Synth.basicNew(\lePetalsLive, s);
 			s.sendBundle(nil, node.newMsg(self[\grpFx], [\in, p[\bus].index, \out, self[\busMaster].index, \wait, wait, \win, win, \cap, cap,
-				\inAmp, ref[\inDb].dbamp, \mix, kind[\mix]] ++ kind[\args], \addToTail));
+				\inAmp, ref[\inDb].dbamp, \mix, kind[\mix], \on, 1, \envDb, lv0[\db], \envDt, lv0[\dt], \envCurve, lv0[\curve]] ++ kind[\args], \addToTail),
+				node.setMsg(\t_go, 1));
 		};
-		sv = (node: node, variant: variant, base: name, player: who, ref: ref, kind: kind, wait: wait, win: win, cap: cap, until: now + wait + win + cap + 1);
+		sv = (node: node, variant: variant, base: name, player: who, ref: ref, kind: kind, wait: wait, win: win, cap: cap, until: now + wait + win + cap + 1, level: lv0);
 		if(self[\liveServed].isNil) { self[\liveServed] = IdentityDictionary.new };
 		self[\liveServed][variant.asSymbol] = sv;
 		fund = kind[\args].indexOf(\poFund);
@@ -204,7 +209,7 @@
 			s.sendBundle(if(at > 0.005) { at }, sv[\node].setMsg(\on, 1, \envDb, lv[\db], \envDt, lv[\dt], \envCurve, lv[\curve], \t_go, 1));
 		};
 		sv[\level] = lv;
-		self.say("LE_INFO", "live · " ++ name ++ " · the petals ring from the microphone — no buffer · in " ++ (at * 1000).round(1).asInteger ++ " ms · "
+		self.say("LE_INFO", "live · " ++ name ++ " · the petals ring from the microphone — no buffer · the mark set in " ++ (at * 1000).round(1).asInteger ++ " ms · "
 			++ if(lv[\db][0] >= 0) { "+" } { "" } ++ lv[\db][0].round(0.1) ++ " dB" ++ self.levelSaid(lv) ++ if(sv[\ref][\exact]) { "" } { " · estimated" });
 		self.say("LE_RESULT", self.json((msg: "play", name: name.asString, id: (d[\id] ? "").asString, dueMs: (at * 1000).round(0.1), live: true,
 			gainDb: lv[\db][0].round(0.01), driveDb: sv[\ref][\inDb].round(0.01), exact: sv[\ref][\exact])));

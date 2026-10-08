@@ -7,7 +7,7 @@
 //                 /le/open answers the served variant with its gains — estimated before that render, exact after; a sample
 //                 that reads under ppp is not trusted ·
 //                 /le/play sets the level by the ladder and plays no buffer; another name is not touched
-//   THE SYNTH     silent until its level is set · it RINGS five seconds and more · the window: a second sound AFTER it closes
+//   THE SYNTH     made with no level, it is silent (the engine gives it the as-played level with its making) · it RINGS five seconds and more · the window: a second sound AFTER it closes
 //                 changes nothing, to the sample · THE CORRESPONDENCE: the same sound through the offline render of the same
 //                 variant reads within 1 dB of the live one, and is as long within a tenth · written at a mark, it reads the mark
 //                 · it ends, and is silent after
@@ -162,7 +162,7 @@ fork {
 		lv = ~le.levelFor(r, (dyn: "played"), r[\outGainDb]);
 		live = render.("live", args.(dials, r[\driveDb]), [wait + pre], [[wait + pre - 0.005, [\on, 1] ++ ~le.levelArgs(lv) ++ [\t_go, 1]]], 14.5);
 		quiet = render.("quiet", args.(dials, r[\driveDb]), [wait + pre], [], 3);
-		check.("silent until its level is set: a return whose brick never speaks makes no sound", quiet.notNil and: { quiet[0].abs.maxItem == 0 },
+		check.("made with no level it is silent — the engine sets the as-played level with the making, the mark at /le/play (§238)", quiet.notNil and: { quiet[0].abs.maxItem == 0 },
 			if(quiet.notNil) { "the loudest sample of 3 s: " ++ quiet[0].abs.maxItem } { "no file" });
 		if(live.notNil) {
 			sLive = span.(live[0]);
