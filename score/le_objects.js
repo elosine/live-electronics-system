@@ -178,6 +178,13 @@
         },
         // a variant is '<key>-<env>' — or { v: '<key>-<env>', drive } when the BRICK says how hard the sample hits the effect (11.4)
         variantOf(e, name) { const x = e && e.variants && e.variants[name], v = x && typeof x === 'object' ? x.v : x; return v ? safe(v) : ''; },
+        // a SHAPED variant's absolute length in ms — its preset's durMs (a drone's own length, the Decibel piece's DEC-56); 0 when the brick's
+        // variant is not a shape or the preset is unknown. A return brick with one is drawn as long as its shape, never as its raw sample.
+        shapeMs(e) {
+            const v = this.variantOf(e, e && e.name); if (!v || !/-shape$/.test(v) || !this.presets) return 0;
+            const p = (this.presets.presets || []).find((x) => x.key === v.slice(0, -6));
+            return p && p.end === 'shape' && +p.durMs > 0 ? +p.durMs : 0;
+        },
         // THE DRIVE (the first piece's 11.4): what goes INTO an effect — 'normalized' (brought to one level first: the effect always
         // speaks; the default of a plan's variant) · 'played' (as the microphone caught it: the player leads) · '+12' / '-6' (dB).
         // On a preset of the piece's file (`drive`), and on a brick's own variant, which then asks for a NAME of its own:
@@ -263,8 +270,9 @@
             const h = this.host; if (!h) return;
             for (const z of this.zones()) {
                 if (z.midiModel === 'elecPlay' && z.elec && !z.elec.behaviour) {   // a behaviour's brick keeps its region
-                    const row = this.row(z.elec.name);
-                    if (row && row.lengthMs > 0) z.endTime = r3(z.startTime + row.lengthMs / 1000);
+                    const row = this.row(z.elec.name), shape = this.shapeMs(z.elec);
+                    if (shape > 0) z.endTime = r3(z.startTime + shape / 1000);   // a SHAPED variant (a drone) is as long as its shape, never its source (the Decibel piece's SWEEP_LIST #14)
+                    else if (row && row.lengthMs > 0) z.endTime = r3(z.startTime + row.lengthMs / 1000);
                 }
                 if (z.midiModel === 'elecProcess' && this.processRedraw) this.processRedraw(z);   // as long as its render (le_process.js)
                 if (z._els) h.renderZone(z);
