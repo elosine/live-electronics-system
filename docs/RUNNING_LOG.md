@@ -933,3 +933,12 @@ A fourth mode in `boot.scd`, `\remote`: the devices from `LE_DEVICE_IN` · `LE_D
 **BUILT (`sc/session.scd`):** THE CLOCK CHECK — at the start, after the players and the bank, a `\leClockCheck` synth writes `Sweep.kr(0, 1)` to a control bus for one second of `SystemClock` time; the bus is read back; a ratio outside 0.8 … 1.25 is an `LE_ERROR` naming the fault and the cure (close the engine · close and reopen the DAW · start again); a sane server says `the clock · the server's second is a second (1.00×)`. Also kept from the hunt: `heard · <player> · its sound came N ms after its mic opening's message — INSIDE / OUTSIDE the window` on every onset within 4 s of an opening; `/le/tree` (the node tree asked with `/g_queryTree`, said by the language); InFeedback in `leCapture` and `lePetalsLive` (a bus not yet written this cycle is read as it stood a cycle ago — order-proof).
 
 **For a piece:** nothing to change. The cause of the free run (ReaRoute after a clean close of the engine) is the DAW's side — NITS.
+
+## §59
+**2026-10-08 — THE PLAN'S RENDERS HELD WHILE THE MUSIC PLAYS (Fable, in the Decibel piece — its RUNNING_LOG §234 · SWEEP_LIST #11).**
+
+**What was seen there:** with the plan rendering each capture's variant right after it (10.8) and the live petals (10.14) at hits 3 s apart, the engine answered messages late in the pass — a ring 500 ms behind its note, an opening that missed its note. A render is a second scsynth at full CPU; its banking measures the file in the language, breathing.
+
+**BUILT (`sc/process.scd` · `sc/bank.scd` · `sc/session.scd`):** `planHoldS` (6) and `planTouch` — `planNext` holds the queue while a mic opening or a plan came within the hold, says so once, and looks again when the quiet has lasted; `LE_PLAN_HOLD` at the start. The renders of a pass run after its last opening, not under its next ones. `process_test.scd` proves the hold then the queue two wide.
+
+**For a piece:** nothing to change; a piece that wants renders DURING its music (a return placed seconds after its capture on a first pass) sets `LE_PLAN_HOLD=0` — then the earlier take is played where a render is not in, as before. The real cure for the measure's cost (on the server, not in the language) stays in NITS.

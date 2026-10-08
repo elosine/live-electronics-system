@@ -729,6 +729,13 @@
 
 // ---- THE PLAN: the variants a score will ask for, rendered as soon as their sample is captured (the header has the messages) --------
 ~le[\planWidth] = 2;   // how many renders may run at once: each is a second scsynth, beside a performance
+// THE HOLD (2026-10-08, the Decibel piece's SWEEP_LIST #11): NO RENDER WHILE THE MUSIC PLAYS. A render is a second scsynth at full
+// CPU for seconds, and its banking measures a 16 s file in the language; under the next hits (3 s apart) the engine answered messages
+// late — a ring 500 ms behind its note, an opening that missed its note. The queue waits until no mic opening (and no plan — a pass
+// is starting) has come for planHoldS, then runs. A variant asked for before its render plays its earlier take, as ever (bank.scd
+// sampleFor); the live petals (petals_live.scd) need no render in real time. A piece may move the number (LE_PLAN_HOLD, session.scd).
+~le[\planHoldS] = 6;
+~le[\planTouch] = { |self| self[\planLastTouch] = SystemClock.seconds; self };   // an opening or a plan: the music is on
 
 // /le/plan — one PART of a plan. The parts share a stamp and may arrive in any order (each is its own HTTP request and its own
 // datagram); the plan in force changes only when the last one is in.
@@ -743,6 +750,7 @@
 				capMs: f[8].asString.asFloat, args: f[9].asString, drive: if(f.size > 10) { f[10].asString.stripWhiteSpace } { "" }));
 		};
 	});
+	self.planTouch;   // a plan comes at a pass's start: hold the renders (above)
 	if(self[\planIn].isNil or: { self[\planIn][\stamp] != stamp }) { self[\planIn] = (stamp: stamp, parts: IdentityDictionary.new, render: false) };
 	self[\planIn][\parts][part] = rows;
 	if((d[\render] ? 0).asInteger > 0) { self[\planIn][\render] = true };
@@ -777,8 +785,15 @@
 
 // the next renders, the soonest-needed first, while a slot is free; called when a variant is queued and when any render ends
 ~le[\planNext] = { |self|
-	var q, r, m, pre;
+	var q, r, m, pre, hold = (self[\planHoldS] ? 6), since = SystemClock.seconds - (self[\planLastTouch] ? -1e9), left = hold - since;
 	if(self[\planQueue].notNil and: { self[\planQueue].size > 0 }) {
+		if(left > 0) {   // THE HOLD: the music is playing — look again when it has been quiet for the hold; one timer at a time
+			if(self[\planHeld] != true) {
+				self[\planHeld] = true;
+				self.say("LE_INFO", "plan · " ++ self[\planQueue].size ++ if(self[\planQueue].size == 1) { " render" } { " renders" } ++ " held while the music plays — in " ++ left.round(0.1) ++ " s of quiet");
+				SystemClock.sched(left + 0.05, { self[\planHeld] = false; self.planNext; nil });
+			};
+		} {
 		self[\planQueue] = self[\planQueue].asArray.sort({ |a, b| a[\row][\t] <= b[\row][\t] }).asList;
 		while { (self[\planQueue].size > 0) and: { self[\processBusy].size < self[\planWidth] } } {
 			q = self[\planQueue].removeAt(0);
@@ -790,6 +805,7 @@
 			// 10.14: a petals that is made LIVE at its own opening is rendered as it is heard live — the source entering where the note stood in the window
 			if(self[\liveRowPre].notNil) { pre = self.liveRowPre(r); if(pre.notNil) { m[\preMs] = pre } };
 			self.processRender(m);
+		};
 		};
 	};
 	self

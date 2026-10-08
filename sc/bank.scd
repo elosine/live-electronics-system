@@ -242,6 +242,7 @@
 	var name = self.safeName(d[\name]), id = self.safeName(d[\id]);
 	var winMs = (d[\lengthMs] ? 500).asFloat.clip(20, 30000), lead = ((d[\dueMs] ? 0).asFloat / 1000).clip(0, 5);
 	var total = lead + (winMs / 1000), buf;
+	if(self[\planTouch].notNil) { self.planTouch };   // the music is on: the plan's renders wait (process.scd, the hold)
 	// the Decibel piece's 10.14 (2026-10-07): a petals return AT this opening is made LIVE, from the player's microphone, whatever the capture
 	// below does or does not do — petals_live.scd. Its own try: a fault there is not a fault of the capture.
 	if(self[\liveOpen].notNil) { try { self.liveOpen(d) } { |err| self.say("LE_ERROR", "live · " ++ name ++ " — the live petals was NOT started · " ++ err.errorString) } };

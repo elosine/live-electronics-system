@@ -17,6 +17,7 @@
 //   LE_AR        the return behaviour 'ar', where a piece overrides the defaults:  before=0.35,afterLo=100,…  (bank.scd arDefaults)
 //   LE_CHAIN     the return behaviour 'chain':  after=0.7,lazy=0.2,far=0.1,unison=0,before=0,follow=1,shuffle=1  (bank.scd chainDefaults)
 //   LE_LIVE      the petals live, where a piece overrides the defaults:  on=1,windowMs=300  (petals_live.scd liveDefaults)
+//   LE_PLAN_HOLD seconds of quiet (no opening, no plan) before the plan's renders run — none while the music plays (process.scd; 6)
 //   LE_LEVEL     the ladder of marks, where a piece overrides the defaults:  reference=-29.54,stepDb=4,liftCapDb=20,floorDb=-60  (level.scd)
 //   LE_MASTER    the bus's dials, where a piece overrides the engine's neutral defaults:  hpfHz=30,glueOn=1,glueThr=-18,ceilingDb=-1,lookaheadMs=5  (boot.scd § the bus)
 //   LE_VENUE     a hall's numbers for each microphone:  name=<n>;bcl:trimDb=-2.5:hpfHz=90:eq1=250/-3/1,bfl:…  (boot.scd § the house; absent = flat)
@@ -68,6 +69,7 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 		le[\chainOpts] = ();
 		chainSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { le[\chainOpts][b[0].asSymbol] = b[1].asFloat } });
 	};
+	if("LE_PLAN_HOLD".getenv.notNil and: { "LE_PLAN_HOLD".getenv.size > 0 }) { le[\planHoldS] = "LE_PLAN_HOLD".getenv.asFloat.clip(0, 120) };   // the renders' hold after the last opening (process.scd)
 	if(liveSpec.notNil and: { liveSpec.size > 0 }) {
 		le[\liveOpts] = ();
 		liveSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { le[\liveOpts][b[0].asSymbol] = b[1].asFloat } });

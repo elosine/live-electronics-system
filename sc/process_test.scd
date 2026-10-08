@@ -258,8 +258,12 @@ fork {
 		rows: 't-src;x2-expodec;diffusion;expodec;0;1.75;1;9.5;0;diffMix:1,diffTime:0.02,diffGain:0.55|t-src;x1-perc;crush;perc;3;1;1;6.2;0;crMix:0.4,crBits:4,crRate:10400'));
 	check.("the plan is whole, the soonest-needed first", ~le[\plan].notNil and: { ~le[\plan].size == 3 } and: { ~le[\plan][0][\suffix] == "x1-perc" } and: { ~le[\plan][2][\suffix] == "x3-tri" },
 		if(~le[\plan].notNil) { ~le[\plan].collect({ |r| r[\suffix] ++ " at " ++ r[\t] }).join(" · ") } { "no plan" });
+	// THE HOLD (SWEEP_LIST #11): a plan has just come — the music is on — so nothing renders until planHoldS of quiet; then the queue runs two wide
+	~le[\planHoldS] = 1.5;
 	~le.planRender("t-src");
-	check.("the queue is two wide", (~le[\processBusy].size == 2) and: { ~le[\planQueue].size == 1 }, ~le[\processBusy].size.asString ++ " rendering · " ++ ~le[\planQueue].size ++ " waiting");
+	check.("no render while the music plays: the three are HELD after the plan", (~le[\processBusy].size == 0) and: { ~le[\planQueue].size == 3 } and: { ~le[\planHeld] == true }, ~le[\processBusy].size.asString ++ " rendering · " ++ ~le[\planQueue].size ++ " held");
+	1.7.wait;
+	check.("the queue is two wide, once it has been quiet", (~le[\processBusy].size == 2) and: { ~le[\planQueue].size == 1 }, ~le[\processBusy].size.asString ++ " rendering · " ++ ~le[\planQueue].size ++ " waiting");
 	p1 = waitFor.("t-src~x1-perc");
 	p2 = waitFor.("t-src~x2-expodec");
 	p3 = waitFor.("t-src~x3-tri");
