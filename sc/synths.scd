@@ -43,6 +43,9 @@
 //            on envCurve, joined in decibels as leSample's is; its PITCH is `freq` moved by a line of CENTS — glissCents (8)
 //            over glissDt (7), straight in cents (an even glide to the ear), at audio rate. A 10 ms rise and a 30 ms fall
 //            stand under both, so it never clicks. sine.scd makes the lines from a brick's marks (sineSpec).
+// lePetalsLive  A PLAYER'S MICROPHONE INTO THE PETALS OF RESONANCE, LIVE (petals_live.scd; first built in the Decibel piece, 2026-10-07):
+//            the player's bus through a window, the composer's bank of 26 resonators ringing on, to the master, dual mono; it frees
+//            itself. Its level is leSample's envelope, set when the return's message comes; silent until then.
 (
 SynthDef(\leIn, { |in = 0, out = 0, amp = 1, hpfOn = 0, hpfFreq = 90, eq1On = 0, eq1Freq = 250, eq1Db = 0, eq1Rq = 1, eq2On = 0, eq2Freq = 3000, eq2Db = 0, eq2Rq = 1|
 	var sig = In.ar(in, 1) * amp, x;
@@ -169,4 +172,7 @@ SynthDef(\leSine, { |out = 0, freq = 220, dur = 4, amp = 1, gate = 1|
 	var sig = SinOsc.ar(freq * (cents / 100).midiratio) * amp * lvl * guard * let;
 	Out.ar(out, [sig, sig]);
 }).add;
+
+// lePetalsLive — a player's microphone into the petals of resonance, in real time (petals_live.scd has the SynthDef and its story)
+if(~le[\petalsLiveDef].notNil) { ~le.petalsLiveDef.add };
 )

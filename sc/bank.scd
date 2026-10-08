@@ -24,6 +24,8 @@
 //       a step, a line — ms:level from the sample's own start). A chain's and a pattern's samples each take it from their own start.
 //       A name may be a VARIANT of the plan, <base>~<key>-<env> (process.scd): played before its render is in, it falls back to
 //       the earlier render or to its base, raw — ~le.sampleFor, said in the window.
+//       THE PETALS LIVE (petals_live.scd, 2026-10-07): a petals variant whose first use sits AT ITS OWN OPENING is not a buffer at
+//       all — /le/open starts the bank of resonators on the player's microphone, and this message only sets its level.
 //
 // THE CROP'S RULE (~le.cropFind — on the recording's samples, in the language, so the engine is whole without a score server):
 //   the level is read in steps of one millisecond (the loudest sample of each);
@@ -119,7 +121,7 @@
 // ---- the index --------------------------------------------------------------------------------------------------------
 // (a JSON file read by the language comes back all strings: the numbers of the schema are made numbers again here)
 ~le[\indexRead] = { |self|
-	var path = self[\bankDir] +/+ "index.json", doc, rows = List.new, numbers = [\scoreTime, \lengthMs, \peakDb, \windowMs, \attackMs, \loudDb, \loudIntDb, \floorDb, \overDb];
+	var path = self[\bankDir] +/+ "index.json", doc, rows = List.new, numbers = [\scoreTime, \lengthMs, \peakDb, \windowMs, \attackMs, \loudDb, \loudIntDb, \floorDb, \overDb, \leadMs, \driveDb, \outGainDb, \preMs];
 	self[\indexBroken] = false;
 	if(File.exists(path)) {
 		try { doc = path.parseJSONFile } { doc = nil };
@@ -143,7 +145,7 @@
 
 // the rows of ANY folder's index, read without touching the write bank's state — the source the buffers are filled from (§71)
 ~le[\indexRowsOf] = { |self, dir|
-	var path = dir.asString +/+ "index.json", doc, rows = List.new, numbers = [\scoreTime, \lengthMs, \peakDb, \windowMs, \attackMs, \loudDb, \loudIntDb, \floorDb, \overDb];
+	var path = dir.asString +/+ "index.json", doc, rows = List.new, numbers = [\scoreTime, \lengthMs, \peakDb, \windowMs, \attackMs, \loudDb, \loudIntDb, \floorDb, \overDb, \leadMs, \driveDb, \outGainDb, \preMs];
 	if(File.exists(path)) {
 		try { doc = path.parseJSONFile } { doc = nil };
 		if(doc.notNil and: { doc["samples"].notNil }) {
@@ -240,6 +242,9 @@
 	var name = self.safeName(d[\name]), id = self.safeName(d[\id]);
 	var winMs = (d[\lengthMs] ? 500).asFloat.clip(20, 30000), lead = ((d[\dueMs] ? 0).asFloat / 1000).clip(0, 5);
 	var total = lead + (winMs / 1000), buf;
+	// the Decibel piece's 10.14 (2026-10-07): a petals return AT this opening is made LIVE, from the player's microphone, whatever the capture
+	// below does or does not do — petals_live.scd. Its own try: a fault there is not a fault of the capture.
+	if(self[\liveOpen].notNil) { try { self.liveOpen(d) } { |err| self.say("LE_ERROR", "live · " ++ name ++ " — the live petals was NOT started · " ++ err.errorString) } };
 	case
 	{ self[\bankDir].isNil } { self.say("LE_INFO", "open · " ++ who ++ " — the engine was started with no bank folder: nothing is recorded") }
 	{ p.isNil } { self.say("LE_INFO", "open · " ++ who ++ " — the engine has no such player: nothing is recorded") }
@@ -295,7 +300,7 @@
 			old = self[\samples][name.asSymbol];
 			row = (id: "smp_" ++ self.nowIso.select(_.isDecDigit), name: name, player: who.asString, lane: (d[\lane] ? -1).asInteger,
 				category: (d[\category] ? "").asString, scoreTime: (d[\t] ? 0).asFloat.round(0.001), lengthMs: lenMs,
-				peakDb: self.db(c[\peak]), file: rel, raw: rawRel, openingId: id, windowMs: winMs, attackMs: atMs, captured: self.nowIso);
+				peakDb: self.db(c[\peak]), file: rel, raw: rawRel, openingId: id, windowMs: winMs, attackMs: atMs, leadMs: (d[\dueMs] ? 0).asFloat.clip(0, 5000).round(0.1), captured: self.nowIso);   // leadMs (10.14): how far ahead of its window the recording began — attackMs less this is where the note stood in the window
 			// the Decibel piece's 11.1: HOW LOUD it is, on the players' scale (level.scd) — its own try: a figure that cannot be made
 			// costs the figure, never the row
 			if(self[\loudOf].notNil) { loud = try { self.loudOf(out, sr) } { nil }; if(loud.notNil) { self.loudInto(row, loud) } };
@@ -453,7 +458,7 @@
 //   /le/play … behaviour pattern pattern a:0,b:250,c:610   the brick's start is the live note; each sample atMs after it, as composed
 ~le[\samplePlay] = { |self, d|
 	var s = self[\server], name = self.safeName(d[\name]), due = ((d[\dueMs] ? 0).asFloat / 1000).clip(0, 5);
-	var smp, beh = (d[\behaviour] ? "").asString, roll, at = due, clipped = false;   // smp: looked up where ONE sample is played — sampleFor says a late variant
+	var smp, beh = (d[\behaviour] ? "").asString, roll, at = due, clipped = false, live = false;   // smp: looked up where ONE sample is played — sampleFor says a late variant
 	// the Decibel piece's 11.3 · 11.6: each sample is played AT ITS DYNAMIC — the message's dyn · env against the sample's OWN loudness
 	// (level.scd levelFor) — and EARLIER by the master's look-ahead (masterDelay), so it still lands where the brick is
 	var la = (self[\masterDelay] ? 0), lvOne;
@@ -491,9 +496,11 @@
 		self.say("LE_RESULT", self.json((msg: "play", behaviour: beh, id: (d[\id] ? "").asString, dueMs: (due * 1000).round(0.1),
 			links: links.collect({ |k| k[\name].asString ++ ":" ++ k[\stance] ++ ":" ++ k[\atMs] }).join(","))));
 	} {
-		smp = self.sampleFor(name);
+		// the Decibel piece's 10.14: a variant that is being made LIVE at its own opening — its level is set and NO buffer is played (petals_live.scd)
+		live = (beh.size == 0) and: { self[\livePlay].notNil } and: { self.livePlay(d, name, due) };
+		smp = if(live) { nil } { self.sampleFor(name) };
 		if(smp.isNil) {
-			self.say("LE_INFO", "play · " ++ name ++ " — no such sample in the bank");
+			if(live.not) { self.say("LE_INFO", "play · " ++ name ++ " — no such sample in the bank") };
 		} {
 			if(beh == "ar") {   // the roll: the sample moves from the centre by the offset; a "before" the message came too late for lands now
 				roll = self.arRoll; at = due + (roll[\offsetMs] / 1000); clipped = at < 0; at = at.max(0);

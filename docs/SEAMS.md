@@ -314,6 +314,19 @@ the page's half by `tools/sine_page_test.js` under a stub window (33 checks). NO
 - **What a piece gives:** the bricks (which performer, in which state, when, listening to whom), the PALETTES (which banked samples each performer plays), the dials — and, in a simulation, the players' notes. The lane → player table is the route table's, as for a mic opening.
 - **`ear`:** `sim` in a simulation · `mic` in a concert (the onset probe of 4.2 e — **it reports a rise out of silence and holds 250 ms: an attack over a ringing sound is not heard. A detector of attacks is the next thing the concert's road needs — NITS.**)
 
+## The petals live — a return at its own mic opening, made from the microphone (the Decibel piece's 10.14)
+
+*(Built in the Decibel piece, 2026-10-07 — its PLAN 10.14; this repo's RUNNING_LOG §57. NO line of a piece's stack files changes for it, and no message gains a field: the rule is the engine's.)*
+
+| what | where | a piece's part |
+|---|---|---|
+| the rule | `sc/petals_live.scd` `liveOpen` (called by `captureOpen`) · `livePlay` (called by `samplePlay`) | none — a return brick with a petals variant, placed within the window after its sample's opening, IS the use |
+| the switch and the window | `LE_LIVE=on=1,windowMs=300` at the engine's start (`sc/session.scd`) | its tool flattens its route table's entry; absent = on, 300 |
+| the level | the variant's latest render: `driveDb` · `outGainDb` · `preMs` in its row | none — the plan's renders write them |
+| the label | `score/le_objects.js` `isLive` — `· LIVE` | none |
+
+**The index's rows gain** (all numbers; `indexRead` makes them numbers again): `leadMs` on a captured sample — how far ahead of its window the recording began; `driveDb` · `outGainDb` on a rendered one — the two gains the render was given; `preMs` on a render made as live — how late its source entered the chain. A row without them is from an engine before 2026-10-07 and is read as before.
+
 ## The level — a sample's loudness, a return's dynamic, the drive, the bus, the house (part 13)
 
 *(Built in the Decibel piece, 2026-10-06 — its PLAN 1.4; this repo's RUNNING_LOG §42 … §45. NO line of a piece's stack files changes for any of it: the page's part is in the two modules already tagged, the engine's in files `boot.scd` loads.)*

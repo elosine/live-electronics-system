@@ -337,4 +337,6 @@
 (~le[\dir] +/+ "performer.scd").load;
 // ---- the processing: a banked sample through the chain, offline, banked again (the engine plan's part 6) — its own file ----
 (~le[\dir] +/+ "process.scd").load;
+// ---- the petals live: a player's microphone straight into the petals of resonance, for a return at its own mic opening (the Decibel piece's 10.14) — its own file ----
+(~le[\dir] +/+ "petals_live.scd").load;
 )

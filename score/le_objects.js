@@ -286,10 +286,27 @@
                 if (e.behaviour === 'pattern') { const n = Array.isArray(e.pattern) ? e.pattern.length : 0; text = M.sign + ' ' + (n ? n + ' samples · ' + Math.round((zone.endTime - zone.startTime) * 1000) + ' ms' + (e.pattern.some((p) => p && p.variant) ? ' · a preset each' : '') : 'no sample picked'); }
                 if (e.behaviour) text += ' ~ ' + String(e.behaviour).toUpperCase();
                 if (e.dyn) text += ' · ' + this.dynLabel(e);   // its dynamic, where one is written
-                if (e.behaviour !== 'pattern' && !this.row(e.name)) text += ' — not captured yet';
+                if (this.isLive(zone)) text += ' · LIVE';   // made from the microphone as the note is played (the engine's petals_live.scd): it needs no capture
+                else if (e.behaviour !== 'pattern' && !this.row(e.name)) text += ' — not captured yet';
                 if (e.label) text = M.sign + ' ' + String(e.label).slice(0, 48) + ' · ' + text.slice(M.sign.length + 1);   // a brick's own tag, first: a number in an audition, a chord's name, a word of his
             }
             if (label) label.textContent = text;
+        },
+
+        // THE PETALS LIVE (the first piece's 10.14, 2026-10-07; sc/petals_live.scd) — the ENGINE's rule, mirrored here for the label alone:
+        // a plain return that sits within liveWindowS after the start of its own sample's mic opening, processed by a petals preset
+        // (effect petalsOrig, the petals' own dials, no dial on a line) under its tail. The engine makes it from the player's microphone
+        // as the note is played and plays no buffer; the messages are the same as any return's.
+        isLive(zone) {
+            const e = zone && zone.elec, P = this.presets;
+            if (!e || e.behaviour || !e.name || !P) return false;
+            const v = this.variantOf(e, e.name);
+            if (!v) return false;
+            const { key, env } = this.splitVariant(v), p = P.presets.find((x) => x.key === key);
+            if (!p || env !== 'tail' || p.effect !== 'petalsOrig') return false;
+            if (Object.entries(p.args || {}).some(([k, x]) => !/^po[A-Z]/.test(k) || typeof x === 'string')) return false;
+            const w = this.opts.liveWindowS || 0.3;
+            return this.zones('elecOpen').some((o) => o.elec && o.elec.name === e.name && zone.startTime >= o.startTime - 0.01 && zone.startTime <= o.startTime + w);
         },
 
         // ---- the gestures ---------------------------------------------------------------------------------------------------

@@ -16,6 +16,7 @@
 //   LE_CROP      the crop's rule, where a piece overrides the defaults:  attackDb=-30,endDb=-45,holdMs=50  (bank.scd)
 //   LE_AR        the return behaviour 'ar', where a piece overrides the defaults:  before=0.35,afterLo=100,…  (bank.scd arDefaults)
 //   LE_CHAIN     the return behaviour 'chain':  after=0.7,lazy=0.2,far=0.1,unison=0,before=0,follow=1,shuffle=1  (bank.scd chainDefaults)
+//   LE_LIVE      the petals live, where a piece overrides the defaults:  on=1,windowMs=300  (petals_live.scd liveDefaults)
 //   LE_LEVEL     the ladder of marks, where a piece overrides the defaults:  reference=-29.54,stepDb=4,liftCapDb=20,floorDb=-60  (level.scd)
 //   LE_MASTER    the bus's dials, where a piece overrides the engine's neutral defaults:  hpfHz=30,glueOn=1,glueThr=-18,ceilingDb=-1,lookaheadMs=5  (boot.scd § the bus)
 //   LE_VENUE     a hall's numbers for each microphone:  name=<n>;bcl:trimDb=-2.5:hpfHz=90:eq1=250/-3/1,bfl:…  (boot.scd § the house; absent = flat)
@@ -38,6 +39,7 @@ var bank = "LE_BANK".getenv;
 var cropSpec = "LE_CROP".getenv;
 var arSpec = "LE_AR".getenv;
 var chainSpec = "LE_CHAIN".getenv;
+var liveSpec = "LE_LIVE".getenv;
 var source = "LE_SOURCE".getenv;
 var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 (dir +/+ "boot.scd").load;
@@ -65,6 +67,10 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 	if(chainSpec.notNil and: { chainSpec.size > 0 }) {
 		le[\chainOpts] = ();
 		chainSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { le[\chainOpts][b[0].asSymbol] = b[1].asFloat } });
+	};
+	if(liveSpec.notNil and: { liveSpec.size > 0 }) {
+		le[\liveOpts] = ();
+		liveSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { le[\liveOpts][b[0].asSymbol] = b[1].asFloat } });
 	};
 	if(bank.notNil and: { bank.size > 0 }) { nSamples = le.bankOn(bank, crop, source, record) };
 	s.sync;
@@ -105,6 +111,11 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 	le.say("LE_READY", le.json((device: le[\device], sr: s.sampleRate, players: names.asArray.collect(_.asString),
 		msgPort: le[\earPort], samples: nSamples)));
 	le.say("LE_INFO", "the bus · " ++ le.masterSaid);
+	if(le[\liveIsOn].notNil and: { le[\bankDir].notNil }) {
+		le.say("LE_INFO", "the petals live · " ++ if(le.liveIsOn) { "ON — a petals return within " ++ le.liveOf[\windowMs].round(1).asInteger
+			++ " ms of its own mic opening is made from the microphone, as it is played" }
+			{ "off" ++ if(mode == \remote) { " (no microphones in this mode)" } { "" } ++ " — such a return plays its earlier render" });
+	};
 	if(le[\venue].notNil) { le.say("LE_INFO", "the house · " ++ le.micSaid ++ if(le[\refuseBleed] == true) { " · a bled capture is REFUSED" } { "" }) };
 	le.say("LE_INFO", "the engine is listening — close this window to stop it. "
 		++ if(le[\bankDir].notNil) { "The bank holds " ++ nSamples ++ " sample" ++ if(nSamples == 1) { "" } { "s" } ++ ". "

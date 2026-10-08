@@ -32,6 +32,12 @@
 play back, then **STOP and ask**. No edits, no builds, no tool calls beyond the resume
 reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, then work.)*
 
+### 2026-10-07 — THE PETALS LIVE, in the Decibel piece (Opus; RUNNING_LOG §57; parts 6 · 11)
+
+- **What exists:** `sc/petals_live.scd` — `\lePetalsLive` (a player's bus through a window into the composer's bank of resonators, in real time), the rule at `/le/open` and `/le/play`, the level from the latest render of the same variant · `~le[\petalsGraph]` in `sc/process.scd` (one graph, two SynthDefs; the offline render unchanged to the sample) · `/le/process preMs` · a render's row `driveDb` · `outGainDb` · `preMs`, a capture's `leadMs` · `LE_LIVE` · the label `· LIVE` (`score/le_objects.js` `isLive`).
+- **Proven:** offline — `sc/petals_live_test.scd` (new) and the four batteries. **Not claimed:** a living engine; the composer's ear; a hall.
+- **Next:** by the Decibel piece's need — its journal §2's first block (his restart, his ear). Open in `docs/NITS.md`: the window hears the room; only the petals are live; a behaviour'd return is not.
+
 ### 2026-10-06 — A GENERATED VOICE, THE SINE, in the Decibel piece (Opus; RUNNING_LOG §47 · §48; part 11.4)
 
 - **What exists:** `sc/sine.scd` (loaded by `boot.scd` after `level.scd`; `session.scd` wires `sineHear` with or without a bank) · `\leSine` in `sc/synths.scd` · `/le/sine` · `/le/sinestop` · `score/le_sine.js` (a mixin on `LEObjects`; `le_objects.js` hands it the key, the label, the panel, the fire and the tick's "inside") · `sc/sine_test.scd` · `tools/sine_page_test.js` · `docs/SEAMS.md` § the fourth object, the two kinds, rows 2c · 3.

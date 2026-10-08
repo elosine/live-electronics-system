@@ -33,6 +33,11 @@
 //   the sample in a buffer, playable at once by /le/play. One LE_RESULT line; an LE_ERROR when nothing was made.
 //       durX     (2026-10-05, the Decibel piece's DEC-22) instead of durMs: the envelope's length as a MULTIPLE OF THE SOURCE'S OWN
 //                length — and of the length the effect makes of it when the args change `rate` (a tape at half speed is twice as long).
+//       preMs    (2026-10-07, the Decibel piece's 10.14) the source ENTERS the chain this many ms after the chain starts — silence
+//                first. For a render that must stand as a LIVE petals is heard (petals_live.scd): there the window opens before the
+//                note and the bank's own envelopes start with the window. The plan gives it by itself (planNext · liveRowPre).
+//   A render's row also says, as NUMBERS, the two gains it was given — driveDb (the source's drive, before the chain) and outGainDb
+//   (the level set after it: the match, gainDb, the hold) — and its preMs: a live petals is played with exactly these.
 //
 // THE PLAN (the Decibel piece's 10.8 · DEC-21 · 22 — "every return a transformation"): a score may ask for VARIANTS of the samples it
 // captures, <base>~<suffix> (bfl-impulse-1~crush4-perc): one effect under a short envelope. The score is a PLAN; the engine renders
@@ -47,6 +52,9 @@
 //   run at once and each one's end starts the next. A variant is a processed sample like any other — a file, a row (planned: 1),
 //   a buffer. Played before its render is in, a variant falls back (bank.scd sampleFor): the EARLIER render if a buffer holds one
 //   (the take before, or the backup's), else its base RAW — said in the window each time, as "late".
+//   A PETALS VARIANT USED AT ITS OWN MIC OPENING is not played from its render at all: the engine makes it LIVE, from the microphone
+//   (petals_live.scd, 2026-10-07). Its render is still made after each capture — as live (preMs) — for the record, for a later
+//   return of the same variant, and for the live petals' LEVEL; a plan that finds no such render yet makes one at once (livePlanCheck).
 //
 // THE RENDER IS OFFLINE (NRT): a second scsynth, with no device and no port, plays the source's FILE through the chain into a
 // file, faster than real time — the sandbox's own road for this chain (its build/audition/*.scd), so the living engine's sound
@@ -90,6 +98,69 @@
 ~le[\processDefaults] = (end: "tail", floorDb: -60, capMs: 8000, fadeOutMs: 30, atkMs: 2, durMs: 600, relMs: 600, curve: -4, gainDb: 0, match: 1);
 ~le[\processBusy] = IdentitySet.new;
 
+// ---- THE PETALS OF RESONANCE AS ONE GRAPH (2026-10-07 — the Decibel piece's PLAN 10.14 (a) · RUNNING_LOG §232; the engine's §57) ----
+// His SynthDef's lines, MOVED out of the chain so that TWO SynthDefs are made of them: \leProcess (below — the offline render,
+// unchanged: the same UGens in the same order) and \lePetalsLive (petals_live.scd — a player's microphone into the bank in real time).
+//   sig        what excites the bank (the chain's signal · the microphone)
+//   loopBack   the loop's return, read from a LocalIn by the SynthDef that calls this (0 = none)
+//   gate       starts his three envelopes — the input's, the loop's hold, his fade. 1 = at the synth's start, as his SynthDef has
+//              them (the chain); a signal that rises LATER starts them then (the live def: the window's opening).
+// It answers [the bank's output, what the loop sends back] — the caller writes the second to its LocalOut.
+~le[\petalsGraph] = { |self, sig, loopBack, poFund, poFirst, poSpread, poOffset, poRingLo, poRingHi, poInLen, poBloom, poDrive, poHold, gate = 1|
+	var poTuneA, poTuneB, poPa, poPb, poIn, poRes, poOut, poGainL, poAmp, poSend, poFade;
+	// --- THE PETALS OF RESONANCE — HIS ORIGINAL (github.com/elosine/SynthDef_petalsOfResonance @ e87a5d4, SynthDef_petalsOfResonance.scd;
+	//     the Decibel piece's DEC-32 · PLAN 10.3 · RUNNING_LOG §151), kept UGEN FOR UGEN and in his order: two banks of 13 partials over
+	//     one fundamental — fund × (firstPartial + spread × n) — bank B bank2MidiOffset semitones up, every partial's pitch wobbling
+	//     ± 0.5 semitone on a slow sine of its own; 26 DynKlanks of ONE partial each, at -40 dB, shuffled, mixed, limited, faded out
+	//     after ringL2. ONE LINE IS CHANGED: the microphone, SoundIn.ar(ibs), is the chain's signal. LEFT OUT: masteramp (the render
+	//     sets the level) · obs · doneAction: 2 (it would end the whole chain — his fade is kept). His 26 lines of each kind are
+	//     written as loops; no clip on a dial, as his (the page's row bounds them).
+	//     WHAT HIS CODE DOES, kept on purpose — the cleaned path below differs exactly here:
+	//       · SinOsc.kr(rrand(0.07, 0.013)): the LANGUAGE's rrand, on two numbers — the 26 wobble rates are drawn ONCE, when this
+	//         SynthDef is built (once per engine start), and are the same in every render; all 26 wobbles start at phase 0.
+	//       · rrand(ringL1, ringL2): on two CONTROLS it is the SERVER's rrand — a new value at EVERY CONTROL BLOCK (measured, §151).
+	//         Every resonator's ring time flickers between the two 750 times a second, so all 26 ring down together at ONE
+	//         effective time (7 … 15 s → about 10.5 s) — not 26 different rings.
+	poTuneA = { |partialNum|
+		var freq, freqMidi, tuner, freqTunedMidi;
+		freq = poFund * (poFirst + (poSpread * partialNum));
+		freqMidi = freq.cpsmidi;
+		tuner = SinOsc.kr(rrand(0.07, 0.013), 0, 0.5);
+		freqTunedMidi = freqMidi + tuner;
+		freqTunedMidi.midicps
+	};
+	poTuneB = { |partialNum|
+		var freq, freqMidi, tuner, freqTunedMidi;
+		freq = poFund * (poFirst + (poSpread * partialNum));
+		freqMidi = freq.cpsmidi;
+		tuner = SinOsc.kr(rrand(0.07, 0.013), 0, 0.5);
+		freqTunedMidi = freqMidi + tuner + poOffset;
+		freqTunedMidi.midicps
+	};
+	poPa = 13.collect({ |i| poTuneA.value(i) });
+	poPb = 13.collect({ |i| poTuneB.value(i) });
+	poIn = (sig * 1.0 * EnvGen.ar(Env.perc(0.02, poInLen, 1.0, -1), gate)) + loopBack;   // + THE LOOP (below) — nothing while poBloom is 0
+	poRes = (poPa ++ poPb).collect({ |p| DynKlank.ar(`[[p], nil, [rrand(poRingLo, poRingHi)]], poIn) });
+	poOut = Mix.ar((poRes * -40.dbamp).scramble);
+	// --- THE LOOP AROUND HIS FLOWER (the Decibel piece's DEC-40 · RUNNING_LOG §201 route (c) · §203, 2026-10-07): the bank's mix
+	//     through an AMP (tanh at poDrive) and back into the bank's input one block later — a guitar's feedback with his 26 partials as
+	//     the string. poBloom = the seconds the loop takes to lift a partial 60 dB (0 = NO LOOP: his SynthDef exactly as above); the loop
+	//     is held poHold s from the start, then broken (× 0.25 over 0.6 s, as the feedback stage's) and the bank rings down on its own;
+	//     his fade is moved past the hold while the loop is on. THE GAIN FROM THE BLOOM: a partial driven at its resonance grows by about
+	//     sr/2 per second per unit of input (Ringz: a steady gain of T·sr/13.8, reached over T/6.9 s); the bank is mixed at -40 dB, so
+	//     the loop lifts it at g × 0.005 × sr nepers a second, less its own decay 6.9/T — g = (6.9/bloom + 6.9/T) / (0.005 sr), T the
+	//     middle of the two rings. The amp's ceiling (1/poDrive) is where the bloom stops: the sustain sits in the tanh — the grit.
+	//     Measured in process_test.scd (~16): the profile is printed there.
+	poGainL = Select.kr(poBloom > 0, [0, ((6.9078 / poBloom.max(0.05)) + (6.9078 / ((poRingLo + poRingHi) * 0.5).max(0.1))) / (SampleRate.ir * 0.005)])
+		* EnvGen.kr(Env([1, 1, 0], [poHold.clip(0, 60), 0.6], \lin), gate);   // THE BREAK: to NOTHING — a quarter of a gain of 6.5 (his set line, ring 11 s, bloom 2) was still above unity and the ring never fell (measured, the Decibel piece's §204); the bank then rings down at its own rate
+	poAmp = (poOut * poDrive.clip(1, 40)).tanh / poDrive.clip(1, 40);
+	poSend = poAmp * poGainL;
+	poOut = Select.ar(poBloom > 0, [poOut, poAmp]);
+	poFade = Select.kr(poBloom > 0, [poRingHi, poHold + poRingHi]);   // his fade after the ring that follows the break (hold + 3 cut it at −44 dB — measured, §205)
+	poOut = Limiter.ar(poOut, 0.98, 0.01) * EnvGen.ar(Env.linen(0.01, poFade, 0.3), gate);
+	[poOut, poSend]
+};
+
 // ---- the chain --------------------------------------------------------------------------------------------------------
 ~le[\processDef] = { |self|
 	var missing = List.new;
@@ -132,7 +203,7 @@
 			var od, fz, oc, cabSig, cr, chx, chx2, ch;
 			var fbRt, fbProg, fbGain, fbIn, fbExc, fbStr, fbNone, fbAmp, fbToneNow, fbCol, fbPathNow, fbResEnv;
 			var fbRise, fbKnee, fbCount, fbOwnSig;
-			var poTuneA, poTuneB, poPa, poPb, poIn, poRes, poOut, loopIn, poGainL, poAmp, poSend, poFade;
+			var po, poOut, loopIn, poSend;
 			var ptIn, ptBase, ptTuned, ptLo, ptHi, ptRings, pt;
 			var mix ={ |a, b, m| XFade2.ar(a, b, (m.lag(lag) * 2 - 1).clip(-1, 1)) };
 			// a stage whose class is not installed is left out: `otherwise` stands in its place
@@ -175,56 +246,10 @@
 			bank = Ringz.ar(sig, [resF1, resF2, resF3, resF4].collect({ |f| f.lag(lag).clip(20, 12000) }), resDcy.lag(lag).clip(0.02, 3.0)) * [rlo.lag(lag), rlomid.lag(lag), rhimid.lag(lag), rhi.lag(lag)];
 			sig = mix.(sig, bank.sum * 0.2, resMix);
 			loopIn = LocalIn.ar(2);   // ONE LocalIn/LocalOut pair per synth: [0] the feedback stage's loop · [1] the loop around the petals (2026-10-07, §203)
-			// --- THE PETALS OF RESONANCE — HIS ORIGINAL (github.com/elosine/SynthDef_petalsOfResonance @ e87a5d4, SynthDef_petalsOfResonance.scd;
-			//     the Decibel piece's DEC-32 · PLAN 10.3 · RUNNING_LOG §151), kept UGEN FOR UGEN and in his order: two banks of 13 partials over
-			//     one fundamental — fund × (firstPartial + spread × n) — bank B bank2MidiOffset semitones up, every partial's pitch wobbling
-			//     ± 0.5 semitone on a slow sine of its own; 26 DynKlanks of ONE partial each, at -40 dB, shuffled, mixed, limited, faded out
-			//     after ringL2. ONE LINE IS CHANGED: the microphone, SoundIn.ar(ibs), is the chain's signal. LEFT OUT: masteramp (the render
-			//     sets the level) · obs · doneAction: 2 (it would end the whole chain — his fade is kept). His 26 lines of each kind are
-			//     written as loops; no clip on a dial, as his (the page's row bounds them).
-			//     WHAT HIS CODE DOES, kept on purpose — the cleaned path below differs exactly here:
-			//       · SinOsc.kr(rrand(0.07, 0.013)): the LANGUAGE's rrand, on two numbers — the 26 wobble rates are drawn ONCE, when this
-			//         SynthDef is built (once per engine start), and are the same in every render; all 26 wobbles start at phase 0.
-			//       · rrand(ringL1, ringL2): on two CONTROLS it is the SERVER's rrand — a new value at EVERY CONTROL BLOCK (measured, §151).
-			//         Every resonator's ring time flickers between the two 750 times a second, so all 26 ring down together at ONE
-			//         effective time (7 … 15 s → about 10.5 s) — not 26 different rings.
-			poTuneA = { |partialNum|
-				var freq, freqMidi, tuner, freqTunedMidi;
-				freq = poFund * (poFirst + (poSpread * partialNum));
-				freqMidi = freq.cpsmidi;
-				tuner = SinOsc.kr(rrand(0.07, 0.013), 0, 0.5);
-				freqTunedMidi = freqMidi + tuner;
-				freqTunedMidi.midicps
-			};
-			poTuneB = { |partialNum|
-				var freq, freqMidi, tuner, freqTunedMidi;
-				freq = poFund * (poFirst + (poSpread * partialNum));
-				freqMidi = freq.cpsmidi;
-				tuner = SinOsc.kr(rrand(0.07, 0.013), 0, 0.5);
-				freqTunedMidi = freqMidi + tuner + poOffset;
-				freqTunedMidi.midicps
-			};
-			poPa = 13.collect({ |i| poTuneA.value(i) });
-			poPb = 13.collect({ |i| poTuneB.value(i) });
-			poIn = (sig * 1.0 * EnvGen.ar(Env.perc(0.02, poInLen, 1.0, -1), 1)) + loopIn[1];   // + THE LOOP (below) — nothing while poBloom is 0
-			poRes = (poPa ++ poPb).collect({ |p| DynKlank.ar(`[[p], nil, [rrand(poRingLo, poRingHi)]], poIn) });
-			poOut = Mix.ar((poRes * -40.dbamp).scramble);
-			// --- THE LOOP AROUND HIS FLOWER (the Decibel piece's DEC-40 · RUNNING_LOG §201 route (c) · §203, 2026-10-07): the bank's mix
-			//     through an AMP (tanh at poDrive) and back into the bank's input one block later — a guitar's feedback with his 26 partials as
-			//     the string. poBloom = the seconds the loop takes to lift a partial 60 dB (0 = NO LOOP: his SynthDef exactly as above); the loop
-			//     is held poHold s from the start, then broken (× 0.25 over 0.6 s, as the feedback stage's) and the bank rings down on its own;
-			//     his fade is moved past the hold while the loop is on. THE GAIN FROM THE BLOOM: a partial driven at its resonance grows by about
-			//     sr/2 per second per unit of input (Ringz: a steady gain of T·sr/13.8, reached over T/6.9 s); the bank is mixed at -40 dB, so
-			//     the loop lifts it at g × 0.005 × sr nepers a second, less its own decay 6.9/T — g = (6.9/bloom + 6.9/T) / (0.005 sr), T the
-			//     middle of the two rings. The amp's ceiling (1/poDrive) is where the bloom stops: the sustain sits in the tanh — the grit.
-			//     Measured in process_test.scd (~16): the profile is printed there.
-			poGainL = Select.kr(poBloom > 0, [0, ((6.9078 / poBloom.max(0.05)) + (6.9078 / ((poRingLo + poRingHi) * 0.5).max(0.1))) / (SampleRate.ir * 0.005)])
-				* EnvGen.kr(Env([1, 1, 0], [poHold.clip(0, 60), 0.6], \lin));   // THE BREAK: to NOTHING — a quarter of a gain of 6.5 (his set line, ring 11 s, bloom 2) was still above unity and the ring never fell (measured, the Decibel piece's §204); the bank then rings down at its own rate
-			poAmp = (poOut * poDrive.clip(1, 40)).tanh / poDrive.clip(1, 40);
-			poSend = poAmp * poGainL;
-			poOut = Select.ar(poBloom > 0, [poOut, poAmp]);
-			poFade = Select.kr(poBloom > 0, [poRingHi, poHold + poRingHi]);   // his fade after the ring that follows the break (hold + 3 cut it at −44 dB — measured, §205)
-			poOut = Limiter.ar(poOut, 0.98, 0.01) * EnvGen.ar(Env.linen(0.01, poFade, 0.3), 1);
+			// --- THE PETALS OF RESONANCE — HIS ORIGINAL: the graph is ~le[\petalsGraph] above (one function, two SynthDefs — 10.14 a);
+			//     here the chain's signal excites it, the loop's return is this synth's LocalIn [1], and his envelopes start with the synth
+			po = self.petalsGraph(sig, loopIn[1], poFund, poFirst, poSpread, poOffset, poRingLo, poRingHi, poInLen, poBloom, poDrive, poHold);
+			poOut = po[0]; poSend = po[1];
 			sig = mix.(sig, poOut, poMix);
 			// --- THE PETALS OF RESONANCE — THE CLEANED PATH (DEC-32): the same instrument and the same dials, the signal path tidied —
 			//       · ONE bank of 26 Ringz, summed (a DynKlank of one partial IS a Ringz); no shuffle (it does nothing to a mono mix)
@@ -481,6 +506,7 @@
 	var lineText = IdentityDictionary.new, steps = List.new, driveMode, driveDb = 0, driveHeld = false, srcLoud;
 	var endModes = ["shape", "tail", "perc", "gauss", "quasi", "tri", "expodec", "rexpodec"];
 	var durX = (d[\durX] ? 0).asString.asFloat;
+	var preMs = (d[\preMs] ? 0).asString.asFloat.clip(0, 5000), preFrames = 0;
 	lim.keysValuesDo({ |k, r| if(d[k].notNil) { o[k] = d[k].asString.asFloat.clip(r[0], r[1]) } });
 	if(d[\planned].notNil) { o[\planned] = 1 };   // a variant of the plan: its row says so
 	endMode = (d[\end] ? o[\end]).asString;
@@ -529,6 +555,13 @@
 			if(durX > 0) { o[\durMs] = (srcData.size / sr / rate * 1000 * durX).clip(lim[\durMs][0], lim[\durMs][1]) };
 			// shape: the object's length and room for the head · tail: the source, then the cap
 			total = if(endMode != "tail") { (o[\durMs] / 1000) + 0.5 } { (srcData.size / sr / rate) + (o[\capMs] / 1000) };
+			// preMs (the Decibel piece's 10.14, 2026-10-07): the source ENTERS the chain this long after the chain starts. A LIVE petals'
+			// window opens before its note and his envelopes start with the window (petals_live.scd); a render made "as live" stands the
+			// same way, so the two are one sound. The buffer is the silence, then the source; the render's own start is found as ever.
+			preFrames = (preMs / 1000 * sr).round.asInteger;
+			total = total + (preFrames / sr);
+			if(d[\preMs].notNil) { o[\preMs] = preMs };
+			o[\driveDb] = driveDb;   // as a NUMBER, into the row (processDone) — a live petals is driven by it
 			File.mkdir(dir +/+ "raw");
 			oscPath = dir +/+ "raw" +/+ out ++ ".osc";
 			nrtPath = dir +/+ "raw" +/+ out ++ ".nrt.wav";
@@ -552,9 +585,10 @@
 			defPath = dir +/+ "raw" +/+ "leProcess.scsyndef";
 			if(self[\processDefWritten].isNil or: { File.exists(defPath).not }) { self.processDef.writeDefFile(dir +/+ "raw"); self[\processDefWritten] = true };
 			score = Score([
-				[0.0, ['/d_load', defPath]],
-				[0.0, ['/b_allocRead', 0, srcPath, 0, 0]]
-			] ++ envPaths.collect({ |p, i| [0.0, ['/b_allocRead', i + 1, p, 0, 0]] }) ++ [
+				[0.0, ['/d_load', defPath]]
+			] ++ (if(preFrames > 0) { [[0.0, ['/b_alloc', 0, preFrames + srcData.size, 1]], [0.0, ['/b_read', 0, srcPath, 0, -1, preFrames, 0]]] }
+				{ [[0.0, ['/b_allocRead', 0, srcPath, 0, 0]]] })
+			++ envPaths.collect({ |p, i| [0.0, ['/b_allocRead', i + 1, p, 0, 0]] }) ++ [
 				[lead, ['/s_new', \leProcess, 1000, 0, 0, \buf, 0, \out, 0, \srcAmp, driveDb.dbamp] ++ args]
 			] ++ steps.asArray ++ [
 				[lead + total, ['/c_set', 0, 0]]
@@ -664,6 +698,10 @@
 				kind: "processed", source: src, effect: effect, args: argsText, end: endMode);
 			if(loud.notNil) { self.loudInto(row, loud) };
 			if(o[\driveText].notNil) { row[\drive] = o[\driveText] };
+			// 10.14: the two gains this render was given, as NUMBERS — the source's drive before the chain, the level set after it — and
+			// how late the source entered: a LIVE petals of the same variant is played with exactly these (petals_live.scd liveRef)
+			row[\driveDb] = (o[\driveDb] ? 0).round(0.01); row[\outGainDb] = g.ampdb.round(0.01);
+			if(o[\preMs].notNil) { row[\preMs] = o[\preMs].round(0.1) };
 			if(o[\planned].notNil) { row[\planned] = 1 };   // a variant of the plan (below): a page keeps it out of its pickers
 			self[\indexRows] = self[\indexRows].reject({ |r| r[\name].asString == out }).asList;   // a List: add() in place (bank.scd, §84)
 			self[\indexRows].add(row);
@@ -716,7 +754,11 @@
 		self[\plan] = all.reject({ |r| (r[\base].size == 0) or: { r[\suffix].size == 0 } }).asArray.sort({ |a, b| a[\t] <= b[\t] });   // soonest-needed first
 		self.say("LE_INFO", "plan · " ++ self[\plan].size ++ " variants of " ++ self[\plan].collect({ |r| r[\base] }).asSet.size ++ " samples"
 			++ if(self[\plan].size == 0) { " — every return plays its sample as it is" } { "" });
-		if(render) { self.planRenderAll };
+		if(render) { self.planRenderAll } {
+			// 10.14: a petals made LIVE at its opening takes its level from a render of the same variant made as live — one that has none yet
+			// is rendered now, from the sample as it stands (petals_live.scd)
+			if(self[\livePlanCheck].notNil) { self.livePlanCheck };
+		};
 	};
 	self
 };
@@ -735,7 +777,7 @@
 
 // the next renders, the soonest-needed first, while a slot is free; called when a variant is queued and when any render ends
 ~le[\planNext] = { |self|
-	var q, r, m;
+	var q, r, m, pre;
 	if(self[\planQueue].notNil and: { self[\planQueue].size > 0 }) {
 		self[\planQueue] = self[\planQueue].asArray.sort({ |a, b| a[\row][\t] <= b[\row][\t] }).asList;
 		while { (self[\planQueue].size > 0) and: { self[\processBusy].size < self[\planWidth] } } {
@@ -745,6 +787,8 @@
 				match: r[\match], id: "plan", planned: 1);
 			if(r[\capMs] > 0) { m[\capMs] = r[\capMs] };
 			if(r[\drive].notNil and: { r[\drive].size > 0 }) { m[\srcDrive] = r[\drive] };   // absent: a plan's variant is driven normalized (processRender)
+			// 10.14: a petals that is made LIVE at its own opening is rendered as it is heard live — the source entering where the note stood in the window
+			if(self[\liveRowPre].notNil) { pre = self.liveRowPre(r); if(pre.notNil) { m[\preMs] = pre } };
 			self.processRender(m);
 		};
 	};

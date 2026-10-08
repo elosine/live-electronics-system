@@ -132,5 +132,27 @@ if (typeof LEO.driveTag === 'function') {
         pp ? find(pp, (n) => n.tag === 'label').map((n) => n.textContent).filter(Boolean).slice(0, 40).join(' · ') : perr);
 }
 
+// THE PETALS LIVE (the first piece's 10.14, 2026-10-07): the engine decides (sc/petals_live.scd); the page only SAYS it, on the label
+if (typeof LEO.isLive === 'function') {
+    console.log('PAGE_TEST the petals live:');
+    LEO.presets = { classes: { time: { durX: 1.75 } }, envelopes: { tail: { capMs: 1000 }, perc: { atkMs: 3 } }, presets: [
+        { key: 'pp01', name: 'petal hit 1', effect: 'petalsOrig', class: 'time', capMs: 16000, args: { poMix: 1, poFund: 42.3, poFirst: 1.41, poRingLo: 8.7, poRingHi: 11.6 } },
+        { key: 'pg04', name: 'petals into an overdrive', effect: 'petalsOrig', class: 'time', args: { poMix: 1, poFund: 42.3, odMix: 0.6 } }] };
+    const at = (elec, t) => { const x = zone(elec); x.startTime = t; x.endTime = t + 0.5; return x; };
+    const open = zone({ name: 'bcl-petal-1', category: 'impulse' }, 'elecOpen'); open.startTime = 155.128; open.endTime = 155.628;
+    const live = at({ name: 'bcl-petal-1', variants: { 'bcl-petal-1': 'pp01-tail' }, dyn: { mode: 'mark', mark: 'fff' } }, 155.228);
+    const later = at({ name: 'bcl-petal-1', variants: { 'bcl-petal-1': 'pp01-tail' } }, 158.5);
+    const stack = at({ name: 'bcl-petal-1', variants: { 'bcl-petal-1': 'pg04-tail' } }, 155.228);
+    const shaped = at({ name: 'bcl-petal-1', variants: { 'bcl-petal-1': 'pp01-perc' } }, 155.228);
+    const raw = at({ name: 'bcl-petal-1' }, 155.228);
+    [live, later, stack, shaped, raw].forEach((x) => host.renderZone(x));
+    check('a petals return at its own mic opening says LIVE — and not "not captured yet": it needs no capture',
+        LEO.isLive(live) && / · LIVE$/.test(live._label.textContent) && !/not captured/.test(live._label.textContent), live._label.textContent);
+    check('three seconds after it · stacked with a pedal · under an envelope · with no preset: not live',
+        ![later, stack, shaped, raw].some((x) => LEO.isLive(x) || /LIVE/.test(x._label.textContent)), [later, stack, shaped, raw].map((x) => x._label.textContent).join(' | '));
+    const lm = fire(live);
+    check('its message is any return\'s — the page decides nothing', lm.name === 'bcl-petal-1~pp01-tail' && lm.dyn === 'mark:fff' && !('live' in lm), JSON.stringify(lm));
+}
+
 console.log(fails ? 'PAGE_TEST FAIL — ' + fails + ' check(s)' : 'PAGE_TEST PASS');
 process.exit(fails ? 1 : 0);
