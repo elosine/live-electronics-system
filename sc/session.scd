@@ -45,7 +45,7 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 (dir +/+ "boot.scd").load;
 ~le.takeSpecs;   // the ladder · the bus (needed BEFORE the boot: the master is made in it) · the venue · the bleed's refusal — boot.scd
 ~le.bootEngine(mode, { |le|
-	var s = le[\server], names = List.new, pending = IdentityDictionary.new, t0 = Main.elapsedTime, crop, nSamples = 0;
+	var s = le[\server], names = List.new, pending = IdentityDictionary.new, lastOpen = IdentityDictionary.new, t0 = Main.elapsedTime, crop, nSamples = 0;
 	spec.split($,).do({ |pair|
 		var bits = pair.split($:), name = bits[0].asSymbol, ch = (bits[1] ? "0").asInteger, p;
 		p = le.addPlayer(name, ch);
@@ -77,7 +77,16 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 	if(le[\bankDir].notNil and: { le[\measureBank].notNil }) { le.measureBank };   // the rows with no loudness figure yet, in the background (level.scd)
 	// ---- the messages ----
 	if(le.openEar) {
-		if(le[\bankDir].notNil) { le.bankHear };
+		if(le[\bankDir].notNil) {
+			le.bankHear;
+			// THE WINDOW AGAINST THE SOUND (the Decibel piece's SWEEP_LIST #10, 2026-10-08): a mic opening's message is remembered by its
+			// arrival, and when the player's sound then arrives (the onset probe, below) a line says how long after the message it came —
+			// against the recording's own span. The recording begins at the message: a sound outside that span was not caught.
+			le.hear(\open, { |le, d, time|
+				lastOpen[(d[\player] ? '?').asSymbol] = (time: time, untilMs: (d[\dueMs] ? 0).asFloat + (d[\lengthMs] ? 500).asFloat);
+				le.captureOpen(d);
+			});
+		};
 		if(le[\sineHear].notNil) { le.sineHear };   // the generated voices (sine.scd) — with or without a bank
 		if(le[\performerHear].notNil) { le.performerHear };   // the computer players (performer.scd): /le/performer · /le/performerstop
 		// a tool's run ends on a message, gracefully — the server quits its device before the process goes (§71: an engine killed from
@@ -97,8 +106,14 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 			};
 		});
 		le[\onHeard] = { |name, time, amp|
-			var pd = pending[name], lead;
+			var pd = pending[name], lead, op = lastOpen[name], after;
 			if(le[\perfMicOnset].notNil) { le.perfMicOnset(name) };   // the computer players' ear `mic`: a player's own sound at its microphone
+			if(op.notNil and: { (time - op[\time]) < 4 }) {
+				after = ((time - op[\time]) * 1000).round(1);
+				le.say("LE_INFO", "heard · " ++ name ++ " · its sound came " ++ after ++ " ms after its mic opening's message — the recording ran 0 … "
+					++ op[\untilMs].round(1) ++ " ms: " ++ if(after < op[\untilMs]) { "INSIDE the window" } { "OUTSIDE the window — not caught" });
+				lastOpen.removeAt(name);
+			};
 			if(pd.notNil and: { (time - pd[\time]) < 3 }) {
 				lead = ((time - pd[\time]) * 1000).round(0.1);
 				le.say("LE_INFO", "heard · " ++ name ++ " · its sound arrived " ++ lead ++ " ms after its message");
