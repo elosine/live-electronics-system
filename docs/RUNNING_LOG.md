@@ -924,3 +924,12 @@ A fourth mode in `boot.scd`, `\remote`: the devices from `LE_DEVICE_IN` · `LE_D
 **For a piece:** nothing to change in a score or a page. `LE_LIVE=on=1,windowMs=300` at the start (absent: on, 300). The index's rows gain `leadMs` (a capture) and `driveDb` · `outGainDb` · `preMs` (a render). A return's label ends `· LIVE` where the rule holds.
 
 **NOT CLAIMED:** a living engine (`liveOpen` · `livePlay`'s two bundles are parsed, never run on a server); the composer's ear; a hall — the window hears whatever sounds in it (NITS).
+
+## §58
+**2026-10-08 — A SERVER WHOSE SECOND IS NOT A SECOND: the clock check at every start (Fable, in the Decibel piece — its RUNNING_LOG §233 · SWEEP_LIST #10).**
+
+**What was seen there:** after a restart on ReaRoute ASIO, the engine's scsynth ran its DSP loop FREE — a stopwatch synth read 67 s per wall second (`Sweep.kr` on a control bus, `/c_getn` every quarter second; `SampleRate.ir` 44100 and `ControlRate.ir` 689 unchanged). Every timed UGen was 67× fast: captures (`RecordBuf`) full in milliseconds of real time, `doneAction` freeing synths on their first blocks, the live petals' window gone before the note. Untimed synths (`leIn`, the meters, the onset probe) kept working, so the engine looked alive; the server's own error prints are buffered in its console and never seen.
+
+**BUILT (`sc/session.scd`):** THE CLOCK CHECK — at the start, after the players and the bank, a `\leClockCheck` synth writes `Sweep.kr(0, 1)` to a control bus for one second of `SystemClock` time; the bus is read back; a ratio outside 0.8 … 1.25 is an `LE_ERROR` naming the fault and the cure (close the engine · close and reopen the DAW · start again); a sane server says `the clock · the server's second is a second (1.00×)`. Also kept from the hunt: `heard · <player> · its sound came N ms after its mic opening's message — INSIDE / OUTSIDE the window` on every onset within 4 s of an opening; `/le/tree` (the node tree asked with `/g_queryTree`, said by the language); InFeedback in `leCapture` and `lePetalsLive` (a bus not yet written this cycle is read as it stood a cycle ago — order-proof).
+
+**For a piece:** nothing to change. The cause of the free run (ReaRoute after a clean close of the engine) is the DAW's side — NITS.
