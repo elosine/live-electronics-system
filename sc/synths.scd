@@ -151,8 +151,10 @@ SynthDef(\leOnset, { |in = 0, id = 0, thresh = 0.001, hold = 0.25|
 	SendReply.ar(Trig1.ar(amp > thresh, hold), '/le/heard', amp, id);
 }).add;
 
+// InFeedback (2026-10-08, the Decibel piece's SWEEP_LIST #10): a bus not yet written in this cycle is read as it stood a cycle ago
+// (64 samples) instead of as silence — the recording no longer depends on where in the tree the recorder sits
 SynthDef(\leCapture, { |in = 0, buf = 0|
-	RecordBuf.ar(In.ar(in, 1), buf, loop: 0, doneAction: 2);
+	RecordBuf.ar(InFeedback.ar(in, 1), buf, loop: 0, doneAction: 2);
 }).add;
 
 SynthDef(\leSample, { |out = 0, buf = 0, amp = 1|

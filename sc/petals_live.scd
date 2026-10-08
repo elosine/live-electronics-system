@@ -78,7 +78,7 @@
 			var db = \envDb.kr(0 ! 8), dt = \envDt.kr(0.01 ! 7), cv = \envCurve.kr(0);
 			var open, mic, back, g, wet, lvl, amp, pk, age;
 			open = Sweep.kr(0, 1) >= wait;                                  // the window opens: his envelopes start here
-			mic = In.ar(in, 1) * inAmp * EnvGen.ar(Env([1, 1, 0], [(win - 0.01).max(0.01), 0.01]), open);   // … and closes; before it his own rise holds the input shut
+			mic = InFeedback.ar(in, 1) * inAmp * EnvGen.ar(Env([1, 1, 0], [(win - 0.01).max(0.01), 0.01]), open);   // … and closes; before it his own rise holds the input shut. InFeedback (SWEEP_LIST #10): the bus as it stood a cycle ago when it is not yet written — order-proof
 			back = LocalIn.ar(1).asArray[0];                                // the loop around the bank (poBloom; nothing while it is 0)
 			g = self.petalsGraph(mic, back, poFund, poFirst, poSpread, poOffset, poRingLo, poRingHi, poInLen, poBloom, poDrive, poHold, open);
 			LocalOut.ar([g[1]]);

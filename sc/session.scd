@@ -85,7 +85,10 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 			le.hear(\open, { |le, d, time|
 				lastOpen[(d[\player] ? '?').asSymbol] = (time: time, untilMs: (d[\dueMs] ? 0).asFloat + (d[\lengthMs] ? 500).asFloat);
 				le.captureOpen(d);
+				// SWEEP_LIST #10: the server's node tree, ONCE per run, printed while the first window is open — who reads the bus before whom
+				if(le[\treeShown].isNil) { le[\treeShown] = true; SystemClock.sched(0.3, { le.say("LE_INFO", "the node tree, during the first mic opening:"); le[\server].queryAllNodes; nil }) };
 			});
+			le.hear(\tree, { |le, d| le[\server].queryAllNodes });   // on demand: /le/tree
 		};
 		if(le[\sineHear].notNil) { le.sineHear };   // the generated voices (sine.scd) — with or without a bank
 		if(le[\performerHear].notNil) { le.performerHear };   // the computer players (performer.scd): /le/performer · /le/performerstop
