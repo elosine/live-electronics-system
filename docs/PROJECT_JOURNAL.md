@@ -32,6 +32,13 @@
 play back, then **STOP and ask**. No edits, no builds, no tool calls beyond the resume
 reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, then work.)*
 
+### 2026-10-08 — THE TRACKER: A SINE THAT IS A WINDOW ON A PLAYER, in the Decibel piece (Opus; RUNNING_LOG §62)
+
+- **Built, proven offline, NOT RUN on a living engine:** `sc/track.scd` (new) — `\leSineTrack` (the ear and the voice in one synth), `\leTrackSim` (a told level on a player's sim bus), `\leTrackProbe` (the sound check); `/le/sine … gate 1 · player · [ear · follow · capDb]` · `/le/simlevel`; `LE_TRACK`; two lines in `sc/sine.scd` `sinePlay`, one in `sineStop`; the hear and the guard in `sc/session.scd` inside a `try` (a fault there is said and the sines sound plain); `sc/calibrate.scd` with `LE_CAL_SINE`; `score/le_sine.js` — `track`, the panel rows, `gliss.overS`, the simulated ear. The proof: `sc/track_test.scd` (17) · `tools/sine_page_test.js` (51).
+- **The first run on a server is the composer's restart in the Decibel piece** (its journal §2's first block). If its window shows a red line at a `/le/sine` with `gate 1`: `trackFor` is the only part that touches the server (`Bus.control` · `Bus.audio` · the `/c_set`) — the `try` in `sinePlay` turns a fault there into a plain sine and one line.
+- **What a second piece gets:** a window on any generated voice of this kind needs nothing of the piece but a player's name in the message; the simulated ear needs a page that tells its notes (`le_sine.js` does it for any host whose notes are `waveCurve` objects with `sonifyNote`).
+- **OPEN, a hall's (NITS):** the `mic` ear on real instruments · an instrument that rings on between attacks never falls under a threshold (the gliss's entry) · the monitors as a second bleed path.
+
 ### 2026-10-08 — A SHAPED RETURN'S BRICK IS AS LONG AS ITS SHAPE, in the Decibel piece (Fable; RUNNING_LOG §61)
 
 `score/le_objects.js` `shapeMs` · `redraw`: a return brick whose variant is `<key>-shape` and whose preset ends by a shape is drawn as long as the preset's `durMs`; every other plain return as long as its sample, as before. Found when the piece's drone bricks shrank to their recordings' lengths at the index read and a save kept it. `tools/page_test.js` PASS; seen in the composer's own save (37 bricks whole). **A brick whose length is its own is a new kind here: the next such object is checked against `redraw()` when it is built.** Nothing in hand in the engine; the piece's journal §2 (checkpoint #19) is the cold-start block.

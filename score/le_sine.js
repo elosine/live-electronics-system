@@ -26,6 +26,22 @@
 //       KEY: over the SELECTED NOTE — its lane, its span, its pitch — else at the playhead on the active lane, four seconds,
 //       the pitch of the lane's nearest earlier note.
 //
+//   THE BRICK AS A WINDOW ON ITS PLAYER (the Decibel piece's PLAN 1.8 · 16.1, 2026-10-08; the engine's sc/track.scd):
+//       track    { on, follow?, ear? }   on: the sine is ARMED for the brick's span and silent until the player of its lane sounds
+//                at its pitch; it enters with them at its level, FOLLOWS their rise and fall, holds through a breath and leaves when
+//                they stop. The message then carries   gate 1 · player · [follow · ear]   . follow 0 … 1: how much of the player's
+//                change it takes (absent: the piece's) · ear sim | mic: who the engine listens to (absent: the piece's).
+//       gliss.overS   with a window, the gliss begins again at each ENTRY of the player: how long one glide lasts, in seconds
+//                (absent: the brick's whole length).
+//   THE SIMULATED EAR. In a concert the engine hears the player through a microphone. In a simulation the player is the NOTES of
+//   the score — so this file tells the engine of every note on a lane, as it is about to sound under a window there:
+//           /le/simlevel   player · lane · id · t · dueMs · lengthMs · level · pass
+//   `level` is the note's dynamic as a line of marks. A note may SAY its own (a tool's shaped note):
+//           properties.simLevel = [[fraction 0 … 1, mark 0 … 7] …]
+//   else the host may hand a reader in —   opts.noteLevel(note, n) -> n marks over its span, or null   — else the note is steady
+//   (the engine follows CHANGE: a steady level, whatever it is, leaves the sine at its written mark). Nothing is told under a
+//   window that says ear 'mic'.
+//
 //   THE CURVE READER IS THE HOST'S, HANDED IN (the pattern of the pattern brick's calculators):
 //       opts.curveAt(ref, { layer, startTime, endTime }, n)  ->  n heights 0 … 1 over that span, or null (nothing drawn there)
 //   This file leans on no file of a piece's stack; without a reader a curve level is the flat mark.
@@ -59,12 +75,13 @@
         const rest = 1 - f0; if (rest <= 1e-6) return [[0, at(pts, 1)], [1, at(pts, 1)]];
         return [[0, at(pts, f0)]].concat(pts.filter((p) => p[0] > f0 + 1e-6).map((p) => [(p[0] - f0) / rest, p[1]]));
     };
-    // … as the engine reads it:  ms:value,…  — the last point `end`, eight at the most
-    const wire = (pts, lenMs, fmt) => {
+    // … as the engine reads it:  ms:value,…  — the last point `end`, eight at the most (noEnd: every point in ms — a line shorter than the sine)
+    const wire = (pts, lenMs, fmt, noEnd) => {
         let p = pts.slice(0, 8);
         if (p.length === 1 || p.every((x) => x[1] === p[0][1])) return fmt(p[0][1]);
-        return p.map((x, i) => (i === p.length - 1 && x[0] >= 1 - 1e-6 ? 'end' : Math.round(x[0] * lenMs)) + ':' + fmt(x[1])).join(',');
+        return p.map((x, i) => (!noEnd && i === p.length - 1 && x[0] >= 1 - 1e-6 ? 'end' : Math.round(x[0] * lenMs)) + ':' + fmt(x[1])).join(',');
     };
+    const EARS = [['', 'as the piece says'], ['sim', 'the score\'s notes, told by this page (a simulation)'], ['mic', 'the player\'s microphone (a concert)']];
 
     L.MODELS.elecSine = { kind: 'sine', sign: '∿', color: '#1E88E5', yOffset: 0.75, title: 'Sine tone' };   // yOffset: a fraction of the lane (0 top · 1 bottom)
 
@@ -76,6 +93,16 @@
             const stop = host.stopPlay;
             host.stopPlay = function () { const out = stop.apply(this, arguments); L.sineStop(); return out; };
         }
+        return r;
+    };
+    // the simulated ear rides on the transport's tick: the same window of time the bricks are fired in (le_performer.js's way)
+    const tick = L.tick;
+    L.tick = function (host, t) {
+        const look = this.opts.lookAheadS, newPass = this._pass !== host.playStartTime;
+        const fresh = newPass || this._prev == null || Math.abs(t - this._prev) > 0.5;
+        const a = fresh ? t - 1e-6 : this._prev + look, b = t + look;
+        const r = tick.apply(this, arguments);
+        this.sineEar(host, a, b);
         return r;
     };
 
@@ -159,9 +186,68 @@
             const lv = this.sineLevel(zone, start, zone.endTime), gl = from(this.sineGliss(e), f0);
             const m = { id: String(zone.id), lane: zone.layer, t: r3(start), dueMs: dueMs || 0, midi: Math.round((Number.isFinite(+e.midi) ? +e.midi : 57) * 10000) / 10000,
                 lengthMs: lenMs, level: wire(lv.pts, lenMs, (v) => String(r2(v))) };
-            if (gl.length && gl.some((x) => x[1] !== 0)) m.gliss = wire(gl, lenMs, (v) => String(Math.round(v * 10) / 10));
+            const tr = this.sineTrack(e), fmtC = (v) => String(Math.round(v * 10) / 10);
+            if (tr) {
+                // A WINDOW: the engine arms the sine and waits for the player. Its gliss begins again at each entry — the WHOLE line, over
+                // gliss.overS where the brick says how long one glide is (a line shorter than the sine: every point in ms)
+                const whole = this.sineGliss(e), overMs = Number.isFinite(+(e.gliss || {}).overS) && +e.gliss.overS > 0 ? Math.min(lenMs, Math.round(+e.gliss.overS * 1000)) : 0;
+                if (whole.length && whole.some((x) => x[1] !== 0)) m.gliss = overMs ? wire(whole, overMs, fmtC, true) : wire(whole, lenMs, fmtC);
+                m.gate = 1; m.player = this.sineWho(zone.layer);
+                if (tr.follow != null) m.follow = tr.follow;
+                if (tr.ear) m.ear = tr.ear;
+            } else if (gl.length && gl.some((x) => x[1] !== 0)) m.gliss = wire(gl, lenMs, fmtC);
             if (this._passN) m.pass = this._passN;   // this pass of the score (le_objects.js tick): the engine lets go of the sines of the pass before
             return m;
+        },
+
+        // ---- the window --------------------------------------------------------------------------------------------------
+        // a brick's track, as it stands: null (it sounds for its whole span) or { follow?: 0 … 2, ear?: 'sim' | 'mic' }
+        sineTrack(e) {
+            const t = e && e.track;
+            if (!t || !t.on) return null;
+            const o = {};
+            if (t.follow != null && t.follow !== '' && Number.isFinite(+t.follow)) o.follow = Math.max(0, Math.min(2, Math.round(+t.follow * 100) / 100));
+            if (t.ear === 'sim' || t.ear === 'mic') o.ear = t.ear;
+            return o;
+        },
+        // whose window: the lane's player by the piece's route table — a lane with no microphone is told of all the same, under its own name
+        sineWho(layer) { return this.playerOf(layer) || ('lane' + layer); },
+        // a note's dynamic over its own span, as a line of marks [[fraction, mark] …]: what it says of itself, what the host reads, else steady
+        sineNoteLevel(o) {
+            const said = o && o.properties && o.properties.simLevel;
+            if (Array.isArray(said)) {
+                const p = said.filter((x) => Array.isArray(x) && Number.isFinite(+x[0]) && Number.isFinite(+x[1])).map((x) => [Math.max(0, Math.min(1, +x[0])), Math.max(-10, Math.min(7, +x[1]))]).sort((x, y) => x[0] - y[0]).slice(0, 8);
+                if (p.length) return p;
+            }
+            const read = this.opts.noteLevel;
+            if (typeof read === 'function') {
+                let h = null;
+                try { h = read(o, 8); } catch (err) { h = null; }
+                if (Array.isArray(h) && h.length >= 2 && h.every((v) => Number.isFinite(+v))) return h.map((v, i) => [i / (h.length - 1), Math.max(-10, Math.min(7, +v))]);
+            }
+            return [[0, 4]];
+        },
+        // THE SIMULATED EAR: every note that begins in (from, to] on a lane, under a window there that is not on a microphone, told to the engine
+        sineEar(host, from, to) {
+            if (!window.LE) return 0;
+            const zs = this.zones('elecSine').filter((z) => { const tr = this.sineTrack(z.elec); return tr && tr.ear !== 'mic'; });
+            if (!zs.length) return 0;
+            let n = 0;
+            for (const o of host.objects) {
+                if (o.type !== 'waveCurve' || o.sonifyNote == null || !(o.layer < this.opts.lanes)) continue;
+                const s = o.startSeconds;
+                if (!(s > from && s <= to)) continue;
+                if (!zs.some((z) => z.layer === o.layer && z.startTime <= s + 0.05 && z.endTime > s)) continue;
+                if (host.isPartAudible && !host.isPartAudible(o.layer)) continue;
+                const perf = host.playStartTime + (s - host.playStartOffset / host.pixelsPerSecond) * 1000;
+                const dueMs = Math.max(0, Math.round(((Number.isFinite(perf) ? perf : performance.now()) - performance.now()) * 10) / 10);
+                const lengthMs = Math.max(20, Math.round((o.endSeconds - s) * 1000));
+                const m = { player: this.sineWho(o.layer), lane: o.layer, id: String(o.id), t: r3(s), dueMs, lengthMs, level: wire(this.sineNoteLevel(o), lengthMs, (v) => String(r2(v))) };
+                if (this._passN) m.pass = this._passN;
+                LE.send('simlevel', m);
+                n++;
+            }
+            return n;
         },
 
         // ---- the label ------------------------------------------------------------------------------------------------------
@@ -173,7 +259,9 @@
             else if (lv.src === 'nocurve') level = 'curve ' + (e.level.curveRef === 'lane' ? 'on this lane' : e.level.curveRef || 'A') + ' — none drawn: ' + this.sineMarkText(lv.pts[0][1]);
             else if (mode === 'hairpin') level = this.sineMarkText(this.sineMark(e.level.mark)) + ' → ' + this.sineMarkText(this.sineMark(e.level.to == null ? e.level.mark : e.level.to));
             else level = Number.isInteger(lv.pts[0][1]) ? this.sineMarkText(lv.pts[0][1]) : String(lv.pts[0][1]);
-            return M.sign + ' ' + (e.label ? String(e.label).slice(0, 48) + ' · ' : '') + this.sinePitchName(e.midi) + this.sineGlissText(e) + ' · ' + secs + ' · ' + level;
+            const tr = this.sineTrack(e);
+            return M.sign + ' ' + (e.label ? String(e.label).slice(0, 48) + ' · ' : '') + this.sinePitchName(e.midi) + this.sineGlissText(e) + ' · ' + secs + ' · ' + level
+                + (tr ? (tr.follow === 0 ? ' · with the player' : ' · follows' + (tr.follow != null && tr.follow !== 1 ? ' ×' + tr.follow : '')) : '');
         },
 
         // ---- the gesture ----------------------------------------------------------------------------------------------------
@@ -195,7 +283,7 @@
         },
 
         // ---- the panel ------------------------------------------------------------------------------------------------------
-        sineSettings(e) { return { midi: e.midi, gliss: e.gliss, level: e.level, label: e.label || '' }; },
+        sineSettings(e) { const o = { midi: e.midi, gliss: e.gliss, level: e.level, label: e.label || '' }; if (e.track) o.track = e.track; return o; },
         // the whole setting written at once (the panel's box): what is not a setting is left out, what is out of range is brought in
         sineApply(zone, o) {
             const e = zone.elec;
@@ -205,6 +293,16 @@
                 const k = GLISS.some((x) => x[0] === o.gliss.kind) ? o.gliss.kind : 'none';
                 e.gliss = { kind: k, from: cents(o.gliss.from), to: cents(o.gliss.to) };
                 if (k === 'line' && Array.isArray(o.gliss.points)) e.gliss.points = o.gliss.points.filter((x) => Array.isArray(x) && x.length >= 2).slice(0, 8).map((x) => [Math.max(0, Math.min(1, +x[0] || 0)), cents(x[1])]);
+                if (Number.isFinite(+o.gliss.overS) && +o.gliss.overS > 0) e.gliss.overS = Math.min(600, Math.round(+o.gliss.overS * 100) / 100);
+            }
+            if ('track' in o) {
+                const t = o.track;
+                if (!t || typeof t !== 'object' || !t.on) delete e.track;
+                else {
+                    e.track = { on: true };
+                    if (t.follow != null && t.follow !== '' && Number.isFinite(+t.follow)) e.track.follow = Math.max(0, Math.min(2, Math.round(+t.follow * 100) / 100));
+                    if (t.ear === 'sim' || t.ear === 'mic') e.track.ear = t.ear;
+                }
             }
             if (o.level && typeof o.level === 'object') {
                 const mode = ['flat', 'hairpin', 'curve'].includes(o.level.mode) ? o.level.mode : 'flat', mk = (v) => (this.MARKS.includes(String(v)) ? String(v) : this.sineMark(v));
@@ -287,6 +385,29 @@
             if (lv.mode === 'curve') sec.appendChild(note(read.src === 'curve'
                 ? 'it follows the curve: ' + read.heights.map((h) => SPARK[Math.round(h * 7)]).join('') + '  ' + this.sineMarkText(Math.min(...read.pts.map((p) => p[1]))) + ' … ' + this.sineMarkText(Math.max(...read.pts.map((p) => p[1]))) + ' — the curve\'s height is ppp … fff; it is read again at every pass'
                 : typeof this.opts.curveAt === 'function' ? 'no curve is drawn under this brick there — it plays the dynamic above until one is' : 'this page has no curve reader — it plays the dynamic above'));
+            // the window: Follow — the sine armed for the brick's span, in with its player, following them, out with them
+            const tr = this.sineTrack(e), fol = el('select', { title: 'off: the sine sounds for the whole brick · on: the brick is a WINDOW — the sine is silent until the player of this lane sounds at its pitch, enters with them at the dynamic above, follows their rise and fall, holds through a breath, leaves when they stop' });
+            for (const [k, text] of [['off', 'off — it sounds for its whole span'], ['on', 'on — it enters with the player and follows them']]) fol.appendChild(el('option', { value: k, textContent: text, selected: (k === 'on') === !!tr }));
+            fol.addEventListener('change', () => { fol.blur(); commit(() => { if (fol.value === 'on') e.track = Object.assign({}, e.track, { on: true }); else delete e.track; }); });
+            sec.appendChild(rowEl('Follow', fol));
+            if (tr) {
+                const how = el('input', { type: 'number', value: tr.follow == null ? '' : String(tr.follow), step: '0.1', min: '0', max: '2', placeholder: 'the piece\'s', style: 'width:76px',
+                    title: 'how much of the player\'s CHANGE the sine takes: 1 = all of it · 0.5 = half · 0 = none (it enters and leaves with the player at its own dynamic and never moves). Empty: the piece\'s number' });
+                how.addEventListener('change', () => commit(() => { if (how.value === '' || !Number.isFinite(+how.value)) delete e.track.follow; else e.track.follow = Math.max(0, Math.min(2, Math.round(+how.value * 100) / 100)); }));
+                sec.appendChild(rowEl('How much', pair(how, tiny('0 … 1 of their rise and fall'))));
+                const ear = el('select', { title: 'who the engine listens to for this brick' });
+                for (const [k, text] of EARS) ear.appendChild(el('option', { value: k, textContent: text, selected: k === (tr.ear || '') }));
+                ear.addEventListener('change', () => { ear.blur(); commit(() => { if (ear.value) e.track.ear = ear.value; else delete e.track.ear; }); });
+                sec.appendChild(rowEl('Hears', ear));
+                if (this.sineGliss(e).length) {
+                    const over = el('input', { type: 'number', value: Number.isFinite(+g.overS) && +g.overS > 0 ? String(g.overS) : '', step: '0.5', min: '0', placeholder: 'the brick\'s', style: 'width:76px',
+                        title: 'the gliss begins again each time the player enters: how long ONE glide lasts, in seconds. Empty: the brick\'s whole length' });
+                    over.addEventListener('change', () => commit(() => { if (over.value === '' || !(+over.value > 0)) delete g.overS; else g.overS = Math.min(600, Math.round(+over.value * 100) / 100); }));
+                    sec.appendChild(rowEl('One glide (s)', over));
+                }
+                sec.appendChild(note('a WINDOW: silent until ' + (this.playerOf(zone.layer) || 'the player of this lane') + ' sounds at ' + this.sinePitchName(e.midi) + ' — then in with them at the dynamic above, following their rise and fall, held through a breath, gone when they stop'
+                    + (this.sineGliss(e).length ? '; its gliss begins again at each entry' : '') + '. The engine\'s window says each entry.'));
+            }
             // hear it · the whole setting
             const hear = el('button', { type: 'button', textContent: '▶ hear', title: 'two seconds of it through the engine — its pitch, its gliss over the two seconds, its first dynamic', style: small });
             hear.addEventListener('click', () => this.sineHear(zone));

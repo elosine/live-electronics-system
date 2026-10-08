@@ -18,6 +18,7 @@
 //   LE_CHAIN     the return behaviour 'chain':  after=0.7,lazy=0.2,far=0.1,unison=0,before=0,follow=1,shuffle=1  (bank.scd chainDefaults)
 //   LE_LIVE      the petals live, where a piece overrides the defaults:  on=1,windowMs=300  (petals_live.scd liveDefaults)
 //   LE_REGIONS   the regions of a capture, where a piece overrides the defaults:  blockMs=20,gateDb=-40,gapMs=150,minMs=500  (bank.scd regionsDefaults)
+//   LE_TRACK     the tracker — a sine that is a window on a player — where a piece overrides the defaults:  follow=1,capDb=8,holdMs=1500,floorDb=-60,earSim=1,…  (track.scd trackDefaults)
 //   LE_PLAN_HOLD seconds of quiet (no opening, no plan) before the plan's renders run — none while the music plays (process.scd; 6)
 //   LE_LEVEL     the ladder of marks, where a piece overrides the defaults:  reference=-29.54,stepDb=4,liftCapDb=20,floorDb=-60  (level.scd)
 //   LE_MASTER    the bus's dials, where a piece overrides the engine's neutral defaults:  hpfHz=30,glueOn=1,glueThr=-18,ceilingDb=-1,lookaheadMs=5  (boot.scd § the bus)
@@ -43,6 +44,7 @@ var arSpec = "LE_AR".getenv;
 var chainSpec = "LE_CHAIN".getenv;
 var liveSpec = "LE_LIVE".getenv;
 var regionSpec = "LE_REGIONS".getenv;   // the regions' numbers (bank.scd regionsDefaults; the Decibel piece's 15.2 a): blockMs=20,gateDb=-40,gapMs=150,minMs=500
+var trackSpec = "LE_TRACK".getenv;      // the tracker's dials (track.scd trackDefaults; the Decibel piece's 16.1): follow=1,capDb=8,holdMs=1500,floorDb=-60,earSim=1,…
 var source = "LE_SOURCE".getenv;
 var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 (dir +/+ "boot.scd").load;
@@ -80,6 +82,10 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 		le[\regionOpts] = ();
 		regionSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { le[\regionOpts][b[0].asSymbol] = b[1].asFloat } });
 	};
+	if(trackSpec.notNil and: { trackSpec.size > 0 }) {   // 16.1: the tracker's dials (track.scd trackOf)
+		le[\trackOpts] = ();
+		trackSpec.split($,).do({ |kv| var b = kv.split($=); if(b.size == 2) { le[\trackOpts][b[0].asSymbol] = b[1].asFloat } });
+	};
 	if(bank.notNil and: { bank.size > 0 }) { nSamples = le.bankOn(bank, crop, source, record) };
 	s.sync;
 	if(le[\bankDir].notNil and: { le[\measureBank].notNil }) { le.measureBank };   // the rows with no loudness figure yet, in the background (level.scd)
@@ -98,6 +104,8 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 			le.hear(\tree, { |le, d| OSCFunc({ |msg| le.say("LE_INFO", "TREE · " ++ msg[1..].collect(_.asString).join(" ")) }, '/g_queryTree.reply', s.addr).oneShot; s.sendMsg("/g_queryTree", 0, 0) });
 		};
 		if(le[\sineHear].notNil) { le.sineHear };   // the generated voices (sine.scd) — with or without a bank
+		// the tracker (track.scd): /le/simlevel — a score's simulated player, told — and the sound check's guard. Kept from stopping a start: a fault here is said, and the sines sound plain
+		if(le[\trackHear].notNil) { try { le.trackHear; le.trackGuard } { |e| le[\trackFor] = nil; le.say("LE_INFO", "the tracker did not start (" ++ e.errorString ++ ") — a sine that is a window will sound for its whole span") } };
 		if(le[\performerHear].notNil) { le.performerHear };   // the computer players (performer.scd): /le/performer · /le/performerstop
 		// a tool's run ends on a message, gracefully — the server quits its device before the process goes (§71: an engine killed from
 		// outside left ReaRoute wedged, and no engine could boot until Reaper was restarted). His own window still closes as before.

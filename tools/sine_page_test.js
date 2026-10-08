@@ -164,6 +164,69 @@ check('the box writes the whole setting, and leaves out what is not one', z.elec
 sent.length = 0; find(panelOf(z), (n) => n.tag === 'button' && n.textContent === '▶ hear')[0].on.click();
 check('▶ hear: two seconds, its gliss over them, no pass', sent.length === 1 && sent[0].kind === 'sine' && sent[0].data.lengthMs === 2000 && sent[0].data.gliss === '0:24.6,end:0' && sent[0].data.level === '2' && !('pass' in sent[0].data), JSON.stringify(sent.map((x) => x.data)));
 
+// ---- THE WINDOW (the Decibel piece's PLAN 1.8 · 16.1, 2026-10-08): the brick armed for its player, and the simulated ear ----
+console.log('SINE_PAGE_TEST the window:');
+host.objects.length = 0; nz = 0; curve = null; win.LE.playerOf = () => 'bcl';
+host.selectedObject = { id: 'wc-9', type: 'waveCurve', layer: 0, startSeconds: 5, endSeconds: 9, sonifyNote: 57 }; key('s');
+z = host.objects[0];
+m = msg(z);
+check('a brick as it always was says no gate', !('gate' in m) && !('player' in m) && !/follows|with the player/.test(label(z)), JSON.stringify(m) + ' · ' + z._label.textContent);
+z.elec.track = { on: true };
+m = msg(z);
+check('Follow on: gate 1 and whose window — the follow and the ear left to the piece', m.gate === 1 && m.player === 'bcl' && !('follow' in m) && !('ear' in m) && / · follows$/.test(label(z)), JSON.stringify(m) + ' · ' + z._label.textContent);
+z.elec.track = { on: true, follow: 0.5, ear: 'mic' };
+m = msg(z);
+check('what the brick says of itself goes with it', m.follow === 0.5 && m.ear === 'mic' && / · follows ×0\.5$/.test(label(z)), JSON.stringify(m) + ' · ' + z._label.textContent);
+z.elec.track = { on: true, follow: 0 };
+check('follow 0: in and out with the player, and never moved', msg(z).follow === 0 && / · with the player$/.test(label(z)), z._label.textContent);
+win.LE.playerOf = () => null;
+check('a lane with no microphone is a window all the same, under its own name', msg(z).player === 'lane0', msg(z).player);
+win.LE.playerOf = () => 'bcl';
+z.elec.track = { on: true }; z.elec.gliss = { kind: 'to', from: -30, to: 0 };
+check('a window\'s gliss is sent WHOLE even from a start inside it (the engine begins it again at each entry)', msg(z, 7).gliss === '0:-30,end:0' && msg(z, 7).lengthMs === 2000, msg(z, 7).gliss);
+z.elec.gliss.overS = 1.5;
+check('one glide\'s own length: every point in ms, shorter than the sine', msg(z).gliss === '0:-30,1500:0', msg(z).gliss);
+// the simulated ear: the notes under the window, told as they are about to sound
+const note1 = { id: 'wc-9', type: 'waveCurve', layer: 0, startSeconds: 5, endSeconds: 6.8, sonifyNote: 57 };
+const note2 = { id: 'wc-10', type: 'waveCurve', layer: 0, startSeconds: 7.5, endSeconds: 9, sonifyNote: 57, properties: { simLevel: [[0, 2], [1, 5]] } };
+const other = { id: 'wc-11', type: 'waveCurve', layer: 2, startSeconds: 5, endSeconds: 7, sonifyNote: 60 };
+host.objects.push(note1, note2, other);
+sent.length = 0; host.playStartTime = 5000; LEO._prev = null;
+LEO.tick(host, 4.95);
+let told = sent.filter((x) => x.kind === 'simlevel');
+check('the note under the window is told as it is about to sound — a steady one as one mark; a note on another lane is not', told.length === 1 && told[0].data.id === 'wc-9' && told[0].data.player === 'bcl' && told[0].data.lane === 0
+    && told[0].data.lengthMs === 1800 && told[0].data.level === '4' && told[0].data.pass > 0 && sent.filter((x) => x.kind === 'sine').length === 1, JSON.stringify(told.map((x) => x.data)));
+LEO.tick(host, 4.97); LEO.tick(host, 5.06);
+check('and only once', sent.filter((x) => x.kind === 'simlevel').length === 1, sent.filter((x) => x.kind === 'simlevel').length + ' told over three frames');
+sent.length = 0; LEO.tick(host, 7.45);
+told = sent.filter((x) => x.kind === 'simlevel');
+check('a note that SAYS its level (a tool\'s shaped note) is told as a line of marks', told.length === 1 && told[0].data.id === 'wc-10' && told[0].data.level === '0:2,end:5' && told[0].data.lengthMs === 1500, JSON.stringify(told.map((x) => x.data)));
+z.elec.track = { on: true, ear: 'mic' };
+sent.length = 0; host.playStartTime = 6000; LEO._prev = null; LEO.tick(host, 4.95);
+check('a window on a MICROPHONE is told nothing: the engine hears the player itself', sent.filter((x) => x.kind === 'simlevel').length === 0 && sent.filter((x) => x.kind === 'sine').length === 1, sent.map((x) => x.kind).join(','));
+delete z.elec.track;
+sent.length = 0; host.playStartTime = 7000; LEO._prev = null; LEO.tick(host, 4.95);
+check('with no window nothing is told', sent.filter((x) => x.kind === 'simlevel').length === 0, sent.map((x) => x.kind).join(','));
+// the panel's rows
+host.undo = 0;
+p = panelOf(z);
+let folSel = find(p, (n) => n.tag === 'select' && n.children.length === 2 && n.children.some((o) => o.value === 'on'))[0];
+check('the panel has Follow, off', !!folSel && find(p, (n) => n.tag === 'label').map((n) => n.textContent).includes('Follow') && folSel.children.find((o) => o.value === 'off').selected === true, folSel ? folSel.children.map((o) => o.value + (o.selected ? '*' : '')).join(' ') : 'no such menu');
+folSel.value = 'on'; folSel.on.change();
+p = panelOf(z);
+const rows = find(p, (n) => n.tag === 'label').map((n) => n.textContent).filter(Boolean);
+check('turned on: the brick is a window, undoably — and the panel shows how much, who it hears, one glide', JSON.stringify(z.elec.track) === '{"on":true}' && host.undo === 1 && ['How much', 'Hears', 'One glide (s)'].every((t) => rows.includes(t)), JSON.stringify(z.elec.track) + ' · ' + rows.join(' · '));
+const howBox = find(p, (n) => n.tag === 'input' && n.type === 'number' && n.placeholder === 'the piece\'s' && n.max === '2')[0];
+howBox.value = '0.6'; howBox.on.change();
+check('How much writes the follow', z.elec.track.follow === 0.6 && msg(z).follow === 0.6, JSON.stringify(z.elec.track));
+const box2 = find(panelOf(z), (n) => n.tag === 'textarea')[0];
+check('the box shows the window', JSON.parse(box2.value).track.on === true && JSON.parse(box2.value).track.follow === 0.6, box2.value.replace(/\s+/g, ' '));
+box2.value = JSON.stringify({ track: { on: true, follow: 5, ear: 'nose' }, gliss: { kind: 'to', from: -30, to: 0, overS: 2 } }); box2.on.change();
+check('and writes it, brought into range', JSON.stringify(z.elec.track) === '{"on":true,"follow":2}' && z.elec.gliss.overS === 2, JSON.stringify(z.elec.track) + ' · ' + JSON.stringify(z.elec.gliss));
+box2.value = JSON.stringify({ track: null }); box2.on.change();
+check('track: null in the box takes the window off', !('track' in z.elec), JSON.stringify(z.elec));
+host.objects.splice(host.objects.indexOf(note1), 3); z.elec.track = { on: true, follow: 0.6 }; z.elec.label = 'crotale';
+
 console.log('SINE_PAGE_TEST the save:');
 const copy = host.createZone({ layer: z.layer, startTime: z.startTime, endTime: z.endTime, zoneFunction: 'elec', midiModel: 'elecSine' });
 copy.elec = JSON.parse(JSON.stringify(z.elec));

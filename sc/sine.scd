@@ -17,7 +17,11 @@
 //         pass         a number that changes when the score is started again or its playhead jumps: the first sine of a NEW
 //                      pass lets go of every sine of the pass before (so no message has to arrive before another to do it).
 //                      Absent (an audition): no pass, nothing let go.
-//   /le/sinestop      every sine sounding lets go in 50 ms (a score that stops: a long tone must not hang over the silence);
+//         gate · player · ear · follow · capDb     THE SINE AS A WINDOW ON A PLAYER (track.scd, 2026-10-08): with `gate 1` it is
+//                      armed for its span and silent until its player sounds at this pitch; it enters with them at its level,
+//                      follows their rise and fall, holds through a breath, leaves when they stop; its gliss begins again at
+//                      each entry. Absent: it sounds for its whole span, as it always did.
+//   /le/sinestop     every sine sounding lets go in 50 ms (a score that stops: a long tone must not hang over the silence);
 //                     one begun AFTER the word is not touched — each sine is known by its own node
 //
 // THE LEVEL IS EXACT — a sine's loudness needs no measurement. A mark is a loudness on the players' ladder (level.scd markDb:
@@ -108,15 +112,20 @@
 // ---- the sine: /le/sine -----------------------------------------------------------------------------------------------
 ~le[\sinePlay] = { |self, d|
 	var s = self[\server], due = ((d[\dueMs] ? 0).asString.asFloat / 1000).clip(0, 5), la = (self[\masterDelay] ? 0);
-	var sp = self.sineSpec(d), at = (due - la).max(0), now = SystemClock.seconds, node = Synth.basicNew(\leSine, s), pass = d[\pass], gone = 0;
+	var sp = self.sineSpec(d), at = (due - la).max(0), now = SystemClock.seconds, pass = d[\pass], gone = 0, node, spT = sp;
+	// A WINDOW (track.scd): the message says `gate 1` — the sine is armed for its span, in with its player, following them, out with them.
+	// nil: a plain sine, as before (no gate said — or no ear to hear the player with, which trackFor says in the window)
+	var tr = if(self[\trackFor].notNil) { try { self.trackFor(d, sp) } { |e| self.say("LE_INFO", "sine · the tracker failed (" ++ e.errorString ++ ") — a plain sine"); nil } };
+	if(tr.notNil) { spT = sp.copy; spT[\glissCents] = tr[\glissCents]; spT[\glissDt] = tr[\glissDt] };
+	node = Synth.basicNew(if(tr.notNil) { \leSineTrack } { \leSine }, s);
 	// a NEW PASS of the score (it was started again, or the playhead jumped): the sines of the pass before let go first
 	if(pass.notNil and: { self[\sinePass] != pass }) { gone = self.sineLetGo(pass); self[\sinePass] = pass };
-	s.sendBundle(if(at > 0.005) { at }, node.newMsg(self[\grpFx], [\out, self[\busMaster].index] ++ self.sineArgs(sp), \addToTail));
+	s.sendBundle(if(at > 0.005) { at }, node.newMsg(self[\grpFx], [\out, self[\busMaster].index] ++ self.sineArgs(spT) ++ if(tr.notNil) { tr[\args] } { [] }, \addToTail));
 	// each sine is remembered until its length is over — by its own node, so a stop lets go of THESE and of none begun after it
 	self[\sines] = (self[\sines] ? List.new).reject({ |x| x[\end] < now }).asList;
 	self[\sines].add((node: node, start: now + at, end: now + at + sp[\dur] + 0.1, pass: pass));
 	if(gone > 0) { self.say("LE_INFO", "sine · a new pass — " ++ gone ++ " of the pass before let go") };
-	self.say("LE_INFO", "sine · " ++ self.sineSaid(sp) ++ " · in " ++ (at * 1000).round(1).asInteger ++ " ms");
+	self.say("LE_INFO", "sine · " ++ self.sineSaid(sp) ++ " · in " ++ (at * 1000).round(1).asInteger ++ " ms" ++ if(tr.notNil) { tr[\said] } { "" });
 	self.say("LE_RESULT", self.json((msg: "sine", id: (d[\id] ? "").asString, midi: sp[\midi], hz: sp[\freq].round(0.01),
 		lengthMs: (sp[\dur] * 1000).round(1), dueMs: (at * 1000).round(0.1), peakDb: sp[\envDb].maxItem.round(0.1))));
 	self
@@ -140,6 +149,7 @@
 
 ~le[\sineStop] = { |self|
 	var n = self.sineLetGo(nil);
+	if(self[\trackSimClear].notNil) { self.trackSimClear(nil) };   // the levels a score told (track.scd): silence on every sim bus
 	if(n > 0) { self.say("LE_INFO", "sine · stopped — " ++ n ++ " let go") };
 	self
 };
