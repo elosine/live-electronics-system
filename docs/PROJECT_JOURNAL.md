@@ -32,6 +32,12 @@
 play back, then **STOP and ask**. No edits, no builds, no tool calls beyond the resume
 reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, then work.)*
 
+### 2026-10-08 — THE LIVE ROAD GUARDED, in the Decibel piece (Fable; RUNNING_LOG §58 · §59)
+
+- **What exists:** the clock check at every start (`sc/session.scd`) · the plan's hold (`sc/process.scd` `planHoldS` · `planTouch`; `LE_PLAN_HOLD`) · the live petals made with the as-played level, the mark at `/le/play` (`sc/petals_live.scd`) · `heard · … INSIDE / OUTSIDE the window` · `/le/tree` · InFeedback in the two readers.
+- **Heard:** the live petals in the Decibel piece, thirty-four hits, the composer's word. **Not claimed:** a hall.
+- **Next:** by the Decibel piece's need. Open in `docs/NITS.md`: why ReaRoute free-runs after a close; the measure on the server.
+
 ### 2026-10-07 — THE PETALS LIVE, in the Decibel piece (Opus; RUNNING_LOG §57; parts 6 · 11)
 
 - **What exists:** `sc/petals_live.scd` — `\lePetalsLive` (a player's bus through a window into the composer's bank of resonators, in real time), the rule at `/le/open` and `/le/play`, the level from the latest render of the same variant · `~le[\petalsGraph]` in `sc/process.scd` (one graph, two SynthDefs; the offline render unchanged to the sample) · `/le/process preMs` · a render's row `driveDb` · `outGainDb` · `preMs`, a capture's `leadMs` · `LE_LIVE` · the label `· LIVE` (`score/le_objects.js` `isLive`).
