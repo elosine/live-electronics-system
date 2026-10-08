@@ -138,6 +138,11 @@ check.("they parse", bad.size == 0, if(bad.size == 0) { "session · selftest · 
 ~le[\indexRows] = List.new;
 ~le[\indexRows].add(~le.loudInto((id: "smp_1", name: "tone", player: "p", lane: 0, lengthMs: 1000.0, peakDb: -17.0, file: "tone.wav"), mFile));
 check.("the index is written", ~le.indexWrite, tmp +/+ "index.json");
+// §228: the breathing writer (synchronous outside a Routine) writes the same file, and a change marks the index dirty until written
+~le[\indexDirty] = true;
+check.("the breathing index writer writes it too, and clears the dirty mark", ~le.indexWriteBreathing and: { ~le[\indexDirty] == false } and: { File.exists(tmp +/+ "index.json") },
+	"written " ++ File.fileSize(tmp +/+ "index.json") ++ " bytes · dirty " ++ ~le[\indexDirty]);
+check.("indexWriteSoon marks a pending write (flushed by leave)", ~le.indexWriteSoon and: { ~le[\indexDirty] == true } and: { ~le[\indexPending] >= 1 }, "pending " ++ ~le[\indexPending] ++ " · dirty " ++ ~le[\indexDirty]);
 rows = ~le.indexRead;
 check.("a row's figure comes back as a number, its name on the ladder with it", (rows.size == 1) and: { rows[0][\loudDb].isNumber } and: { near.(rows[0][\loudDb], mFile[\loudDb], 0.001) } and: { rows[0][\played].asString == "fff" },
 	if(rows.size == 1) { "loudDb " ++ rows[0][\loudDb] ++ " · loudIntDb " ++ rows[0][\loudIntDb] ++ " · played " ++ rows[0][\played] } { "no row" });

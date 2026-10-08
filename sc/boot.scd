@@ -55,6 +55,7 @@
 // leave the process: the server first, then sclang, with an exit code tools/sc.js reports
 ~le[\leave] = { |self, code = 0|
 	var s = self[\server];
+	if((self[\indexDirty] == true) and: { self[\indexWrite].notNil }) { if(self.indexWrite) { self[\indexDirty] = false } };   // §228: a pending index write is flushed before the process ends
 	if(s.notNil and: { s.serverRunning }) { s.quit };
 	SystemClock.sched(0.8, { code.exit; nil });
 	self

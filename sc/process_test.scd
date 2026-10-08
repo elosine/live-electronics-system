@@ -243,6 +243,7 @@ fork {
 		check.("~13 the chord holds, all three strings in it, then it dies", (own > -6) and: { tones.minItem > -12 } and: { r13[\lengthMs] > 1500 } and: { r13[\lengthMs] < 4800 },
 			"0.9 … 1.4 s into it, " ++ own ++ " dB under its peak · E4 · F#4 · A4 at " ++ tones ++ " dB of the strongest · " ++ r13[\lengthMs] ++ " ms long (the hold 1.5 s, the cap 5000)");
 	};
+	~le.indexWrite;   // §228: a render's banking no longer writes the index at once (one breathing write 2 s after the last change) — flushed here as leave does
 	check.("the index on disk holds the eighteen", ~le.indexRowsOf(tmp).size == 18, ~le.indexRowsOf(tmp).collect({ |r| r[\name] }).join(" · "));
 	// what a chain's "*" plays: every CAPTURED sample — a render does not join it (bank.scd chainNames)
 	~le[\samples].put('t-src', (row: (name: "t-src")));

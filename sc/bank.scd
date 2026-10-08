@@ -171,6 +171,40 @@
 	ok
 };
 
+// THE INDEX OFF THE HOT PATH (the Decibel piece's RUNNING_LOG §227 · §228, 2026-10-07): one write of the index held the language
+// 200 ms (1538 rows, 930 KB, built and written in one go on the message thread), and a capture and its render each wrote it —
+// a /le/play landing inside was heard late (his: "the petal at 161.27 is late if I play the bass flute's first"). indexWriteSoon:
+// ONE write, indexDebounceS (2 s) after the LAST change, not one per capture and per render; indexWriteBreathing builds the rows'
+// JSON a hundred at a time with a breath between (inside a Routine; synchronous outside one — the tests) — a message waits a few
+// milliseconds at most. indexWrite above stays as it was: the tests, and leave flushes a pending write with it (boot.scd).
+~le[\indexWriteSoon] = { |self|
+	var my;
+	self[\indexPending] = (self[\indexPending] ? 0) + 1; my = self[\indexPending];
+	self[\indexDirty] = true;
+	{
+		(self[\indexDebounceS] ? 2).wait;
+		if((self[\indexPending] == my) and: { self[\indexDirty] == true }) { self.indexWriteBreathing };
+	}.fork(SystemClock);
+	true
+};
+~le[\indexWriteBreathing] = { |self|
+	var path = self[\bankDir] +/+ "index.json", f, ok = false, parts = List.new, rows = self[\indexRows].copy, breathing = thisThread.isKindOf(Routine);
+	if(self[\indexBroken] != true) {
+		rows.do({ |r, i| parts.add(self.json(r)); if(breathing and: { ((i + 1) % 100) == 0 }) { 0.002.wait } });
+		f = File(path, "w");
+		if(f.isOpen) {
+			f.write("{\n \"schema\": 1,\n \"_what\": \"THE SAMPLE INDEX — a row per sample in this folder, written by the engine after each capture (electronics/sc/bank.scd). GENERATED: do not hand-edit while the engine is up.\",\n \"samples\": [\n  "
+				++ parts.join(",\n  ") ++ "\n ]\n}\n");
+			f.close;
+			ok = true;
+			self[\indexDirty] = false;
+		} {
+			self.say("LE_INFO", "the index was NOT written — the rows hold until this engine stops");
+		};
+	};
+	ok
+};
+
 // ---- the bank ---------------------------------------------------------------------------------------------------------
 ~le[\bankOn] = { |self, dir, cropOpts, source, record|
 	var s = self[\server];
@@ -271,7 +305,7 @@
 			// and add() on a full Array returns a NEW array that was being thrown away. A List adds in place: made one, every time.
 			self[\indexRows] = self[\indexRows].reject({ |r| r[\name].asString == name }).asList;
 			self[\indexRows].add(row);
-			if(self.indexWrite.not) { self.say("LE_INFO", "the index was NOT written — the sample is saved as " ++ rel) };
+			self.indexWriteSoon;   // §228: off the hot path — one breathing write 2 s after the last change (the sample is saved as rel already)
 			Buffer.read(s, dir +/+ rel, action: { |b|
 				self[\samples][name.asSymbol] = (row: row, buf: b, from: \captured);
 				if(old.notNil) { SystemClock.sched(10, { old[\buf].free; nil }) };

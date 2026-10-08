@@ -667,7 +667,7 @@
 			if(o[\planned].notNil) { row[\planned] = 1 };   // a variant of the plan (below): a page keeps it out of its pickers
 			self[\indexRows] = self[\indexRows].reject({ |r| r[\name].asString == out }).asList;   // a List: add() in place (bank.scd, §84)
 			self[\indexRows].add(row);
-			if(self.indexWrite.not) { self.say("LE_INFO", "the index was NOT written — the sample is saved as " ++ rel) };
+			self.indexWriteSoon;   // §228: off the hot path — one breathing write 2 s after the last change (bank.scd)
 			old = if(self[\samples].notNil) { self[\samples][out.asSymbol] };
 			if(s.notNil and: { s.serverRunning }) {
 				Buffer.read(s, dir +/+ rel, action: { |b|
