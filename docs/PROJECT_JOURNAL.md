@@ -32,6 +32,10 @@
 play back, then **STOP and ask**. No edits, no builds, no tool calls beyond the resume
 reads. Start only on his word. *(At `/session-start`: orient, agree the agenda, then work.)*
 
+### 2026-10-08 — A SHAPED RETURN'S BRICK IS AS LONG AS ITS SHAPE, in the Decibel piece (Fable; RUNNING_LOG §61)
+
+`score/le_objects.js` `shapeMs` · `redraw`: a return brick whose variant is `<key>-shape` and whose preset ends by a shape is drawn as long as the preset's `durMs`; every other plain return as long as its sample, as before. Found when the piece's drone bricks shrank to their recordings' lengths at the index read and a save kept it. `tools/page_test.js` PASS; seen in the composer's own save (37 bricks whole). **A brick whose length is its own is a new kind here: the next such object is checked against `redraw()` when it is built.** Nothing in hand in the engine; the piece's journal §2 (checkpoint #19) is the cold-start block.
+
 ### 2026-10-08 — THE DRONE SECTION'S ADDITIONS; THE ICY STAGE VETTED AGAINST HIS ORIGINAL, in the Decibel piece (Fable; RUNNING_LOG §60)
 
 - **What exists:** the regions of a capture (`sc/bank.scd` `regionsDefaults` · `regionsFind` · `regionsText` · `regionsOf`; the row's `regions`; `LE_REGIONS` in `session.scd`) · a start as a fraction of the longest region (`sc/process.scd` `regionStart`, `icFromMs:region@F`) · the chain's write buffer sized to the source (`\icBufS.ir`; the icy stage's clip to it) · the loop mode silent until its start (`icGate`; the render longer by the start) · the shaped plan row (`planTake` fields 12 · 13, `durX` as `<ms>ms`; `planNext`) · the late rule for a shaped variant (`sampleFor` `lateSilent`) · the page's `planRows` · `sendPlan` for a shape envelope and a `region@` value · `sc/drone_test.scd`.
