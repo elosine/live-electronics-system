@@ -19,6 +19,8 @@
 //         players    the players who answer (the engine's names); empty = every player the bank has
 //         samples    'bank' — one sample a player, rolled, none twice until all are used · or a list of names, dealt in order
 //         processed  true: the processed versions are in the roll beside the raw captures
+//         envs       [§337] the endings a processed version must have to be rolled (perc, expodec …; the index row's end) — absent: the catalogue's samples.envs; empty: any
+//         cats       [§337] the categories a capture must have to be rolled (impulse …; the index row's category) — absent: the catalogue's samples.categories; empty: any
 //         answerOf   the id of an EARLIER window: this window's answer uses THAT strike's rhythm (the come-back, the piece's 17.3) —
 //                    carried on the brick and in the message from the first build; the engine keeps every strike it heard
 //       Its lane is only where it is drawn: it listens to ALL the players. Played through, it sends ONE message at its start —
@@ -54,7 +56,7 @@
     const TIMING_NAME = { rightAfter: 'right after', aBeatLater: 'a beat later', callResponse: 'call and response', muchLater: 'much later', inLaterWindow: 'in a later window' };
     // the module's own numbers — a piece's catalogue (bank/strike_responses.json) overrides them; the engine's strikeDefaults mirror them
     const DEFAULTS = {
-        gapMs: 500, level: 'mimic', deal: 'robin', samples: { processed: true },
+        gapMs: 500, level: 'mimic', deal: 'robin', samples: { processed: true, envs: [], categories: [] },   // [§337] envs · categories: the deck's filters (empty = any)
         transformations: {
             asPlayed: {}, retrograde: {}, invert: {},
             spread: { range: [1.5, 3] }, compress: { range: [0.3, 0.7] },
@@ -198,6 +200,11 @@
                 type: TYPES.includes(e.type) ? e.type : 'asPlayed', timing: TIMINGS.includes(e.timing) ? e.timing : 'rightAfter', seed: Math.max(1, Math.round(+e.seed) || 1),
                 gapMs: Math.max(50, Math.round(+e.gapMs || def.gapMs)), level: MARKS.includes(String(e.level)) ? String(e.level) : 'mimic', deal: e.deal === 'all' ? 'all' : 'robin',
                 processed: (e.processed == null ? def.processed : !!e.processed) ? 1 : 0, zone: String(zone.id), lane: zone.layer };
+            // [§337, DEC-113] THE DECK'S FILTERS — the endings a processed version may have (`envs`) and the categories a capture may have (`cats`):
+            // the piece's catalogue (samples.envs · samples.categories), a brick's own e.envs · e.cats over it; absent or empty = any. The engine filters.
+            const S = (this.strikeCat || DEFAULTS).samples || {}, envs = Array.isArray(e.envs) ? e.envs : (S.envs || []), cats = Array.isArray(e.cats) ? e.cats : (S.categories || []);
+            if (envs.length) m.envs = envs.map(safe).filter(Boolean).join(',');
+            if (cats.length) m.cats = cats.map(safe).filter(Boolean).join(',');
             if (start > a + 0.001) { m.offsetMs = Math.round((start - a) * 1000); m.wholeMs = Math.round((zone.endTime - a) * 1000); }
             if (Array.isArray(e.players) && e.players.length) m.players = e.players.map(safe).filter(Boolean).join(',');
             if (Array.isArray(e.samples) && e.samples.length) m.samples = e.samples.map(safe).filter(Boolean).join(',');
@@ -248,7 +255,7 @@
         // ---- the panel ------------------------------------------------------------------------------------------------------
         strikeSettings(e) {
             const o = {};
-            for (const k of ['id', 'type', 'timing', 'seed', 'gapMs', 'level', 'deal', 'processed', 'answerOf', 'label']) if (e[k] != null && e[k] !== '') o[k] = e[k];
+            for (const k of ['id', 'type', 'timing', 'seed', 'gapMs', 'level', 'deal', 'processed', 'envs', 'cats', 'answerOf', 'label']) if (e[k] != null && e[k] !== '') o[k] = e[k];
             if (Array.isArray(e.players) && e.players.length) o.players = e.players;
             o.samples = Array.isArray(e.samples) ? e.samples : 'bank';
             return o;
@@ -263,6 +270,7 @@
             if (o.level != null) e.level = MARKS.includes(String(o.level)) ? String(o.level) : 'mimic';
             if (o.deal != null) e.deal = o.deal === 'all' ? 'all' : 'robin';
             if (o.processed != null) e.processed = !!o.processed;
+            if (Array.isArray(o.envs)) e.envs = o.envs.map(String); if (Array.isArray(o.cats)) e.cats = o.cats.map(String);   // [§337]
             if (o.players != null) e.players = Array.isArray(o.players) ? o.players.map(safe).filter(Boolean) : [];
             if (o.samples != null) e.samples = Array.isArray(o.samples) && o.samples.length ? o.samples.map(safe).filter(Boolean) : 'bank';
             if (o.answerOf != null) { if (safe(o.answerOf)) e.answerOf = safe(o.answerOf); else delete e.answerOf; }

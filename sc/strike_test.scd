@@ -29,6 +29,17 @@ near = { |a, b, tol = 0.01| (a - b).abs <= tol };
 	[1, 2].do({ |i| ~le[\samples][(p ++ "-impulse-" ++ i).asSymbol] = (row: (name: p ++ "-impulse-" ++ i, player: p.asString), buf: nil) });
 	~le[\samples][(p ++ "-impulse-1~k1-tail").asSymbol] = (row: (name: p ++ "-impulse-1~k1-tail", player: p.asString, kind: "processed"), buf: nil);
 });
+// [§337, DEC-113] THE DECK'S FILTERS — a processed version is in only with an allowed ending; a row only with an allowed category (nil = any).
+// On a sixth, throwaway player, taken out again before the rest runs.
+~le[\samples]["zz-impulse-1".asSymbol] = (row: (name: "zz-impulse-1", player: "zz", category: "impulse"), buf: nil);
+~le[\samples]["zz-drone-1".asSymbol] = (row: (name: "zz-drone-1", player: "zz", category: "drone"), buf: nil);
+~le[\samples]["zz-impulse-1~k1-tail".asSymbol] = (row: (name: "zz-impulse-1~k1-tail", player: "zz", kind: "processed", end: "tail"), buf: nil);
+~le[\samples]["zz-impulse-1~k2-perc".asSymbol] = (row: (name: "zz-impulse-1~k2-perc", player: "zz", kind: "processed", end: "perc"), buf: nil);
+check.("the pool with no filter: every row of the player", ~le.strikePool(\zz, true, nil, nil).size == 4, ~le.strikePool(\zz, true, nil, nil).join(" "));
+check.("the pool with envs perc: the captures and the perc version, the tail out", ~le.strikePool(\zz, true, ["perc"], nil) == ["zz-drone-1", "zz-impulse-1", "zz-impulse-1~k2-perc"], ~le.strikePool(\zz, true, ["perc"], nil).join(" "));
+check.("the pool with cats impulse: the drone out, a processed version by its source", ~le.strikePool(\zz, true, ["perc"], ["impulse"]) == ["zz-impulse-1", "zz-impulse-1~k2-perc"], ~le.strikePool(\zz, true, ["perc"], ["impulse"]).join(" "));
+check.("the pool without processed: the capture alone", ~le.strikePool(\zz, false, ["perc"], ["impulse"]) == ["zz-impulse-1"], ~le.strikePool(\zz, false, ["perc"], ["impulse"]).join(" "));
+["zz-impulse-1", "zz-drone-1", "zz-impulse-1~k1-tail", "zz-impulse-1~k2-perc"].do({ |k| ~le[\samples].removeAt(k.asSymbol) });
 ons = [[0, \f], [98, \mf], [157, \f], [191, \mp], [237, \ff], [397, \f]].collect({ |x| (atMs: x[0], mark: x[1]) });
 rel = { |a| a.collect({ |o| o[\atMs] }) };
 mk = { |a| a.collect({ |o| o[\mark] }).join(" ") };
