@@ -316,6 +316,23 @@ the page's half by `tools/sine_page_test.js` under a stub window (33 checks). NO
 - **What a piece gives:** the bricks (which performer, in which state, when, listening to whom), the PALETTES (which banked samples each performer plays), the dials — and, in a simulation, the players' notes. The lane → player table is the route table's, as for a mic opening.
 - **`ear`:** `sim` in a simulation · `mic` in a concert (the onset probe of 4.2 e — **it reports a rise out of silence and holds 250 ms: an attack over a ringing sound is not heard. A detector of attacks is the next thing the concert's road needs — NITS.**)
 
+## The composer score — the sixth object: the strike window, and the pooled ear
+
+*(First built in the Decibel piece, 2026-10-09 — RUNNING_LOG §63; the piece's PLAN 1.9 · 17.1.)*
+
+- **The file:** `score/le_strike.js`, a mixin on `LEObjects` — ONE tag in the piece's page (row 2e below), after `le_objects.js`; its key is `strike` in line 3's `keys` (the Decibel piece: `w`). Its pure part, `StrikeCalc` (the dice · the transformations · the timing), is the same function the engine runs — in node `require('…/le_strike.js')` IS StrikeCalc (a piece's builders and checks use it).
+- **The brick:** a zone, `midiModel: 'elecStrike'`, `zoneFunction: 'elec'`, `elec: { id?, type, timing, seed, gapMs?, level?, deal?, players?, samples?, processed?, answerOf?, label? }`. Its lane is only where it is drawn: it listens to ALL the players — the microphones pooled, one voice. The key makes one over the selected strike's group (its notes − 0.3 … + 0.5 s), else 2 s at the playhead.
+- **The messages (page → engine, the road of 4.2):**
+  `/le/strike  id · t · dueMs · lengthMs · [offsetMs · wholeMs] · type · timing · seed · gapMs · level · deal · [players · samples · processed · answerOf] · dials · pass · zone · lane` — at the window's start, or for what is left when the playhead begins inside it ·
+  `/le/strikestop` — at a stop ·
+  `/le/onset  player · lane · id · t · dueMs · sim 1 · mark` — THE SIMULATED EAR: every note that BEGINS INSIDE a window, as it is about to sound, with its loudness as a mark (the note's `recVel`, else its drawn height on the written scale; `opts.noteMark` is a host's own rule). A note outside every window is not told.
+- **The engine's side:** `sc/strike.scd` (loaded by `boot.scd`; on the ear by `session.scd`, which also hands every `sim` onset and every probe hit to it — the engine's own files, no line of a piece's). The window collects its onsets; the strike is OVER `gapMs` after the last (or at the window's end + `gapMs`); then ONE answer — the rhythm transformed (`type`), placed after the last onset (`timing`), one banked sample a player dealt over the onsets (`deal`), each at the level of the onset it came from (`level mimic`: the loudest mark the base, the others so many dB under it) — handed to the PATTERN PATH (`samplePlay`, behaviour `pattern`), a second ahead. `answerOf` names an earlier window: its strike's onsets are the material (every strike heard is kept until the next pass).
+- **What a piece gives:** the bricks and THE CATALOGUE — `bank/strike_responses.json` (`opts.strikeUrl`): a draw range per transformation and per timing; the brick's message CARRIES the numbers it uses (`dials`), so the engine needs no file — `strikeDefaults` mirror the module's `StrikeCalc.DEFAULTS`.
+- **The two ears, one path:** `sim` (the page's feed) · `mic` (the probe's hit, its level read ROUGH against the ladder's fff) — `~le[\strikeEar]`. The probe reports a rise out of silence only: a strike's six onsets over ringing instruments need a detector of attacks — the concert's (the piece's 17.5; NITS).
+- **The label** says what it is: `⊡ W3 · retrograde · a beat later · s103` · `… · ff` · `… · answers W1`. The panel shows the answer the engine will give (the same dice) from the notes under the window.
+
+**Proven** (the Decibel piece's 17.1, RUNNING_LOG §297): the engine's half by `sc/strike_test.scd` (the nine transformations and the five timings on one strike give the page's numbers to the tenth of a millisecond; the window; the come-back; the deal; the decks; a new pass; a stop); the page's half by the piece's `tools/strike_check.js` under a stub window. NOT yet by a living engine.
+
 ## The petals live — a return at its own mic opening, made from the microphone (the Decibel piece's 10.14)
 
 *(Built in the Decibel piece, 2026-10-07 — its PLAN 10.14; this repo's RUNNING_LOG §57. NO line of a piece's stack files changes for it, and no message gains a field: the rule is the engine's.)*
@@ -380,6 +397,7 @@ the page's half by `tools/sine_page_test.js` under a stub window (33 checks). NO
 | 2b | `<script src="/electronics/le_process.js"></script>` | after it — the process brick (2026-10-05); its key is `process` in line 3's `keys` |
 | 2c | `<script src="/electronics/le_sine.js"></script>` | after it — the sine brick (2026-10-06); its key is `sine` in line 3's `keys`, its curve reader `curveAt` there too |
 | 2d | `<script src="/electronics/le_performer.js"></script>` | after it — the performer's container and the simulated ear (2026-10-06); no key, no attach option |
+| 2e | `<script src="/electronics/le_strike.js"></script>` | after it — the strike window and the pooled ear (2026-10-09); its key is `strike` in line 3's `keys`; `strikeUrl` (the catalogue, '/bank/strike_responses.json' by default) and `noteMark` (a note's loudness as a mark) are its attach options, both optional |
 | 3 | `if (window.LEObjects) LEObjects.attach(Composer, { keys: { open: 'm', play: 'r', process: 'e', sine: 's' }, lanes: META_LAYER, indexUrl: '/bank/samples/index.json', accel: window.AccelCalc, containers: window.TimeContainers, curveAt: (ref, z, n) => …, portOf: (l) => (Composer.trackInstrument(l) \|\| {}).port, laneLabel: (l) => (TRACKS[l] \|\| {}).short \|\| ('lane ' + l) });` | just BEFORE `Composer.init()` is called — so a loaded score's first drawing has the bricks' labels. The keys, the lanes and the index's address are the PIECE's. `curveAt` (2026-10-06) is the sine brick's level from a drawn curve: the piece's own curve readers behind one function — n heights 0 … 1 over a span, or null |
 | 4 | `if (window.LEObjects) LEObjects.tick(this, timeSec);` | in `applyScroll`, the last of the playback ticks |
 

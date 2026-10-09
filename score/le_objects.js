@@ -147,6 +147,7 @@
                 else if (k === keys.play) { e.preventDefault(); this.addReturn(); }
                 else if (keys.process && k === keys.process && this.addProcess) { e.preventDefault(); this.addProcess(); }   // le_process.js
                 else if (keys.sine && k === keys.sine && this.addSine) { e.preventDefault(); this.addSine(); }   // le_sine.js
+                else if (keys.strike && k === keys.strike && this.addStrike) { e.preventDefault(); this.addStrike(); }   // le_strike.js
             });
             if (window.LE && LE.ready) LE.ready.then(() => this.redraw());
             this.loadIndex();
@@ -287,6 +288,7 @@
             if (zone.midiModel === 'elecProcess') { if (label && this.processLabel) label.textContent = this.processLabel(zone); return; }   // le_process.js
             if (zone.midiModel === 'elecSine') { if (label && this.sineLabel) label.textContent = this.sineLabel(zone); return; }   // le_sine.js
             if (zone.midiModel === 'elecPerformer') { if (label && this.performerLabel) label.textContent = this.performerLabel(zone); return; }   // le_performer.js
+            if (zone.midiModel === 'elecStrike') { if (label && this.strikeLabel) label.textContent = this.strikeLabel(zone); return; }   // le_strike.js
             let text = M.sign + ' ' + (e.name || '?');
             if (zone.midiModel === 'elecOpen') {
                 const p = this.playerOf(zone.layer);
@@ -419,6 +421,9 @@
             } else if (zone.midiModel === 'elecPerformer') {
                 if (this.performerPanel) this.performerPanel(zone, sec, { el, rowEl, note, commit });   // le_performer.js
                 else sec.appendChild(note('this brick\'s panel is le_performer.js — not loaded on this page'));
+            } else if (zone.midiModel === 'elecStrike') {
+                if (this.strikePanel) this.strikePanel(zone, sec, { el, rowEl, note, commit });   // le_strike.js
+                else sec.appendChild(note('this brick\'s panel is le_strike.js — not loaded on this page'));
             } else {
                 const rows = this.choosable().sort((a, b) => String(a.name).localeCompare(String(b.name)));
                 const pick = el('select');
@@ -862,7 +867,7 @@
             for (const z of host.objects) {
                 if (!this.is(z) || !z.elec) continue;
                 const ahead = z.startTime > from && z.startTime <= to;
-                const inside = fresh && z.startTime <= t && ((z.midiModel === 'elecOpen' && z.endTime > t + 0.02) || ((z.midiModel === 'elecSine' || z.midiModel === 'elecPerformer') && z.endTime > t + 0.1));   // the playhead starts inside an opening — or inside a sine: it sounds for what is left of it
+                const inside = fresh && z.startTime <= t && ((z.midiModel === 'elecOpen' && z.endTime > t + 0.02) || ((z.midiModel === 'elecSine' || z.midiModel === 'elecPerformer' || z.midiModel === 'elecStrike') && z.endTime > t + 0.1));   // the playhead starts inside an opening — or inside a sine: it sounds for what is left of it; inside a strike window: it listens for what is left
                 if (!ahead && !inside) continue;
                 if (host.isPartAudible && !host.isPartAudible(z.layer)) continue;
                 this.fire(host, z, inside ? t : z.startTime);
@@ -874,6 +879,7 @@
             if (z.midiModel === 'elecProcess') { if (this.processFire) this.processFire(host, z, at, dueMs); return; }   // le_process.js: a rendered stage is played as a return
             if (z.midiModel === 'elecSine') { if (this.sineFire) this.sineFire(host, z, at, dueMs); return; }   // le_sine.js: a generated voice — nothing of the bank's
             if (z.midiModel === 'elecPerformer') { if (this.performerFire) this.performerFire(host, z, at, dueMs); return; }   // le_performer.js: a computer player enters a state — the engine decides from there
+            if (z.midiModel === 'elecStrike') { if (this.strikeFire) this.strikeFire(host, z, at, dueMs); return; }   // le_strike.js: a window opens — the engine collects the onsets and answers after
             if (z.midiModel === 'elecOpen') {
                 const player = this.playerOf(z.layer);
                 if (!player) { this.say('mic opening ' + e.name + ': no microphone on ' + this.opts.laneLabel(z.layer) + ' — nothing is recorded'); return; }

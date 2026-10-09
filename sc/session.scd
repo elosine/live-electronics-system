@@ -107,6 +107,7 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 		// the tracker (track.scd): /le/simlevel — a score's simulated player, told — and the sound check's guard. Kept from stopping a start: a fault here is said, and the sines sound plain
 		if(le[\trackHear].notNil) { try { le.trackHear; le.trackGuard } { |e| le[\trackFor] = nil; le.say("LE_INFO", "the tracker did not start (" ++ e.errorString ++ ") — a sine that is a window will sound for its whole span") } };
 		if(le[\performerHear].notNil) { le.performerHear };   // the computer players (performer.scd): /le/performer · /le/performerstop
+		if(le[\strikeHear].notNil) { le.strikeHear };   // the strike windows (strike.scd): /le/strike · /le/strikestop
 		// a tool's run ends on a message, gracefully — the server quits its device before the process goes (§71: an engine killed from
 		// outside left ReaRoute wedged, and no engine could boot until Reaper was restarted). His own window still closes as before.
 		le.hear(\leave, { |le, d| le.say("LE_INFO", "leaving on request" ++ if(le.loudSaid(\loudMax).size > 0) { " — the session's loudest" ++ le.loudSaid(\loudMax) } { "" }); le.leave(0) });
@@ -117,7 +118,7 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 		// line for each would bury the window, so it is not shown
 		le.hear(\onset, { |le, d, time|
 			var name = (d[\player] ? '?').asSymbol;
-			if(d[\sim].notNil) { if(le[\perfSimOnset].notNil) { le.perfSimOnset(d) } } {
+			if(d[\sim].notNil) { if(le[\perfSimOnset].notNil) { le.perfSimOnset(d) }; if(le[\strikeSimOnset].notNil) { le.strikeSimOnset(d) } } {
 				pending[name] = (time: time, id: d[\id], lane: d[\lane], t: d[\t], dueMs: d[\dueMs]);
 				le.say("LE_INFO", "onset · " ++ name ++ " · lane " ++ d[\lane] ++ " · brick " ++ d[\id]
 					++ " · at " ++ (d[\t] ? 0).round(0.001) ++ " s · due in " ++ (d[\dueMs] ? 0).round(1) ++ " ms");
@@ -126,6 +127,7 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 		le[\onHeard] = { |name, time, amp|
 			var pd = pending[name], lead, op = lastOpen[name], after;
 			if(le[\perfMicOnset].notNil) { le.perfMicOnset(name) };   // the computer players' ear `mic`: a player's own sound at its microphone
+			if(le[\strikeMicOnset].notNil) { le.strikeMicOnset(name, time, amp) };   // the strike windows' ear `mic` (strike.scd) — the probe's hit, its level read rough
 			if(op.notNil and: { (time - op[\time]) < 4 }) {
 				after = ((time - op[\time]) * 1000).round(1);
 				le.say("LE_INFO", "heard · " ++ name ++ " · its sound came " ++ after ++ " ms after its mic opening's message — the recording ran 0 … "

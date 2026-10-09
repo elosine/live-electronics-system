@@ -337,6 +337,8 @@
 (~le[\dir] +/+ "track.scd").load;
 // ---- the computer players: a performer in a state, who hears the players' onsets and plays by the state's rule (the Decibel piece's 14.4) — its own file ----
 (~le[\dir] +/+ "performer.scd").load;
+// ---- the strike window: the ensemble strikes, the onset times are taken from the pooled microphones, the electronics answers after with the rhythm transformed (the Decibel piece's 17.1) — its own file ----
+(~le[\dir] +/+ "strike.scd").load;
 // ---- the processing: a banked sample through the chain, offline, banked again (the engine plan's part 6) — its own file ----
 (~le[\dir] +/+ "process.scd").load;
 // ---- the petals live: a player's microphone straight into the petals of resonance, for a return at its own mic opening (the Decibel piece's 10.14) — its own file ----
