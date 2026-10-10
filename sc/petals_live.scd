@@ -143,6 +143,36 @@
 	}
 };
 
+// A PETALS SERVED LIVE WHOSE LEVEL REFERENCE IS IN HAND NEEDS NO NEW RENDER (the Decibel piece's §369). Its render is never played —
+// it only gives the live ring its gains — yet the plan made it again after every capture: thirty-four hits less than 6 s apart
+// queued thirty renders behind the hold, and the first 10 s gap let them all go, under the section's last hit (a slap and no ring, or
+// a ring late: SWEEP_LIST #11 again, through the one gap the hold does not cover). A reference is IN HAND when the variant's row was
+// made as live, with the plan row's own dials, and its drive is still the one this take would be given (within 1.5 dB) — a changed
+// preset or a changed dynamic of the hit renders once more, as before.
+~le[\liveArgs] = { |self, text|
+	var d = IdentityDictionary.new;
+	(text ? "").asString.split($,).do({ |kv|
+		var b = kv.asString.stripWhiteSpace.split($:);
+		if(b.size == 2) { d[b[0].asString.stripWhiteSpace.asSymbol] = b[1].asString.asFloat };
+	});
+	d
+};
+
+~le[\liveHasRef] = { |self, r|
+	var row, b, have, want, drive;
+	if(self.liveRowPre(r).isNil) { false } {
+		row = self.liveRowOf(r[\base] ++ "~" ++ r[\suffix]);
+		b = self.liveRowOf(r[\base]);
+		if(row.isNil or: { b.isNil } or: { row[\preMs].isNil } or: { row[\outGainDb].isNil } or: { row[\driveDb].isNil } or: { b[\loudDb].isNil }) { false } {
+			have = self.liveArgs(row[\args]); want = self.liveArgs(r[\args]);
+			drive = (self.levelOf[\driveRef] - b[\loudDb].asFloat).clip(-40, 40);
+			if(b[\peakDb].notNil) { drive = drive.min(-1 - b[\peakDb].asFloat) };   // as a render's normalized drive is held under full scale
+			(have.size == want.size) and: { want.keys.asArray.every({ |k| have[k].notNil and: { (have[k] - want[k]).abs < 1e-6 } }) }
+				and: { (row[\driveDb].asFloat - drive).abs <= 1.5 }
+		}
+	}
+};
+
 // ---- the level --------------------------------------------------------------------------------------------------------
 ~le[\liveRef] = { |self, variant, base|
 	var row = self.liveRowOf(variant), b = self.liveRowOf(base), o = self.liveOf, lv = self.levelOf, mf = self.markDb(\mf), inLoud, inDb;

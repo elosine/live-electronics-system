@@ -1017,3 +1017,24 @@ A fourth mode in `boot.scd`, `\remote`: the devices from `LE_DEVICE_IN` · `LE_D
 ## §66
 
 **2026-10-10 (Fable, in the Decibel piece — its RUNNING_LOG §349, DEC-121): A STRIKE WINDOW'S DECK MAY LEAVE THE RAW CAPTURES OUT — `raw`.** The composer: *"all the impulses should be processed in this response."* A reply's deck held a player's raw impulse captures beside the short processed versions (the pool's rule since §64: a raw row of an allowed category always in, a processed row only with an allowed ending) — one onset in three raw. Now `strikePool(player, processed, envs, cats, raw = true)`: with `raw` false a raw row is out and the deck is the processed versions alone; `strikeNext` keys the deck by it (`-raw`); the message's `raw` (0 | absent = 1). `score/le_strike.js`: `DEFAULTS.samples.raw` true · a piece's catalogue `samples.raw` · the brick's `elec.raw` over it · the panel's `Raw captures too` · the message. One check more in `sc/strike_test.scd` (PASS). Additive: a message without `raw` is the deck as it was. NOT CLAIMED: a living engine; the composer's ear.
+
+
+## §67
+
+**2026-10-10 (Opus, in the Decibel piece — its RUNNING_LOG §369, DEC-140): A PETALS SERVED LIVE, ITS LEVEL REFERENCE IN HAND, QUEUES NO RENDER — `liveHasRef`.**
+
+**What prompted it (the composer, verbatim):** *"the final slap into the pedal of resonance, the ensemble one, that almost always misses. It's inconsistent, but I usually hear a slap and either no effect or an effect much later, and then only occasionally do I hear the slap into the effect."*
+
+**What was read** (the piece's bank, the rows' own stamps): the renders of a pass's petal hits begin eight seconds after its last capture and come a second apart — the hold of §59, then a burst. In the piece's section the hits stand under 6 s apart for a minute (thirty of them), so every render waits; the one gap over 6 s is the 10 s before the last hit, five microphones at once — and the burst runs under it. §59's fault (messages answered late under a render) through the one gap the hold leaves.
+
+**The thought:** the render of a variant that is SERVED LIVE is never played. It exists to give the live ring its gains (§57). Made again after every capture it buys nothing once the gains are known — and it was the whole of the queue.
+
+**Built.** `sc/petals_live.scd` `liveHasRef(r)` — true when the plan row is served live (`liveRowPre`), its variant's row was made as live (`preMs` · `outGainDb` · `driveDb`), with the row's own dials (`liveArgs`, compared as numbers), and its drive is still the one THIS take would be given — `driveRef − loudDb`, held under full scale by the peak, within 1.5 dB. `sc/process.scd` `planRender` leaves such rows out and says so (`plan · <sample> — <variant> made live, its level in hand: no render`). A changed dial or a changed dynamic of the hit renders once more; `/le/planrender` renders all; a plan that lacks a reference still makes it at once (`livePlanCheck`, unchanged).
+
+**Rejected:** a longer hold — a piece whose next section records every few seconds would get no render at all in time (the Decibel piece's drones) · a hold that looks ahead to the next live use — the waiting renders then run later, ahead of the renders the next section does need.
+
+**Proven, offline:** `sc/petals_live_test.scd` — PETALS_LIVE_TEST PASS, one check more: in hand true · a changed dial false · the hit 6 dB softer false · a variant not served live false.
+
+**NOT CLAIMED:** a living engine (`planRender`'s new branch is parsed, reached by no test); that the burst is the cause of what he heard — the engine's window was not seen; the composer's ear.
+
+**A gap this leaves, said:** the hold still looks only backward. A piece whose NON-live variants queue behind a run of close openings meets the same burst at the first gap over the hold (NITS).

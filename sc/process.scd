@@ -871,7 +871,16 @@
 
 // a sample has just been captured: its planned variants, from THIS take (bank.scd captureDone calls it)
 ~le[\planRender] = { |self, base|
-	var b = (base ? "").asString, rows = (self[\plan] ? []).select({ |r| r[\base] == b });
+	var b = (base ? "").asString, rows = (self[\plan] ? []).select({ |r| r[\base] == b }), live;
+	// a petals served LIVE at its own opening, its level reference in hand: no render (petals_live.scd liveHasRef — the renders of a
+	// run of hits were let go under the next one)
+	if(self[\liveHasRef].notNil) {
+		live = rows.select({ |r| self.liveHasRef(r) });
+		if(live.size > 0) {
+			rows = rows.reject({ |r| live.includes(r) });
+			self.say("LE_INFO", "plan · " ++ b ++ " — " ++ live.collect({ |r| r[\suffix] }).join(" · ") ++ " made live, its level in hand: no render");
+		};
+	};
 	if(rows.size > 0) {
 		rows.do({ |r| self.planAdd(r) });
 		self.say("LE_INFO", "plan · " ++ b ++ " — " ++ rows.size ++ if(rows.size == 1) { " variant" } { " variants" } ++ " to render: " ++ rows.collect({ |r| r[\suffix] }).join(" · "));

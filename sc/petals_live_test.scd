@@ -135,6 +135,13 @@ fork {
 	if(r.notNil) {
 		a = ~le.livePlanCheck;
 		check.("a plan that lacks nothing queues nothing", a == 0, a.asString ++ " queued");
+		// the Decibel piece's §369: with its reference in hand a new capture renders nothing — until the preset or the hit's level moves
+		a = ~le[\plan].detect({ |x| x[\suffix] == "pp01-tail" });
+		b = rowOf.("bcl-petal-1"); want = b[\loudDb];
+		est = [~le.liveHasRef(a), ~le.liveHasRef(a.copy.put(\args, a[\args].asString.replace("poFund:", "poFund:1"))),
+			{ b[\loudDb] = want - 6; ~le.liveHasRef(a) }.value, { b[\loudDb] = want; ~le.liveHasRef(~le[\plan].detect({ |x| x[\suffix] == "x2-tail" })) }.value];
+		check.("its level reference IN HAND: a new take renders nothing — but a changed dial, a hit 6 dB softer, a variant not served live do",
+			est == [true, false, false, false], "in hand " ++ est[0] ++ " · a changed dial " ++ est[1] ++ " · 6 dB softer " ++ est[2] ++ " · the comb " ++ est[3]);
 		sv = ~le.liveOpen(openD);
 		ref = sv[\ref];
 		check.("/le/open again: the level is EXACT now — the render's own drive before the bank, its own level after",
