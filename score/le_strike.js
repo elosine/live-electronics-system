@@ -19,6 +19,7 @@
 //         players    the players who answer (the engine's names); empty = every player the bank has
 //         samples    'bank' — one sample a player, rolled, none twice until all are used · or a list of names, dealt in order
 //         processed  true: the processed versions are in the roll beside the raw captures
+//         raw        [17.3] false: the raw captures are OUT of the deck — the processed versions only; absent = the catalogue's samples.raw, else in
 //         envs       [§337] the endings a processed version must have to be rolled (perc, expodec …; the index row's end) — absent: the catalogue's samples.envs; empty: any
 //         cats       [§337] the categories a capture must have to be rolled (impulse …; the index row's category) — absent: the catalogue's samples.categories; empty: any
 //         answerOf   the id of an EARLIER window: this window's answer uses THAT strike's rhythm (the come-back, the piece's 17.3) —
@@ -66,7 +67,7 @@
     const TIMING_NAME = { rightAfter: 'right after', aBeatLater: 'a beat later', callResponse: 'call and response', muchLater: 'much later', inLaterWindow: 'in a later window' };
     // the module's own numbers — a piece's catalogue (bank/strike_responses.json) overrides them; the engine's strikeDefaults mirror them
     const DEFAULTS = {
-        gapMs: 500, level: 'mimic', deal: 'robin', samples: { processed: true, envs: [], categories: [] },   // [§337] envs · categories: the deck's filters (empty = any)
+        gapMs: 500, level: 'mimic', deal: 'robin', samples: { processed: true, raw: true, envs: [], categories: [] },   // [§337] envs · categories: the deck's filters (empty = any) · [17.3] raw: the captures in the deck (false = the processed versions only)
         transformations: {
             asPlayed: {}, retrograde: {}, invert: {},
             spread: { range: [1.5, 3] }, compress: { range: [0.3, 0.7] },
@@ -186,7 +187,7 @@
 
     Object.assign(L, {
         strikeCat: null,
-        strikeDefaults() { const C = this.strikeCat || DEFAULTS; return { type: 'asPlayed', timing: 'rightAfter', seed: 1, gapMs: +C.gapMs || DEFAULTS.gapMs, level: C.level || 'mimic', deal: C.deal || 'robin', players: [], samples: 'bank', processed: !!((C.samples || DEFAULTS.samples).processed) }; },
+        strikeDefaults() { const C = this.strikeCat || DEFAULTS, S = C.samples || DEFAULTS.samples; return Object.assign({ type: 'asPlayed', timing: 'rightAfter', seed: 1, gapMs: +C.gapMs || DEFAULTS.gapMs, level: C.level || 'mimic', deal: C.deal || 'robin', players: [], samples: 'bank', processed: !!S.processed }, S.raw === false ? { raw: false } : {}); },
         strikeDials(e) { return dialsFor(this.strikeCat, e.type, e.timing); },
         // a note's loudness as a mark: the host's own rule (opts.noteMark), else the drawn anchor — a struck note's velocity (recVel), or its
         // height on the written scale (65 + 62 · h, the page's held-note law), the nearest of the eight marks
@@ -237,6 +238,7 @@
             const S = (this.strikeCat || DEFAULTS).samples || {}, envs = Array.isArray(e.envs) ? e.envs : (S.envs || []), cats = Array.isArray(e.cats) ? e.cats : (S.categories || []);
             if (envs.length) m.envs = envs.map(safe).filter(Boolean).join(',');
             if (cats.length) m.cats = cats.map(safe).filter(Boolean).join(',');
+            if (!(e.raw == null ? S.raw !== false : !!e.raw)) m.raw = 0;   // [17.3] the raw captures out of the deck — the processed versions only (absent = in, as before)
             if (start > a + 0.001) { m.offsetMs = Math.round((start - a) * 1000); m.wholeMs = Math.round((zone.endTime - a) * 1000); }
             if (Array.isArray(e.players) && e.players.length) m.players = e.players.map(safe).filter(Boolean).join(',');
             if (Array.isArray(e.samples) && e.samples.length) m.samples = e.samples.map(safe).filter(Boolean).join(',');
@@ -295,7 +297,7 @@
         // ---- the panel ------------------------------------------------------------------------------------------------------
         strikeSettings(e) {
             const o = {};
-            for (const k of ['id', 'mode', 'type', 'timing', 'seed', 'gapMs', 'graceMs', 'level', 'deal', 'processed', 'envs', 'cats', 'answerOf', 'label']) if (e[k] != null && e[k] !== '') o[k] = e[k];
+            for (const k of ['id', 'mode', 'type', 'timing', 'seed', 'gapMs', 'graceMs', 'level', 'deal', 'processed', 'raw', 'envs', 'cats', 'answerOf', 'label']) if (e[k] != null && e[k] !== '') o[k] = e[k];
             if (chainOf(e).length) o.chain = chainOf(e);   // [17.3]
             if (Array.isArray(e.players) && e.players.length) o.players = e.players;
             o.samples = Array.isArray(e.samples) ? e.samples : 'bank';
@@ -311,6 +313,7 @@
             if (o.level != null) e.level = MARKS.includes(String(o.level)) ? String(o.level) : 'mimic';
             if (o.deal != null) e.deal = o.deal === 'all' ? 'all' : 'robin';
             if (o.processed != null) e.processed = !!o.processed;
+            if (o.raw != null) e.raw = !!o.raw;   // [17.3]
             if (Array.isArray(o.envs)) e.envs = o.envs.map(String); if (Array.isArray(o.cats)) e.cats = o.cats.map(String);   // [§337]
             if (o.players != null) e.players = Array.isArray(o.players) ? o.players.map(safe).filter(Boolean) : [];
             if (o.samples != null) e.samples = Array.isArray(o.samples) && o.samples.length ? o.samples.map(safe).filter(Boolean) : 'bank';
@@ -353,6 +356,9 @@
             const proc = el('input', { type: 'checkbox', checked: e.processed == null ? def.processed : !!e.processed, title: 'the processed versions are rolled beside the raw captures' });
             proc.addEventListener('change', () => commit(() => { e.processed = !!proc.checked; }));
             sec.appendChild(rowEl('Processed too', proc));
+            const S0 = (this.strikeCat || DEFAULTS).samples || {}, rawBox = el('input', { type: 'checkbox', checked: e.raw == null ? S0.raw !== false : !!e.raw, title: 'the raw captures in the deck beside the processed versions; off = the processed versions only' });
+            rawBox.addEventListener('change', () => commit(() => { e.raw = !!rawBox.checked; }));
+            sec.appendChild(rowEl('Raw captures too', rawBox));   // [17.3]
             sec.appendChild(rowEl('Players', text(Array.isArray(e.players) ? e.players.join(' ') : '', (v) => { e.players = v.split(/[\s,]+/).map(safe).filter(Boolean); }, 'who answers — the engine\'s names, e.g. bfl bcl perc va vc; empty = every player the bank has', '160px')));
             sec.appendChild(rowEl('Samples', text(Array.isArray(e.samples) ? e.samples.join(' ') : 'bank', (v) => { const l = v.split(/[\s,]+/).map(safe).filter(Boolean); e.samples = v === 'bank' || !l.length ? 'bank' : l; }, '"bank" — one a player, rolled, none twice until all are used · or sample names, dealt in order', '160px')));
             sec.appendChild(rowEl('Answer of', text(e.answerOf || '', (v) => { if (safe(v)) e.answerOf = safe(v); else delete e.answerOf; }, 'an EARLIER window\'s name: this answer uses that strike\'s rhythm (the come-back) — empty: this window\'s own', '70px')));

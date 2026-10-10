@@ -20,6 +20,7 @@
 //         envs        [§337] the endings a processed version must have to be in the deck (perc,expodec — the index row's end); absent = any
 //         cats        [§337] the categories a capture must have to be in the deck (impulse — the index row's category; a processed version
 //                     goes by its source's, the name before the ~); absent = any
+//         raw         [17.3] 0: the raw captures are OUT of the deck — the processed versions only (their endings by envs); absent = in
 //         answerOf    an EARLIER window's id: THIS answer takes THAT strike's onsets (the come-back) — every strike heard is kept
 //         mode        [the Decibel piece's 17.3] notated · open — a word of the score's; the engine listens the same way to both, and says it
 //         graceMs     [17.3] how long after the window's END an onset still belongs to it (absent = gapMs, as before) — small where the
@@ -123,20 +124,20 @@
 // [§337, DEC-113] THE POOL'S FILTERS: a processed version is in only with `processed` and an allowed ENDING (envs: the row's end); a row is in
 // only with an allowed CATEGORY (cats: the row's category — a processed version by its SOURCE's, the name before the ~). nil or empty = any.
 // (compared by CONTENT: an Array's includes is by identity in SC — ["perc"].includes("perc") is false; measured by the test, §337)
-~le[\strikePool] = { |self, player, processed, envs, cats|
+~le[\strikePool] = { |self, player, processed, envs, cats, raw = true|   // [17.3] raw false: the captures out — the processed versions only
 	var out = List.new;
 	var rowOf = { |name| var e = self[\samples][name.asSymbol]; if(e.notNil) { e[\row] } { nil } };
 	var isProc = { |r| r[\kind].asString == "processed" };
-	var envOk = { |r| if(isProc.(r).not) { true } { processed and: { envs.isNil or: { envs.size == 0 } or: { envs.any({ |x| x.asString == r[\end].asString }) } } } };
+	var envOk = { |r| if(isProc.(r).not) { raw != false } { processed and: { envs.isNil or: { envs.size == 0 } or: { envs.any({ |x| x.asString == r[\end].asString }) } } } };
 	var catOk = { |r| var src; if(cats.isNil or: { cats.size == 0 }) { true } { src = if(isProc.(r)) { rowOf.(r[\name].asString.split($~)[0]) } { r }; src.notNil and: { cats.any({ |x| x.asString == src[\category].asString }) } } };
 	if(self[\samples].notNil) { self[\samples].keysValuesDo({ |k, e| var r = e[\row]; if(r.notNil and: { r[\player].asString == player.asString } and: { envOk.(r) } and: { catOk.(r) }) { out.add(k.asString) } }) };
 	out.asArray.sort
 };
 ~le[\strikeNext] = { |self, w, player|
-	var decks = self[\strikeDecks] ? IdentityDictionary.new, key = (player.asString ++ if(w[\processed]) { "+" } { "" } ++ "|" ++ (w[\envs] ? []).join("/") ++ "|" ++ (w[\cats] ? []).join("/")).asSymbol, deck = decks[key], pool;   // [§337] a deck per filter
+	var decks = self[\strikeDecks] ? IdentityDictionary.new, key = (player.asString ++ if(w[\processed]) { "+" } { "" } ++ if(w[\raw] == false) { "-raw" } { "" } ++ "|" ++ (w[\envs] ? []).join("/") ++ "|" ++ (w[\cats] ? []).join("/")).asSymbol, deck = decks[key], pool;   // [§337] a deck per filter
 	self[\strikeDecks] = decks;
 	if(deck.isNil or: { deck.size == 0 }) {
-		pool = self.strikePool(player, w[\processed], w[\envs], w[\cats]);
+		pool = self.strikePool(player, w[\processed], w[\envs], w[\cats], w[\raw] != false);
 		deck = if(pool.size > 0) { self.strikeShuffle(w, pool).asList } { List.new };
 		decks[key] = deck;
 	};
@@ -210,7 +211,7 @@
 	w = (id: str.(\id, "W?").asSymbol, start: (now + due) - off, beginAt: now + due, end: now + due + len, gapS: num.(\gapMs, self[\strikeDefaults][\gapMs]).max(50) / 1000,
 		type: str.(\type, "asPlayed").asSymbol, timing: str.(\timing, "rightAfter").asSymbol, seed: num.(\seed, 1), dials: dd,
 		level: str.(\level, "mimic").asSymbol, deal: str.(\deal, "robin").asSymbol, players: list.(\players), samples: list.(\samples), processed: num.(\processed, 1) > 0,
-		envs: list.(\envs), cats: list.(\cats),   // [§337] the deck's filters
+		envs: list.(\envs), cats: list.(\cats), raw: num.(\raw, 1) > 0,   // [§337] the deck's filters · [17.3] raw 0: the processed versions only
 		answerOf: if(d[\answerOf].notNil and: { d[\answerOf].asString.size > 0 }) { d[\answerOf].asString.asSymbol }, zone: str.(\zone, ""), onsets: List.new, over: false, rs: 0);
 	if(self[\strikeTypes].includes(w[\type]).not) { self.say("LE_INFO", "strike · " ++ w[\id] ++ " · no such rhythm '" ++ w[\type] ++ "' — as played"); w[\type] = \asPlayed };
 	if(self[\strikeTimings].includes(w[\timing]).not) { self.say("LE_INFO", "strike · " ++ w[\id] ++ " · no such timing '" ++ w[\timing] ++ "' — right after"); w[\timing] = \rightAfter };

@@ -1013,3 +1013,7 @@ A fourth mode in `boot.scd`, `\remote`: the devices from `LE_DEVICE_IN` · `LE_D
 **NOT CLAIMED:** a living engine (`strikeRun`'s loop over a chain is parsed and reached only through `strikeStep` in the test; the composer's restart is its first run); the composer's ear.
 
 **Left as it was, said:** a stop does not cancel answers already handed over (NITS — a cascade makes it audible sooner).
+
+## §66
+
+**2026-10-10 (Fable, in the Decibel piece — its RUNNING_LOG §349, DEC-121): A STRIKE WINDOW'S DECK MAY LEAVE THE RAW CAPTURES OUT — `raw`.** The composer: *"all the impulses should be processed in this response."* A reply's deck held a player's raw impulse captures beside the short processed versions (the pool's rule since §64: a raw row of an allowed category always in, a processed row only with an allowed ending) — one onset in three raw. Now `strikePool(player, processed, envs, cats, raw = true)`: with `raw` false a raw row is out and the deck is the processed versions alone; `strikeNext` keys the deck by it (`-raw`); the message's `raw` (0 | absent = 1). `score/le_strike.js`: `DEFAULTS.samples.raw` true · a piece's catalogue `samples.raw` · the brick's `elec.raw` over it · the panel's `Raw captures too` · the message. One check more in `sc/strike_test.scd` (PASS). Additive: a message without `raw` is the deck as it was. NOT CLAIMED: a living engine; the composer's ear.

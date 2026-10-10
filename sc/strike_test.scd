@@ -42,6 +42,7 @@ check.("the pool with no filter: every row of the player", ~le.strikePool(\zz, t
 check.("the pool with envs perc: the captures and the perc version, the tail out", ~le.strikePool(\zz, true, ["perc"], nil) == ["zz-drone-1", "zz-impulse-1", "zz-impulse-1~k2-perc"], ~le.strikePool(\zz, true, ["perc"], nil).join(" "));
 check.("the pool with cats impulse: the drone out, a processed version by its source", ~le.strikePool(\zz, true, ["perc"], ["impulse"]) == ["zz-impulse-1", "zz-impulse-1~k2-perc"], ~le.strikePool(\zz, true, ["perc"], ["impulse"]).join(" "));
 check.("the pool without processed: the capture alone", ~le.strikePool(\zz, false, ["perc"], ["impulse"]) == ["zz-impulse-1"], ~le.strikePool(\zz, false, ["perc"], ["impulse"]).join(" "));
+check.("[17.3] the pool with raw false: the processed version alone — the captures out", ~le.strikePool(\zz, true, ["perc"], nil, false) == ["zz-impulse-1~k2-perc"], ~le.strikePool(\zz, true, ["perc"], nil, false).join(" "));
 ["zz-impulse-1", "zz-drone-1", "zz-impulse-1~k1-tail", "zz-impulse-1~k2-perc"].do({ |k| ~le[\samples].removeAt(k.asSymbol) });
 ons = [[0, \f], [98, \mf], [157, \f], [191, \mp], [237, \ff], [397, \f]].collect({ |x| (atMs: x[0], mark: x[1]) });
 rel = { |a| a.collect({ |o| o[\atMs] }) };
