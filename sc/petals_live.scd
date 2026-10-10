@@ -147,8 +147,11 @@
 // it only gives the live ring its gains — yet the plan made it again after every capture: thirty-four hits less than 6 s apart
 // queued thirty renders behind the hold, and the first 10 s gap let them all go, under the section's last hit (a slap and no ring, or
 // a ring late: SWEEP_LIST #11 again, through the one gap the hold does not cover). A reference is IN HAND when the variant's row was
-// made as live, with the plan row's own dials, and its drive is still the one this take would be given (within 1.5 dB) — a changed
-// preset or a changed dynamic of the hit renders once more, as before.
+// made as live, with the plan row's own dials — a changed preset renders once more, and `/le/planrender` renders all.
+// (§70, the same day: the first rule also asked that the row's drive still be the one THIS take would be given, within 1.5 dB. A
+// round-robin instrument's takes differ by more — the Decibel piece's flute slap by 5 dB — so five of thirty-four still rendered, and
+// five renders under the last hit were enough to lose it. The condition is gone: a live ring driven by an earlier take's gains follows
+// the player, louder for a louder hit — which is what a ring from a microphone does.)
 ~le[\liveArgs] = { |self, text|
 	var d = IdentityDictionary.new;
 	(text ? "").asString.split($,).do({ |kv|
@@ -159,16 +162,12 @@
 };
 
 ~le[\liveHasRef] = { |self, r|
-	var row, b, have, want, drive;
+	var row, have, want;
 	if(self.liveRowPre(r).isNil) { false } {
 		row = self.liveRowOf(r[\base] ++ "~" ++ r[\suffix]);
-		b = self.liveRowOf(r[\base]);
-		if(row.isNil or: { b.isNil } or: { row[\preMs].isNil } or: { row[\outGainDb].isNil } or: { row[\driveDb].isNil } or: { b[\loudDb].isNil }) { false } {
+		if(row.isNil or: { row[\preMs].isNil } or: { row[\outGainDb].isNil } or: { row[\driveDb].isNil }) { false } {
 			have = self.liveArgs(row[\args]); want = self.liveArgs(r[\args]);
-			drive = (self.levelOf[\driveRef] - b[\loudDb].asFloat).clip(-40, 40);
-			if(b[\peakDb].notNil) { drive = drive.min(-1 - b[\peakDb].asFloat) };   // as a render's normalized drive is held under full scale
 			(have.size == want.size) and: { want.keys.asArray.every({ |k| have[k].notNil and: { (have[k] - want[k]).abs < 1e-6 } }) }
-				and: { (row[\driveDb].asFloat - drive).abs <= 1.5 }
 		}
 	}
 };

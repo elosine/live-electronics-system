@@ -1060,3 +1060,15 @@ A fourth mode in `boot.scd`, `\remote`: the devices from `LE_DEVICE_IN` · `LE_D
 **Built.** `score/le_objects.js` `dealCards(pool, rnd)`, used by `dealVariants` (a pattern brick's preset per impact): a piece's presets file may carry `groups` — `{ name: { effects: [...], keys: [...] } }`; every dealt preset is a card, the presets of a group ONE card between them, its members taking turns in a seeded order when it comes up. The shuffle of the cards uses the generator the shuffle of the presets used: a file with no groups deals exactly as before. The piece's own tools carry the same rule (its `tools/audition_kit.js`).
 
 **Proven:** `tools/page_test.js` PASS. **NOT CLAIMED:** a pattern brick's Generate in the running page with a grouped file.
+
+## §70
+
+**2026-10-10 (Fable, in the Decibel piece — its RUNNING_LOG §377, DEC-148): `liveHasRef` ASKS THE DIALS ONLY — the drive condition dropped.**
+
+**What prompted it (the composer, verbatim):** *"if I rewind to the beginning of that section and play it all the way through, it always misses. And then if I just rewind a little bit, it hits it … Is it maybe the electronics are overloaded?"* — on the engine that had §67.
+
+**Measured in the piece's bank:** of thirty-four live hits, five still rendered a reference at every full pass (12:24:45 … :50, the hit at :48.5): their captures are round-robin samples whose loudness differs take to take by more than §67's 1.5 dB. Five renders under five simultaneous openings answered them late.
+
+**Changed:** `sc/petals_live.scd` `liveHasRef` — a reference is in hand when the variant's row was made as live with the plan row's dials. The drive is not compared: a live ring made with an earlier take's gains follows the microphone, louder for a louder hit. A changed preset still renders once more; `/le/planrender` renders all.
+
+**Proven:** `sc/petals_live_test.scd` PASS (the check turned: a take 6 dB softer renders nothing). **NOT CLAIMED:** a living engine; the composer's ear.
