@@ -13,6 +13,9 @@
 //   THE DECKS            a player's samples none twice until all are used
 //   A NEW PASS · A STOP  the windows of the pass before are dropped; a stop drops them and keeps what was heard
 //   THE CALL             the answer is handed to the pattern path a second ahead, with the right dueMs
+//   THE CASCADE          a window with a chain answers 1 + its links times: each answer the rhythm of the ANSWER BEFORE IT transformed,
+//                        begun by its timing after that answer's last onset — a real window of the Decibel piece, the page's numbers;
+//                        its grace keeps the next strike's first onset out
 //   "C:/Program Files/SuperCollider-3.14.1/sclang.exe" electronics/sc/strike_test.scd
 // It ends STRIKE_TEST PASS (exit 0) or STRIKE_TEST FAIL (exit 1) and names each check.
 (
@@ -141,6 +144,33 @@ check.("a stop drops every window and keeps the strikes heard for a come-back", 
 ~le.strikeMicOnset(\bcl, t0 + 200.2, 0.5); ~le.strikeMicOnset(\va, t0 + 200.4, 0.001);
 check.("the microphone's hit becomes an onset with a mark read against the ladder (loud near the top, quiet near the floor)", (w[\onsets].size == 2) and: { ~le.strikeMarkIx(w[\onsets][0][\mark]) >= 5 } and: { ~le.strikeMarkIx(w[\onsets][1][\mark]) <= 2 }, w[\onsets].collect({ |o| o[\who].asString ++ " " ++ o[\mark] }).join(" · "));
 ~le[\strikeEar] = \sim;
+
+// THE CASCADE [the Decibel piece's 17.3, DEC-120] — on the piece's own numbers: window W32 of its section 5B (a strike of four onsets,
+// answered three times: rotated · then that answer as played · then the retrograde of THAT). The numbers are the page's
+// (score/le_strike.js StrikeCalc.cascade, run in node on the score), pasted here.
+"STRIKE_TEST the cascade (the piece's window W32; the page's numbers):".postln;
+~le.strikeClear(false);
+w = ~le.strikeTake((id: \W32, dueMs: 0, lengthMs: 359, type: "rotate", timing: "callResponse", seed: 10321, gapMs: 163, graceMs: 163, level: "mimic", deal: "robin", processed: 1,
+	dials: "wLo=0.8,wHi=1.2,minMs=300", mode: "notated", answers: 3, chain: "asPlayed:inLaterWindow:10322,retrograde:callResponse:10323", dials2: "wLo=10,wHi=15", dials3: "wLo=0.8,wHi=1.2,minMs=300", pass: 9), t0 + 300);
+check.("a message with a chain becomes a window with its links, each with its own numbers; its word is kept; its grace is its own",
+	(w[\chain].size == 2) and: { w[\chain][0][\type] == \asPlayed } and: { w[\chain][0][\timing] == \inLaterWindow } and: { w[\chain][0][\seed] == 10322 } and: { w[\chain][0][\dials][\wLo] == 10 }
+	and: { w[\chain][1][\type] == \retrograde } and: { w[\chain][1][\dials][\minMs] == 300 } and: { w[\mode] == "notated" } and: { near.(w[\graceS], 0.163, 0.0001) } and: { w[\gapS] == 0.163 }, said.last);
+[[0, \bcl], [0.083, \perc], [0.098, \vc], [0.159, \bfl]].do({ |x| ~le.strikeOnset(x[1], t0 + 300.1 + x[0], \mf) });
+check.("the NEXT strike's first onset, 291 ms after this window's end, is not taken by it (its grace is 163 ms)", (~le.strikeOnset(\va, t0 + 300.65, \mf) == 0) and: { w[\onsets].size == 4 }, w[\onsets].size.asString ++ " collected");
+ans = ~le.strikeStep(w, t0 + 300.259 + 0.17);
+check.("over 163 ms after the last onset: THREE answers; the first is the strike rotated, from the strike's last onset",
+	ans.notNil and: { ans[\chain].size == 2 } and: { rel.(ans[\onsets]).every({ |v, i| near.(v, [0, 15, 76, 159][i]) }) } and: { near.(ans[\atS], t0 + 300.259 + 0.278584, 0.001) },
+	if(ans.notNil) { rel.(ans[\onsets]).collect(_.round(0.1)).join(" ") ++ " · at +" ++ (ans[\atS] - (t0 + 300.259)).round(0.001) ++ " s" } { "no answer" });
+check.("answer 2 is ANSWER 1 as played, begun by its timing after answer 1's last onset",
+	rel.(ans[\chain][0][\onsets]).every({ |v, i| near.(v, [0, 15, 76, 159][i]) }) and: { near.(ans[\chain][0][\atS], t0 + 300.259 + 13.169770, 0.001) } and: { ans[\chain][0][\k] == 2 },
+	rel.(ans[\chain][0][\onsets]).collect(_.round(0.1)).join(" ") ++ " · at +" ++ (ans[\chain][0][\atS] - (t0 + 300.259)).round(0.001) ++ " s");
+check.("answer 3 is the retrograde of ANSWER 2 — not of the strike (that would be 0 61 76 159)",
+	rel.(ans[\chain][1][\onsets]).every({ |v, i| near.(v, [0, 83, 144, 159][i]) }) and: { near.(ans[\chain][1][\atS], t0 + 300.259 + 13.641779, 0.001) } and: { ans[\chain][1][\k] == 3 },
+	rel.(ans[\chain][1][\onsets]).collect(_.round(0.1)).join(" ") ++ " · at +" ++ (ans[\chain][1][\atS] - (t0 + 300.259)).round(0.001) ++ " s");
+check.("each answer is dealt its own samples, one an onset; a call carries the window's name and the answer's number",
+	([ans] ++ ans[\chain]).every({ |a| a[\pattern].split($,).size == 4 }) and: { ~le.strikePlayMsg(w, ans[\chain][1], t0 + 301)[\d][\id] == "W32-3" } and: { ~le.strikePlayMsg(w, ans, t0 + 301)[\d][\id] == "W32" },
+	ans[\pattern] ++ " | " ++ ans[\chain][0][\pattern] ++ " | " ++ ans[\chain][1][\pattern]);
+check.("the engine says each answer of the cascade", said.any({ |s| s.contains("answer 2 of 3") }) and: { said.any({ |s| s.contains("answer 3 of 3") }) } and: { said.any({ |s| s.contains("answer 1 of 3") }) }, said.last);
 
 if(fails.size == 0) { "STRIKE_TEST PASS".postln; 0.exit } { ("STRIKE_TEST FAIL — " ++ fails.size ++ " check(s): " ++ fails.join(" · ")).postln; 1.exit };
 )

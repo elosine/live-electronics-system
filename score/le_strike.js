@@ -23,9 +23,19 @@
 //         cats       [§337] the categories a capture must have to be rolled (impulse …; the index row's category) — absent: the catalogue's samples.categories; empty: any
 //         answerOf   the id of an EARLIER window: this window's answer uses THAT strike's rhythm (the come-back, the piece's 17.3) —
 //                    carried on the brick and in the message from the first build; the engine keeps every strike it heard
+//         mode       [the Decibel piece's 17.3, DEC-119] notated — the strike is played as written · open — the ensemble strikes freely inside
+//                    the window (in a simulation the score's notes stand in for them). A WORD for the score and its notation: the engine
+//                    listens the same way to both. Absent = unsaid.
+//         graceMs    [17.3] how long after the window's END an onset still belongs to it; absent = gapMs (as it always was). Small where
+//                    windows stand close, so the next strike's first onset is not taken by this one.
+//         chain      [17.3, DEC-120] THE CASCADE — a list of further answers, each { type, timing, seed }: the window answers 1 + chain.length
+//                    times. Answer 1 is the brick's own type · timing · seed on the STRIKE's rhythm; each link transforms the rhythm of the
+//                    ANSWER BEFORE IT (never the strike's again) and is placed by its timing after that answer's last onset; its samples
+//                    are dealt afresh. A plain link (asPlayed) is a link. Absent or empty = one answer, as it always was.
 //       Its lane is only where it is drawn: it listens to ALL the players. Played through, it sends ONE message at its start —
 //           /le/strike   id · t · dueMs · lengthMs · [offsetMs · wholeMs] · type · timing · seed · gapMs · level · deal · [players ·
-//                        samples · processed · answerOf] · dials · pass · zone · lane
+//                        samples · processed · answerOf · mode · answers · chain · dials2 · dials3 …] · dials · pass · zone · lane
+//                        (chain: type:timing:seed,type:timing:seed — dialsN: the catalogue's numbers for answer N, as `dials` is answer 1's)
 //       — and from then on the ENGINE collects the onsets and answers (sc/strike.scd). The score's stop:  /le/strikestop .
 //
 //   THE SIMULATED EAR (the correspondence rule, the Decibel piece's D10): in a concert the engine hears the pooled microphones.
@@ -125,7 +135,25 @@
         return { onsets: out, afterMs: timing(tm, len, D, rnd), rnd };
     };
     const markIndex = (m) => Math.max(0, MARKS.indexOf(String(m)));
-    const StrikeCalc = { TYPES, TIMINGS, TYPE_NAME, TIMING_NAME, DEFAULTS, MARKS, rng, shuffle, draw, dialsFor, dialsText, dialsParse, transform, timing, answer, markIndex };
+    // THE CASCADE [17.3, DEC-120]: a brick's further answers, each { type, timing, seed } — read whole or not at all (an unknown word is dropped)
+    const MAXLINKS = 4, MODES = ['notated', 'open'];
+    const chainOf = (e) => (Array.isArray(e && e.chain) ? e.chain : []).filter((l) => l && TYPES.includes(l.type) && TIMINGS.includes(l.timing)).slice(0, MAXLINKS)
+        .map((l) => ({ type: l.type, timing: l.timing, seed: Math.max(1, Math.round(+l.seed) || 1) }));
+    const spanMs = (ons) => ons.reduce((m, o) => Math.max(m, o.atMs), 0);
+    // every answer of a window, in order: answer 1 from the strike; answer k from ANSWER k − 1's onsets — each link its own dice (its seed), its
+    // own catalogue numbers. `fromMs` is where an answer's first onset falls, counted from the STRIKE's last onset: the answer before's start +
+    // its span + this one's timing. The engine's strikeCascade is this function.
+    const cascade = (ons, e, cat) => {
+        const out = []; let mat = ons, from = 0;
+        [{ type: e && e.type, timing: e && e.timing, seed: e && e.seed }].concat(chainOf(e)).forEach((l, k) => {
+            const a = answer(mat, l, dialsFor(cat, l.type, l.timing));
+            from = (k ? from + spanMs(mat) : 0) + a.afterMs;
+            out.push({ k: k + 1, type: TYPES.includes(l.type) ? l.type : 'asPlayed', timing: TIMINGS.includes(l.timing) ? l.timing : 'rightAfter', seed: Math.max(1, Math.round(+l.seed) || 1), onsets: a.onsets, afterMs: a.afterMs, fromMs: from });
+            mat = a.onsets;
+        });
+        return out;
+    };
+    const StrikeCalc = { TYPES, TIMINGS, TYPE_NAME, TIMING_NAME, DEFAULTS, MARKS, MODES, MAXLINKS, rng, shuffle, draw, dialsFor, dialsText, dialsParse, transform, timing, answer, markIndex, chainOf, spanMs, cascade };
     if (typeof module !== 'undefined' && module.exports) module.exports = StrikeCalc;
     root.StrikeCalc = StrikeCalc;
 
@@ -185,12 +213,16 @@
             const first = notes[0].startSeconds, last = notes[notes.length - 1].startSeconds;
             const ons = notes.map((o) => ({ atMs: r1((o.startSeconds - first) * 1000), mark: this.noteMark(o) }));
             const a = answer(ons, e, this.strikeDials(e));
-            return { notes, ons, onsets: a.onsets, afterMs: a.afterMs, lastS: last, startS: last + a.afterMs / 1000 };
+            // [17.3] every answer of the cascade, each with the second it begins at (the first is `a` again, by the same dice)
+            const answers = cascade(ons, e, this.strikeCat).map((x) => Object.assign(x, { startS: last + x.fromMs / 1000 }));
+            return { notes, ons, onsets: a.onsets, afterMs: a.afterMs, lastS: last, startS: last + a.afterMs / 1000, answers };
         },
         // ---- the label ------------------------------------------------------------------------------------------------------
         strikeLabel(zone) {
-            const e = zone.elec || {}, M = this.MODELS.elecStrike;
-            return M.sign + ' ' + (e.label ? String(e.label).slice(0, 48) + ' · ' : '') + (e.id ? e.id + ' · ' : '') + (TYPE_NAME[e.type] || e.type || '?') + ' · ' + (TIMING_NAME[e.timing] || e.timing || '?')
+            const e = zone.elec || {}, M = this.MODELS.elecStrike, ch = chainOf(e), nm = (k) => TYPE_NAME[k] || k || '?';
+            // [17.3] the mode's word after the name; a cascade says its count and its chain of rhythms (the timings are in the panel)
+            return M.sign + ' ' + (e.label ? String(e.label).slice(0, 48) + ' · ' : '') + (e.id ? e.id + ' · ' : '') + (MODES.includes(e.mode) ? e.mode + ' · ' : '')
+                + (ch.length ? '×' + (ch.length + 1) + ' · ' + [e.type].concat(ch.map((l) => l.type)).map(nm).join(' → ') : nm(e.type) + ' · ' + (TIMING_NAME[e.timing] || e.timing || '?'))
                 + (e.level && e.level !== 'mimic' ? ' · ' + e.level : '') + ' · s' + (Math.max(1, Math.round(+e.seed) || 1)) + (e.answerOf ? ' · answers ' + e.answerOf : '');
         },
         // ---- the message ----------------------------------------------------------------------------------------------------
@@ -210,6 +242,14 @@
             if (Array.isArray(e.samples) && e.samples.length) m.samples = e.samples.map(safe).filter(Boolean).join(',');
             if (e.answerOf) m.answerOf = safe(e.answerOf);
             const dials = dialsText(this.strikeDials(e)); if (dials) m.dials = dials;
+            // [17.3] the mode's word, and THE CASCADE: how many answers, the links, and each link's own numbers from the catalogue
+            if (MODES.includes(e.mode)) m.mode = e.mode;
+            if (e.graceMs != null && Number.isFinite(+e.graceMs)) m.graceMs = Math.max(0, Math.round(+e.graceMs));   // how long after its end an onset still belongs to it (absent: the gap)
+            const ch = chainOf(e);
+            if (ch.length) {
+                m.answers = ch.length + 1; m.chain = ch.map((l) => l.type + ':' + l.timing + ':' + l.seed).join(',');
+                ch.forEach((l, i) => { const dt = dialsText(dialsFor(this.strikeCat, l.type, l.timing)); if (dt) m['dials' + (i + 2)] = dt; });
+            }
             if (this._passN) m.pass = this._passN;
             return m;
         },
@@ -255,7 +295,8 @@
         // ---- the panel ------------------------------------------------------------------------------------------------------
         strikeSettings(e) {
             const o = {};
-            for (const k of ['id', 'type', 'timing', 'seed', 'gapMs', 'level', 'deal', 'processed', 'envs', 'cats', 'answerOf', 'label']) if (e[k] != null && e[k] !== '') o[k] = e[k];
+            for (const k of ['id', 'mode', 'type', 'timing', 'seed', 'gapMs', 'graceMs', 'level', 'deal', 'processed', 'envs', 'cats', 'answerOf', 'label']) if (e[k] != null && e[k] !== '') o[k] = e[k];
+            if (chainOf(e).length) o.chain = chainOf(e);   // [17.3]
             if (Array.isArray(e.players) && e.players.length) o.players = e.players;
             o.samples = Array.isArray(e.samples) ? e.samples : 'bank';
             return o;
@@ -275,6 +316,16 @@
             if (o.samples != null) e.samples = Array.isArray(o.samples) && o.samples.length ? o.samples.map(safe).filter(Boolean) : 'bank';
             if (o.answerOf != null) { if (safe(o.answerOf)) e.answerOf = safe(o.answerOf); else delete e.answerOf; }
             if (typeof o.label === 'string') e.label = o.label.trim().slice(0, 48);
+            if (o.mode != null) { if (MODES.includes(o.mode)) e.mode = o.mode; else delete e.mode; }                                   // [17.3]
+            if (o.graceMs != null) { if (o.graceMs !== '' && Number.isFinite(+o.graceMs)) e.graceMs = Math.max(0, Math.round(+o.graceMs)); else delete e.graceMs; }
+            if (o.chain != null) { const c = chainOf({ chain: o.chain }); if (c.length) e.chain = c; else delete e.chain; }         // [17.3] absent from the box = left as it is
+        },
+        // [17.3] the panel's Answers: the cascade made n answers long — the links kept as they are, a new one drawn from the window's seed
+        strikeAnswers(e, n) {
+            const want = Math.max(0, Math.min(MAXLINKS, Math.round(+n || 1) - 1)), ch = chainOf(e), base = Math.max(1, Math.round(+e.seed) || 1);
+            while (ch.length < want) { const k = ch.length + 2, rnd = rng(base * 131 + k); ch.push({ type: TYPES[Math.min(TYPES.length - 1, Math.floor(rnd() * TYPES.length))], timing: TIMINGS[Math.min(TIMINGS.length - 1, Math.floor(rnd() * TIMINGS.length))], seed: base * 10 + k }); }
+            ch.length = want;
+            if (ch.length) e.chain = ch; else delete e.chain;
         },
         strikePanel(zone, sec, ui) {
             const e = zone.elec, { el, rowEl, note, commit } = ui, h = this.host, def = this.strikeDefaults();
@@ -285,6 +336,17 @@
             sec.appendChild(rowEl('Rhythm', pick(TYPES.includes(e.type) ? e.type : 'asPlayed', TYPES.map((k) => [k, TYPE_NAME[k]]), (v) => { e.type = v; }, 'how the strike\'s rhythm is changed in the answer')));
             sec.appendChild(rowEl('Timing', pick(TIMINGS.includes(e.timing) ? e.timing : 'rightAfter', TIMINGS.map((k) => [k, TIMING_NAME[k]]), (v) => { e.timing = v; }, 'when the answer\'s first onset falls, from the strike\'s last onset')));
             sec.appendChild(rowEl('Seed', num(Math.max(1, Math.round(+e.seed) || 1), (v) => { e.seed = Math.max(1, Math.round(v) || 1); }, 1, 1, 'the window\'s dice: the same seed, the same draws, here and in the engine')));
+            // [17.3] the mode's word · THE CASCADE: how many answers, then a row a link — its rhythm (of the answer before), its timing (after it), its dice
+            sec.appendChild(rowEl('Mode', pick(MODES.includes(e.mode) ? e.mode : '', [['', '—'], ['notated', 'notated — played as written'], ['open', 'open — struck freely inside the window']], (v) => { if (MODES.includes(v)) e.mode = v; else delete e.mode; }, 'what the players do here — a word for the score and its notation; the electronics listens the same way to both')));
+            const links = chainOf(e);
+            sec.appendChild(rowEl('Answers', pick(String(links.length + 1), [['1', '1'], ['2', '2 — a cascade'], ['3', '3 — a cascade']].concat(links.length > 2 ? [[String(links.length + 1), String(links.length + 1)]] : []), (v) => { this.strikeAnswers(e, +v); }, 'how many times the electronics answers this strike — each further answer changes the rhythm of the answer before it')));
+            links.forEach((l, i) => {
+                const set = (fn) => { const c = chainOf(e); if (c[i]) { fn(c[i]); e.chain = c; } };
+                sec.appendChild(rowEl('Answer ' + (i + 2), el('span', {}, [
+                    pick(l.type, TYPES.map((k) => [k, TYPE_NAME[k]]), (v) => set((c) => { c.type = v; }), 'how the rhythm of answer ' + (i + 1) + ' is changed'),
+                    pick(l.timing, TIMINGS.map((k) => [k, TIMING_NAME[k]]), (v) => set((c) => { c.timing = v; }), 'when it begins, from the last onset of answer ' + (i + 1)),
+                    num(l.seed, (v) => set((c) => { c.seed = Math.max(1, Math.round(v) || 1); }), 1, 1, 'this answer\'s dice')])));
+            });
             sec.appendChild(rowEl('Gap (ms)', num(Math.round(+e.gapMs || def.gapMs), (v) => { e.gapMs = Math.max(50, Math.round(v) || def.gapMs); }, 50, 50, 'the silence that says the strike is over; the answer is placed from then')));
             sec.appendChild(rowEl('Level', pick(MARKS.includes(String(e.level)) ? String(e.level) : 'mimic', [['mimic', 'mimic — as the players struck']].concat(MARKS.map((m) => [m, m])), (v) => { e.level = v; }, 'each answer onset at the level of the strike onset it came from, or every onset at a mark')));
             sec.appendChild(rowEl('Deal', pick(e.deal === 'all' ? 'all' : 'robin', [['robin', 'the players in turn, one sample an onset'], ['all', 'every player at every onset']], (v) => { e.deal = v; })));
@@ -298,6 +360,7 @@
             const x = h ? this.strikeExpected(h, zone) : null;
             sec.appendChild(note(x ? x.notes.length + ' notes under the window (' + [...new Set(x.notes.map((o) => this.playerOf(o.layer) || this.opts.laneLabel(o.layer)))].join(' ') + ') · ' + (x.ons.length > 1 ? Math.round(x.ons[x.ons.length - 1].atMs) + ' ms long' : 'one onset')
                 + ' → ' + TYPE_NAME[e.type] + ': ' + x.onsets.map((o) => Math.round(o.atMs) + (o.mark !== 'mf' ? o.mark : '')).join(' · ') + ' ms · ' + TIMING_NAME[e.timing] + ': the answer ' + (x.afterMs / 1000).toFixed(2) + ' s after the last note, at ' + x.startS.toFixed(2) + ' s'
+                + x.answers.slice(1).map((a) => ' ⟶ answer ' + a.k + ', ' + TYPE_NAME[a.type] + ' of answer ' + (a.k - 1) + ': ' + a.onsets.map((o) => Math.round(o.atMs)).join(' · ') + ' ms · ' + TIMING_NAME[a.timing] + ', at ' + a.startS.toFixed(2) + ' s').join('')
                 : 'no note begins inside this window yet — in the simulation the window hears the score\'s notes; in a concert, the pooled microphones'));
             const box = el('textarea', { value: JSON.stringify(this.strikeSettings(e), null, 1), rows: 6, spellcheck: false, style: 'width:100%;box-sizing:border-box;font:10px/1.3 monospace' });
             box.addEventListener('change', () => { let o; try { o = JSON.parse(box.value); } catch (err) { this.say('the box is not valid JSON: ' + err.message); return; } commit(() => this.strikeApply(zone, o)); });
