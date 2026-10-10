@@ -573,6 +573,21 @@
                 : 'played: ' + known.slice(0, 5).map((r) => (rows.length > 1 ? r.name + ' ' : '') + (r.played || '?') + ' (' + Math.round(+r.loudDb) + ' LUFS)').join(' · ') + (known.length > 5 ? ' …' : '')));
         },
 
+        // A PRESET'S SETTINGS, WHOLE, IN WORDS (the Decibel piece's DEC-143: "can I get access to that full effect settings in the card?") — what
+        // the menu's name abbreviates: the effect, every dial (a range is drawn afresh at each render), how the variant ends and how long it may
+        // be; then, when the bank holds a render, the values THAT render drew and its length. To read, not to edit: a preset is the piece's file.
+        presetSaid(p, env, made) {
+            const P = this.presets || {}, cls = (P.classes || {})[p.class] || {}, E = (P.envelopes || {})[env] || {};
+            const val = (v) => (Array.isArray(v) ? v[0] + ' … ' + v[1] + ' (drawn at each render)' : String(v));
+            const cap = p.capMs || E.capMs, capSaid = cap == null ? '' : ', cut at the latest ' + (Array.isArray(cap) ? cap[0] + ' … ' + cap[1] : cap) + ' ms past the sample';
+            const dials = Object.entries(p.args || {}).map(([k, v]) => k + ' ' + val(v)).join(' · ');
+            const ends = env === 'tail' ? 'ends by its own ring, to −60 dB under its peak' + capSaid
+                : env === 'shape' ? 'ends by its own shape' + (p.durMs ? ', ' + Math.round(p.durMs) + ' ms long' : '')
+                : 'ends by ' + env + ', ' + (+(p.durX || cls.durX || 1)) + ' × the sample long';
+            const drew = made && made.args ? ' — THIS RENDER: ' + String(made.args).split(',').map((kv) => kv.replace(':', ' ')).join(' · ') + ' · ' + Math.round(made.lengthMs) + ' ms' : '';
+            return p.key + ' = ' + p.effect + (dials ? ' · ' + dials : '') + ' · ' + ends + drew;
+        },
+
         // ---- the processed return, in the panel: per sample the brick plays — a preset · an envelope · ▶; and the button for them all ----
         variantPanel(zone, sec, ui) {
             const h = this.host, e = zone.elec, P = this.presets, { el, rowEl, note, commit } = ui, small = 'font-size:11px';
@@ -610,6 +625,7 @@
                     'this sample as the brick will ask for it, now — raw if its variant is not rendered yet (the engine\'s window says)');
                 const made = cur.key ? this.row(safe(name) + '~' + this.vsuffix(e, name)) : null;
                 sec.appendChild(rowEl(name, pair(...[ps, es, ds, dBox, hear, tiny(!cur.key ? '' : made ? Math.round(made.lengthMs) + ' ms' : 'not rendered')].filter(Boolean))));
+                if (known) sec.appendChild(note(this.presetSaid(known, cur.env, made)));   // the preset's settings, whole — and what this render drew
             }
             const rows = this.planRows(), have = rows.filter((r) => this.row(r.base + '~' + r.suffix)).length;
             sec.appendChild(rowEl('', pair(

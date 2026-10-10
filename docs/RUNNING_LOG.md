@@ -1038,3 +1038,15 @@ A fourth mode in `boot.scd`, `\remote`: the devices from `LE_DEVICE_IN` · `LE_D
 **NOT CLAIMED:** a living engine (`planRender`'s new branch is parsed, reached by no test); that the burst is the cause of what he heard — the engine's window was not seen; the composer's ear.
 
 **A gap this leaves, said:** the hold still looks only backward. A piece whose NON-live variants queue behind a run of close openings meets the same burst at the first gap over the hold (NITS).
+
+## §68
+
+**2026-10-10 (Opus, in the Decibel piece — its RUNNING_LOG §372, DEC-143): A PRESET'S SETTINGS, WHOLE, IN THE RETURN BRICK'S CARD — `presetSaid`.**
+
+**What prompted it (the composer, verbatim):** *"can I get access to that full effect settings in the card? If that's hard, don't worry about it."* He was auditioning a piece's processed versions one brick at a time and could see only a preset's name in the menu.
+
+**Built.** `score/le_objects.js` `presetSaid(preset, env, madeRow)` and one line of `variantPanel`: under each row of "Processed as", the preset's key and effect, every dial (a range said as `lo … hi (drawn at each render)`), how the variant ends (its own ring to −60 dB and the cap · a shape and its length · an envelope and its multiple of the sample), and — when the bank's index holds the variant — the values THAT render drew (the row's `args`) and its length. To read, not to edit.
+
+**Why read-only:** a preset is a row of the piece's file, shared by every brick that names it. A dial in a brick's card would either move them all (a road from the page to the piece's file, and a render after) or need a version of the brick's own (a name scheme like the drive's `_d6`, and its plan row). Each is a build with its own decision; filed with the composer, not made.
+
+**Proven:** `tools/page_test.js` PASS; the line printed once from a piece's own presets and index. **NOT CLAIMED:** the running page.
