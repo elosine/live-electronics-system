@@ -738,10 +738,25 @@
         // a preset per impact: n variants '<key>-<env>' — the pool shuffled ONCE by the seed and dealt round robin (none twice until
         // all are used; past the pool it comes round again), under the one envelope asked for, or the file's mix as exact shares of
         // the n (the largest remainders round it), shuffled by the seed — tools/deal_variants.js's rule, for the onsets of one brick
+        // THE DEAL'S CARDS (the Decibel piece's DEC-146: "can we make the distortion types all like one item? … I want them to come up less
+        // often"): a preset a card — but the presets of a GROUP of the piece's file (`groups`: { name: { effects: [...], keys: [...] } }) are
+        // ONE card between them; when it comes up its members take turns, in a seeded order of their own. No groups: a card a preset.
+        dealCards(pool, rnd) {
+            const G = (this.presets && this.presets.groups) || {}, groupOf = (p) => Object.keys(G).find((g) => g[0] !== '_' && G[g] && ((G[g].effects || []).includes(p.effect) || (G[g].keys || []).includes(p.key)));
+            const cards = [], byGroup = new Map();
+            for (const p of pool) {
+                const g = groupOf(p);
+                if (!g) { cards.push({ next: () => p }); continue; }
+                if (!byGroup.has(g)) { const c = { group: g, members: [], i: 0 }; c.next = () => c.members[c.i++ % c.members.length]; byGroup.set(g, c); cards.push(c); }
+                byGroup.get(g).members.push(p);
+            }
+            for (const c of byGroup.values()) c.members = c.members.map((x) => [rnd(), x]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
+            return cards;
+        },
         dealVariants(n, fx) {
             const P = this.presets, pool = this.fxPool(fx);
             if (!P || !pool.length || !(n > 0)) return [];
-            const seed = +fx.seed || 0, order = shuffled(pool, mulberry32(seed * 7919 + 3)), envsAll = Object.keys(P.envelopes || {});
+            const seed = +fx.seed || 0, order = shuffled(this.dealCards(pool, mulberry32(seed * 7919 + 5)), mulberry32(seed * 7919 + 3)), envsAll = Object.keys(P.envelopes || {});
             let envs;
             if (fx.env === 'mix') {
                 const mix = Object.entries(P.mix || { perc: 1 }).filter(([k, w]) => envsAll.includes(k) && w > 0), wSum = mix.reduce((s, [, w]) => s + w, 0) || 1;
@@ -749,7 +764,7 @@
                 for (let left = n - share.reduce((s, x) => s + x.n, 0); left > 0; left--) share.slice().sort((a, b) => (b.exact - b.n) - (a.exact - a.n))[0].n++;
                 envs = shuffled(share.flatMap((s) => Array(s.n).fill(s.k)), mulberry32(seed * 104729 + 17));
             } else envs = Array(n).fill(envsAll.includes(fx.env) ? fx.env : (envsAll[0] || 'tail'));
-            return [...Array(n)].map((_, i) => order[i % order.length].key + '-' + envs[i]);
+            return [...Array(n)].map((_, i) => order[i % order.length].next().key + '-' + envs[i]);
         },
         // Generate: the samples picked, in the order asked, on the shape's onsets → elec.pattern = [{ name, atMs, db?, variant? }]; the brick
         // runs from the live note to the last onset (a simple shape: to its span); with fx.mode 'each', a preset per onset (DEC-28)

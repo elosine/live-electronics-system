@@ -1050,3 +1050,13 @@ A fourth mode in `boot.scd`, `\remote`: the devices from `LE_DEVICE_IN` · `LE_D
 **Why read-only:** a preset is a row of the piece's file, shared by every brick that names it. A dial in a brick's card would either move them all (a road from the page to the piece's file, and a render after) or need a version of the brick's own (a name scheme like the drive's `_d6`, and its plan row). Each is a build with its own decision; filed with the composer, not made.
 
 **Proven:** `tools/page_test.js` PASS; the line printed once from a piece's own presets and index. **NOT CLAIMED:** the running page.
+
+## §69
+
+**2026-10-10 (Opus, in the Decibel piece — its RUNNING_LOG §375, DEC-146): A GROUP OF PRESETS IS ONE CARD OF A DEAL — `dealCards`.**
+
+**What prompted it (the composer, verbatim):** *"can we make the distortion types all like one item? So we have the 27 ones, and then all the distortion effects will be like one element in there. In other words, I want them to come up less often."*
+
+**Built.** `score/le_objects.js` `dealCards(pool, rnd)`, used by `dealVariants` (a pattern brick's preset per impact): a piece's presets file may carry `groups` — `{ name: { effects: [...], keys: [...] } }`; every dealt preset is a card, the presets of a group ONE card between them, its members taking turns in a seeded order when it comes up. The shuffle of the cards uses the generator the shuffle of the presets used: a file with no groups deals exactly as before. The piece's own tools carry the same rule (its `tools/audition_kit.js`).
+
+**Proven:** `tools/page_test.js` PASS. **NOT CLAIMED:** a pattern brick's Generate in the running page with a grouped file.
