@@ -101,7 +101,7 @@
     playing = true; $('play').textContent = '■ stop'; $('play').classList.add('on');
   };
   const stop = () => { send({ do: 'stop' }); playing = false; $('play').textContent = '▶ play'; $('play').classList.remove('on'); };
-  const set = () => { show(); if (playing) send(Object.assign({ do: 'set', voice }, knobs())); };
+  const set = () => { show(); send(Object.assign({ do: 'set', voice }, knobs())); };   // always: a reloaded page does not know the engine is playing
 
   for (const w of WINDOWS) $('grainEnvelope').add(new Option(w, w));
   $('grainEnvelope').value = DEFAULTS.grainEnvelope;
@@ -121,7 +121,7 @@
       b.onclick = () => {
         for (const [k, v] of Object.entries(e.settings || {})) { const el = $(k); if (el) el.value = v; }
         document.querySelectorAll('#menu button').forEach((x) => x.classList.toggle('on', x === b));
-        set(); if (!playing) say('setting: ' + e.name + ' (sent at play)');
+        set();
       };
       $('menu').appendChild(b);
     }
