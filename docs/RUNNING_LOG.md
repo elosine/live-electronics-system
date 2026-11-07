@@ -1100,3 +1100,16 @@ A fourth mode in `boot.scd`, `\remote`: the devices from `LE_DEVICE_IN` · `LE_D
   other; VBAP.
 - **NITS:** the Warp1 voice keeps the source's field only (no pan per grain) · a loop toggle is endpos, the hold-at-end not built ·
   the quad: a single-synth granulator sums its grains, so per-grain VBAP needs grain streams each with its own VBAP.
+
+## §72. Icy live: the legible names, the lab's own server, the page (2026-11-07, Fable, in the Switch~ piece)
+
+- **His words** (the piece's §50): *"let's just go ahead and use your recommended argument names"* — grainEnvelope for the window;
+  *"maybe we stay out of the composer score"* when the page was proven on the piece's throwaway score server.
+- **What:** `sc/icylab.scd` · `icylab_test.scd` renamed — grainLength · overlaps · grainEnvelope · lengthVary · lengthLean · scatter ·
+  envelopeSet · slowerBy (the factor; the head runs 1/slowerBy) · pitch · readFrom · readTo · rewind · panSpread · stereoWidth ·
+  level (all five checks still pass). `tools/icy_lab.js` (new): the lab's OWN server — the page, `/samples.json` (the piece's list,
+  with the folder the engine loads from), `/electronics/le_msg.js`, the relay at `/api/elec` from the piece's route table; no
+  composer score. `score/icy_lab.html` (new): the sample box and play at the defaults (Approaching's most-used icy), every other
+  knob hidden until asked (`?all`); it only sends `/le/icy`. A piece runs it as `node electronics/tools/icy_lab.js --samples … --config
+  … --port 5620`. Proven: the page from its own server lists the twelve samples, no request to anything else.
+- **Not claimed:** a living engine beside it — his ear.

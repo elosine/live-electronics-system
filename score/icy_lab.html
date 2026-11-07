@@ -1,0 +1,123 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>icy lab</title>
+<!--
+  THE ICY LAB, over the engine (2026-11-07; the Switch~ piece's PLAN 1a.3, its RUNNING_LOG §46 … §50; the engine's §71).
+  His freeze on a loaded sample, LIVE in SuperCollider: this page only SENDS — LE.send('icy', …) → the score server → OSC →
+  the engine's /le/icy (sc/icylab.scd). The sound comes out of the engine (ReaRoute → the rack's ELEC RETURN).
+  ONE THING AT A TIME (his word): the page opens with the sample box and play, at a set of defaults; a knob is shown when he
+  asks for it (?all shows every knob). A piece's samples: ?samples=<url of a samples.json> (default: the Switch~ set's lab).
+  Served by ITS OWN server, electronics/tools/icy_lab.js (the page, /samples.json, the relay) — never the composer score (his word).
+-->
+<style>
+  :root { --bg:#0b0b0d; --ink:#cfcfd6; --dim:#71717c; --line:#2a2a30; --acc:#7fd4c8; --amb:#f0a860; --hot:#e8e8f0; --ok:#7fd47f; }
+  html,body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 Consolas, ui-monospace, monospace; }
+  body { padding:16px 20px; max-width:900px; }
+  h1 { font-size:16px; font-weight:600; margin:0 0 10px; color:var(--hot); }
+  h2 { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:16px 0 6px; }
+  .box { border:1px solid var(--line); border-radius:4px; padding:10px 14px; margin:6px 0; }
+  .row { display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin:5px 0; }
+  label { color:var(--dim); min-width:120px; }
+  select { background:#000; color:var(--ink); border:1px solid var(--line); border-radius:3px; padding:4px 6px; font:inherit; }
+  input[type=range] { width:240px; vertical-align:middle; }
+  .v { color:var(--hot); min-width:70px; display:inline-block; }
+  button { background:#141418; color:var(--ink); border:1px solid var(--line); border-radius:3px; padding:5px 12px; cursor:pointer; font:inherit; }
+  button:hover { border-color:var(--acc); color:var(--hot); }
+  button.on { border-color:var(--acc); color:var(--acc); }
+  button.big { font-size:16px; padding:8px 20px; }
+  #said { color:var(--dim); font-size:12px; margin-top:8px; min-height:1.2em; }
+  body:not(.all) .later { display:none; }
+  kbd { background:#1a1a20; border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:11px; }
+</style>
+
+<h1>icy lab</h1>
+
+<div class="box">
+  <div class="row"><label>sample</label> <select id="sample"></select></div>
+  <div class="row"><label></label> <button id="play" class="big">▶ play <kbd>space</kbd></button> <button id="voice" class="later">voice: grain</button></div>
+</div>
+
+<div class="later">
+  <h2>grains</h2>
+  <div class="box">
+    <div class="row"><label>grainLength</label> <input type="range" id="grainLength" min="0.02" max="2" step="0.01" value="0.6"> <span class="v" id="grainLengthV"></span></div>
+    <div class="row"><label>overlaps</label> <input type="range" id="overlaps" min="1" max="64" step="1" value="17"> <span class="v" id="overlapsV"></span></div>
+    <div class="row"><label>lengthVary</label> <input type="range" id="lengthVary" min="0" max="1" step="0.01" value="0.2"> <span class="v" id="lengthVaryV"></span></div>
+    <div class="row"><label>lengthLean</label> <input type="range" id="lengthLean" min="-1" max="1" step="0.05" value="0"> <span class="v" id="lengthLeanV"></span></div>
+    <div class="row"><label>scatter</label> <input type="range" id="scatter" min="0" max="0.5" step="0.005" value="0"> <span class="v" id="scatterV"></span></div>
+  </div>
+  <h2>envelope</h2>
+  <div class="box">
+    <div class="row"><label>grainEnvelope</label> <select id="grainEnvelope"></select></div>
+  </div>
+  <h2>read</h2>
+  <div class="box">
+    <div class="row"><label>slowerBy</label> <input type="range" id="slowerBy" min="1" max="200" step="1" value="30"> <span class="v" id="slowerByV"></span>
+      <button data-f="30">×30</button> <button data-f="50">×50</button> <button data-f="100">×100</button></div>
+    <div class="row"><label>level</label> <input type="range" id="level" min="0" max="2" step="0.01" value="1"> <span class="v" id="levelV"></span></div>
+  </div>
+  <h2>space</h2>
+  <div class="box">
+    <div class="row"><label>panSpread</label> <input type="range" id="panSpread" min="0" max="1" step="0.01" value="0"> <span class="v" id="panSpreadV"></span></div>
+    <div class="row"><label>stereoWidth</label> <input type="range" id="stereoWidth" min="0" max="1" step="0.01" value="1"> <span class="v" id="stereoWidthV"></span></div>
+  </div>
+</div>
+
+<div id="said"></div>
+
+<script src="/electronics/le_msg.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  if (location.search.includes('all')) document.body.classList.add('all');
+  const samplesUrl = new URLSearchParams(location.search).get('samples') || '/samples.json';   // the lab's own server (tools/icy_lab.js) serves the piece's list here
+  const WINDOWS = ['expodec', 'gauss', 'hanning', 'hamming', 'blackman', 'blackmanHarris', 'quasiGauss', 'rexpodec', 'tri', '3stageLinear', 'hann'];
+  // THE DEFAULTS — his icy as Approaching used it most (its presets: 30× in 41 of 143, 17 overlaps, lengthVary 0.2, expodec)
+  const DEFAULTS = { grainLength: 0.6, overlaps: 17, lengthVary: 0.2, lengthLean: 0, scatter: 0, grainEnvelope: 'expodec',
+                     slowerBy: 30, level: 1, panSpread: 0, stereoWidth: 1, pitch: 1, readFrom: 0, readTo: 1 };
+  let samples = [], dir = '', voice = 'grain', playing = false, loaded = false;
+
+  const say = (t) => { $('said').textContent = t; };
+  const send = (data) => { LE.send('icy', data); say('sent: ' + Object.entries(data).map(([k, v]) => k + ' ' + v).join(' · ')); };
+  const knobs = () => {
+    const o = {};
+    for (const k of Object.keys(DEFAULTS)) { const el = $(k); o[k] = el ? (el.tagName === 'SELECT' ? el.value : +el.value) : DEFAULTS[k]; }
+    return o;
+  };
+  const show = () => {
+    for (const k of ['grainLength', 'overlaps', 'lengthVary', 'lengthLean', 'scatter', 'slowerBy', 'level', 'panSpread', 'stereoWidth']) {
+      const el = $(k), v = $(k + 'V'); if (!el || !v) continue;
+      const x = +el.value;
+      v.textContent = k === 'grainLength' ? x.toFixed(2) + ' s' : k === 'scatter' ? (x === 0 ? 'none' : '± ' + (x * 1000).toFixed(0) + ' ms')
+        : k === 'slowerBy' ? '×' + x : k === 'lengthLean' ? (x === 0 ? 'even' : (x < 0 ? 'short ' : 'long ') + Math.abs(x).toFixed(2)) : x.toFixed(2);
+    }
+    $('voice').textContent = 'voice: ' + voice;
+  };
+  const ensureLoaded = () => { if (!loaded && dir) { send({ do: 'load', dir }); loaded = true; } };
+  const start = () => {
+    ensureLoaded();
+    send(Object.assign({ do: 'start', sample: $('sample').value, voice }, knobs()));
+    playing = true; $('play').textContent = '■ stop'; $('play').classList.add('on');
+  };
+  const stop = () => { send({ do: 'stop' }); playing = false; $('play').textContent = '▶ play'; $('play').classList.remove('on'); };
+  const set = () => { show(); if (playing) send(Object.assign({ do: 'set', voice }, knobs())); };
+
+  for (const w of WINDOWS) $('grainEnvelope').add(new Option(w, w));
+  $('grainEnvelope').value = DEFAULTS.grainEnvelope;
+  for (const k of ['grainLength', 'overlaps', 'lengthVary', 'lengthLean', 'scatter', 'slowerBy', 'level', 'panSpread', 'stereoWidth']) $(k).oninput = set;
+  $('grainEnvelope').onchange = set;
+  document.querySelectorAll('button[data-f]').forEach((b) => { b.onclick = () => { $('slowerBy').value = b.dataset.f; set(); }; });
+  $('voice').onclick = () => { voice = voice === 'grain' ? 'warp' : 'grain'; show(); if (playing) send(Object.assign({ do: 'start', sample: $('sample').value, voice }, knobs())); };
+  $('play').onclick = () => (playing ? stop() : start());
+  $('sample').onchange = () => { if (playing) start(); };
+  document.addEventListener('keydown', (e) => { if (e.code === 'Space' && e.target.tagName !== 'INPUT') { e.preventDefault(); playing ? stop() : start(); } });
+
+  LE.init();
+  fetch(samplesUrl, { cache: 'no-store' }).then((r) => r.json()).then((m) => {
+    samples = m.samples || []; dir = m.dir || '';
+    for (const s of samples) $('sample').add(new Option(s.label, s.file.replace(/^.*\//, '').replace(/\.[^.]+$/, '')));
+    say((m.session || '') + ' — ' + samples.length + ' samples' + (dir ? '' : ' (no dir in samples.json: the engine must have loaded them itself)'));
+  }).catch(() => say('no samples list at ' + samplesUrl));
+  show();
+})();
+</script>

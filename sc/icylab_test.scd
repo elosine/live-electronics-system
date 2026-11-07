@@ -36,17 +36,17 @@ if(folder.isNil or: { folder.size == 0 }) { "LE_ERROR icylab_test: LE_ICYLAB=<fo
 	first = names.first;
 
 	// B the grain voice sounds at the defaults (×30, expodec)
-	le.icyLabDo((do: "start", sample: first, voice: "grain", slower: 30, envbuf: "expodec"));
+	le.icyLabDo((do: "start", sample: first, voice: "grain", slowerBy: 30, grainEnvelope: "expodec"));
 	level.(1.0);
 	check.("B grain voice sounds", rms > 0.0005, "rms " ++ rms.ampdb.round(0.1) ++ " dB on " ++ first);
 
 	// C a knob moves while it plays (the scatter, the overlap, an assorted set) — still sounding, no error
-	le.icyLabDo((do: "set", scatter: 0.04, overlaps: 24, envset: "A", panspread: 0.5));
+	le.icyLabDo((do: "set", scatter: 0.04, overlaps: 24, envelopeSet: "A", panSpread: 0.5));
 	level.(0.8);
-	check.("C knobs set live", rms > 0.0005, "rms " ++ rms.ampdb.round(0.1) ++ " dB after scatter · overlaps · envset A · panspread");
+	check.("C knobs set live", rms > 0.0005, "rms " ++ rms.ampdb.round(0.1) ++ " dB after scatter · overlaps · envelopeSet A · panSpread");
 
 	// D the warp voice (his Warp1) on the same sample, at the same read
-	le.icyLabDo((do: "set", voice: "warp", winsz: 0.8, overlaps: 33, rand: 0.2, envbuf: "expodec"));
+	le.icyLabDo((do: "set", voice: "warp", grainLength: 0.8, overlaps: 33, lengthVary: 0.2, grainEnvelope: "expodec"));
 	level.(1.0);
 	check.("D warp voice sounds", (rms > 0.0005) and: { le[\icyLab][\voice] == \warp }, "rms " ++ rms.ampdb.round(0.1) ++ " dB");
 
