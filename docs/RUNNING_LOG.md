@@ -1072,3 +1072,31 @@ A fourth mode in `boot.scd`, `\remote`: the devices from `LE_DEVICE_IN` · `LE_D
 **Changed:** `sc/petals_live.scd` `liveHasRef` — a reference is in hand when the variant's row was made as live with the plan row's dials. The drive is not compared: a live ring made with an earlier take's gains follows the microphone, louder for a louder hit. A changed preset still renders once more; `/le/planrender` renders all.
 
 **Proven:** `sc/petals_live_test.scd` PASS (the check turned: a take 6 dB softer renders nothing). **NOT CLAIMED:** a living engine; the composer's ear.
+
+## §71. ICY LIVE — his freeze on a loaded sample in real time, two voices, every knob live (2026-11-07, Fable, in the Switch~ piece)
+
+- **What prompted it:** the Switch~ piece's lab (its RUNNING_LOG §43 … §48): *"I'd rather we do the live processing through
+  superclutter … for the experiments, as much as possible, I'd like to hear them as run in superclutter"*; then the architecture
+  talk — *"you just run a play where it plays from the buffer … the other synthdef will sit after it and do the granulation live"*;
+  stereo in; a pan per grain; quad later (VBAP his preference).
+- **What:** `sc/icylab.scd` (new; loaded by boot.scd after process.scd; its ear registered in bankHear). TWO VOICES on the same
+  loaded sample, L and R in two buffers (as his \icy_s ran two): `\leIcyWarp` — his \icy (freeze.scd) per channel, one read head,
+  his argument names, `rate` the head's speed as a fraction of real time; `\leIcyGrain` — the same head, the grains by GrainBuf: a
+  trigger at overlaps ÷ winsz, each grain's length drawn (rand) and leaned (skew: p^2^(−2·skew)), its start scattered round the head
+  (scatter, seconds of the source), its window drawn from a set (envbufs · envn — one, A = expodec · gauss · hanning, B = all ten; his
+  gEnv files in buffers), its place a pan (panspread round ±width). Both scaled 1/sqrt(overlaps). `/le/icy do list · load dir · start
+  sample [voice] [knobs] · set … · stop`; a change of voice is a new synth on the same sample. Into busMaster in grpFx.
+- **Why GrainBuf beside Warp1:** Warp1 starts every grain on the pointer with one window; the tree he wants (static / variable with a
+  weighting · scatter · assorted windows · a pan per grain) needs a per-grain draw, which GrainBuf's trigger gives at the same cost.
+  Rejected: a Routine of single-grain synths (~30 starts a second a voice, language jitter, nothing GrainBuf cannot do here — kept
+  for grains that need musical decisions); a PlayBuf → bus → \icy_live chain for a sample (a copy and latency for nothing; the
+  live-input shape stays for the stage). A grain's pan is a POSITION so a quad pan replaces the two-channel one.
+- **Proven:** `sc/icylab_test.scd` (new, \quiet, `LE_ICYLAB=<folder>`): A 12 samples and the ten windows load · B the grain voice
+  sounds (−18.7 dB RMS on the master bus) · C scatter · overlaps · envset A · panspread set live, still sounding (−15.0) · D the warp
+  voice on the same sample (−22.0) · E stop silent. All pass. Three faults on the way, each a lesson of this language: `prepend` is
+  not a String method · `includes` compares by identity (two equal Strings are not the same object — `any({ x == e })`) · a
+  trailing `//` comment inside a method chain eats the chain's rest.
+- **Not claimed:** a living engine with Reaper (his ear is the next step, by the page); the level of the two voices against each
+  other; VBAP.
+- **NITS:** the Warp1 voice keeps the source's field only (no pan per grain) · a loop toggle is endpos, the hold-at-end not built ·
+  the quad: a single-synth granulator sums its grains, so per-grain VBAP needs grain streams each with its own VBAP.

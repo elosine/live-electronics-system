@@ -343,4 +343,6 @@
 (~le[\dir] +/+ "process.scd").load;
 // ---- the petals live: a player's microphone straight into the petals of resonance, for a return at its own mic opening (the Decibel piece's 10.14) — its own file ----
 (~le[\dir] +/+ "petals_live.scd").load;
+// icy live — his freeze on a loaded sample, every knob live; two voices (the Switch~ piece's lab, 2026-11-07)
+(~le[\dir] +/+ "icylab.scd").load;
 )

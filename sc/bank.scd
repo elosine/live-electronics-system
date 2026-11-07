@@ -274,6 +274,7 @@
 	self.hear(\open, { |le, d| le.captureOpen(d) });
 	self.hear(\play, { |le, d| le.samplePlay(d) });
 	if(self[\processRender].notNil) { self.hear(\process, { |le, d| le.processRender(d) }) };   // process.scd: a sample through the chain, banked again
+	if(self[\icyLabHear].notNil) { self.icyLabDefs; self.icyLabHear };   // icylab.scd: icy live — a loaded sample through his freeze, the knobs live
 	if(self[\planTake].notNil) {   // process.scd: the score's plan of variants, and the button that renders them all
 		self.hear(\plan, { |le, d| le.planTake(d) });
 		self.hear(\planrender, { |le, d| le.planRenderAll });
