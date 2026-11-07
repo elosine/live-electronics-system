@@ -25,6 +25,7 @@
   button:hover { border-color:var(--acc); color:var(--hot); }
   button.on { border-color:var(--acc); color:var(--acc); }
   button.big { font-size:16px; padding:8px 20px; }
+  #menu button { margin:2px 6px 2px 0; }
   #said { color:var(--dim); font-size:12px; margin-top:8px; min-height:1.2em; }
   body:not(.all) .later { display:none; }
   kbd { background:#1a1a20; border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:11px; }
@@ -35,6 +36,7 @@
 <div class="box">
   <div class="row"><label>sample</label> <select id="sample"></select></div>
   <div class="row"><label></label> <button id="play" class="big">▶ play <kbd>space</kbd></button> <button id="voice" class="later">voice: grain</button></div>
+  <div class="row" id="menuRow"><label>setting</label> <span id="menu"></span></div>
 </div>
 
 <div class="later">
@@ -113,6 +115,19 @@
   document.addEventListener('keydown', (e) => { if (e.code === 'Space' && e.target.tagName !== 'INPUT') { e.preventDefault(); playing ? stop() : start(); } });
 
   LE.init();
+  // THE MENU as buttons (his word, 2026-11-07: "ABC like as a button"): a click sets every knob to the entry's settings and,
+  // if a sample is playing, sends them; the active one is marked
+  fetch('/menu.json', { cache: 'no-store' }).then((r) => r.json()).then((m) => {
+    for (const e of (m.entries || [])) {
+      const b = document.createElement('button'); b.textContent = e.name;
+      b.onclick = () => {
+        for (const [k, v] of Object.entries(e.settings || {})) { const el = $(k); if (el) el.value = v; }
+        document.querySelectorAll('#menu button').forEach((x) => x.classList.toggle('on', x === b));
+        set(); if (!playing) say('setting: ' + e.name + ' (sent at play)');
+      };
+      $('menu').appendChild(b);
+    }
+  }).catch(() => { $('menuRow').style.display = 'none'; });
   fetch(samplesUrl, { cache: 'no-store' }).then((r) => r.json()).then((m) => {
     samples = m.samples || []; dir = m.dir || '';
     for (const s of samples) $('sample').add(new Option(s.label, s.file.replace(/^.*\//, '').replace(/\.[^.]+$/, '')));

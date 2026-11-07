@@ -7,6 +7,7 @@
 //   /                      electronics/score/icy_lab.html — the page (one thing at a time; ?all shows every knob)
 //   /electronics/<file>    the engine's page code (le_msg.js — the page's voice)
 //   /samples.json          the piece's list of samples, with the folder the engine loads them from (--samples)
+//   /menu.json             the menu of settings, electronics/score/icy_menu.json — the page's buttons
 //   /api/elec              the relay (electronics/tools/relay.js): POST { kind: 'icy', data } -> /le/icy to the engine's
 //                          language port, from the piece's route table (--config, its "message" block)
 //
@@ -40,6 +41,7 @@ http.createServer((req, res) => {
     if (url === '/api/elec') return relay(req, res);
     if (url === '/' || url === '/icy_lab.html') return file(res, path.join(SCORE_DIR, 'icy_lab.html'));
     if (url === '/samples.json') return file(res, SAMPLES);
+    if (url === '/menu.json') return file(res, path.join(SCORE_DIR, 'icy_menu.json'));   // the menu of settings (the engine's, for every piece)
     if (url.startsWith('/electronics/')) {
         const rel = path.normalize(url.slice('/electronics/'.length)).replace(/^(\.\.[/\\])+/, '');
         return file(res, path.join(SCORE_DIR, rel));
