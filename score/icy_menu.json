@@ -1,13 +1,124 @@
 {
- "_about": "THE MENU of time-stretch settings for his icy (electronics/sc/icylab.scd), found by ear in the icy lab; each with his words on how it sounds. For every piece. A setting is the knobs of /le/icy do set. Started 2026-11-07 with the smooth end of his spectrum (the Switch~ piece's RUNNING_LOG §54), the AI's proposals until his ear has spoken.",
+ "_about": "THE MENU of time-stretch settings for his icy (electronics/sc/icylab.scd), found by ear in the icy lab; each with his words on how it sounds. For every piece. A setting is the knobs of /le/icy do set. Started 2026-11-07 with the smooth end of his spectrum (the Switch~ piece's RUNNING_LOG §54), the AI's proposals until his ear has spoken. A setting names its voice: stretch (PaulStretch — the drone end) · grain (GrainBuf — the textured end) · warp (his Warp1 as it was).",
  "entries": [
-  {"name": "smooth A — glass", "his_words": "", "proposed_by": "AI 2026-11-07", "why": "long grains, many overlaps, a soft window, the hop broken up by length variation and a little scatter: the granular reading of PaulStretch (big windows, randomized phase, Hann)",
-   "settings": {"grainLength": 1.2, "overlaps": 32, "grainEnvelope": "hanning", "lengthVary": 0.25, "lengthLean": 0, "scatter": 0.015, "slowerBy": 30, "panSpread": 0, "stereoWidth": 1, "pitch": 1, "level": 1}},
-  {"name": "smooth B — softer", "his_words": "", "proposed_by": "AI 2026-11-07", "why": "longer still, a Gaussian window (no edges), more overlap",
-   "settings": {"grainLength": 2.0, "overlaps": 40, "grainEnvelope": "gauss", "lengthVary": 0.3, "lengthLean": 0, "scatter": 0.03, "slowerBy": 30, "panSpread": 0, "stereoWidth": 1, "pitch": 1, "level": 1}},
-  {"name": "smooth C — washed", "his_words": "", "proposed_by": "AI 2026-11-07", "why": "the most randomized: no periodicity left at all, at the cost of any attack",
-   "settings": {"grainLength": 1.5, "overlaps": 48, "grainEnvelope": "hanning", "lengthVary": 0.4, "lengthLean": 0, "scatter": 0.05, "slowerBy": 30, "panSpread": 0, "stereoWidth": 1, "pitch": 1, "level": 1}},
-  {"name": "default — Approaching's icy", "his_words": "", "proposed_by": "the record", "why": "his most-used icy in Approaching: 0.6 s grains, 17 overlaps, expodec — an attack in every grain, the textured side of smooth",
-   "settings": {"grainLength": 0.6, "overlaps": 17, "grainEnvelope": "expodec", "lengthVary": 0.2, "lengthLean": 0, "scatter": 0, "slowerBy": 30, "panSpread": 0, "stereoWidth": 1, "pitch": 1, "level": 1}}
+  {
+   "name": "drone C — stretch 2.97 s",
+   "his_words": "",
+   "proposed_by": "AI 2026-11-07 (after his ear on the granular smooth end, §55)",
+   "why": "a 3 s window: the stillest, the most washed",
+   "settings": {
+    "voice": "stretch",
+    "windowSeconds": 2.97,
+    "slowerBy": 30,
+    "readFrom": 0,
+    "level": 1
+   }
+  },
+  {
+   "name": "drone B — stretch 1.49 s",
+   "his_words": "",
+   "proposed_by": "AI 2026-11-07 (after his ear on the granular smooth end, §55)",
+   "why": "a 1½ s window: the middle",
+   "settings": {
+    "voice": "stretch",
+    "windowSeconds": 1.49,
+    "slowerBy": 30,
+    "readFrom": 0,
+    "level": 1
+   }
+  },
+  {
+   "name": "drone A — stretch 0.74 s",
+   "his_words": "",
+   "proposed_by": "AI 2026-11-07 (after his ear on the granular smooth end, §55)",
+   "why": "PaulStretch with a ¾ s window: the quickest-moving of the drones",
+   "settings": {
+    "voice": "stretch",
+    "windowSeconds": 0.74,
+    "slowerBy": 30,
+    "readFrom": 0,
+    "level": 1
+   }
+  },
+  {
+   "name": "smooth A — glass",
+   "his_words": "",
+   "proposed_by": "AI 2026-11-07",
+   "why": "long grains, many overlaps, a soft window, the hop broken up by length variation and a little scatter: the granular reading of PaulStretch (big windows, randomized phase, Hann)",
+   "settings": {
+    "grainLength": 1.2,
+    "overlaps": 32,
+    "grainEnvelope": "hanning",
+    "lengthVary": 0.25,
+    "lengthLean": 0,
+    "scatter": 0.015,
+    "slowerBy": 30,
+    "panSpread": 0,
+    "stereoWidth": 1,
+    "pitch": 1,
+    "level": 1,
+    "voice": "grain"
+   }
+  },
+  {
+   "name": "smooth B — softer",
+   "his_words": "",
+   "proposed_by": "AI 2026-11-07",
+   "why": "longer still, a Gaussian window (no edges), more overlap",
+   "settings": {
+    "grainLength": 2.0,
+    "overlaps": 40,
+    "grainEnvelope": "gauss",
+    "lengthVary": 0.3,
+    "lengthLean": 0,
+    "scatter": 0.03,
+    "slowerBy": 30,
+    "panSpread": 0,
+    "stereoWidth": 1,
+    "pitch": 1,
+    "level": 1,
+    "voice": "grain"
+   }
+  },
+  {
+   "name": "smooth C — washed",
+   "his_words": "",
+   "proposed_by": "AI 2026-11-07",
+   "why": "the most randomized: no periodicity left at all, at the cost of any attack",
+   "settings": {
+    "grainLength": 1.5,
+    "overlaps": 48,
+    "grainEnvelope": "hanning",
+    "lengthVary": 0.4,
+    "lengthLean": 0,
+    "scatter": 0.05,
+    "slowerBy": 30,
+    "panSpread": 0,
+    "stereoWidth": 1,
+    "pitch": 1,
+    "level": 1,
+    "voice": "grain"
+   }
+  },
+  {
+   "name": "default — Approaching's icy",
+   "his_words": "",
+   "proposed_by": "the record",
+   "why": "his most-used icy in Approaching: 0.6 s grains, 17 overlaps, expodec — an attack in every grain, the textured side of smooth",
+   "settings": {
+    "grainLength": 0.6,
+    "overlaps": 17,
+    "grainEnvelope": "expodec",
+    "lengthVary": 0.2,
+    "lengthLean": 0,
+    "scatter": 0,
+    "slowerBy": 30,
+    "panSpread": 0,
+    "stereoWidth": 1,
+    "pitch": 1,
+    "level": 1,
+    "voice": "grain"
+   }
+  }
  ]
 }

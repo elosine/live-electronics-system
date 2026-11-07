@@ -27,6 +27,7 @@
 ~le[\icyLab] = ~le[\icyLab] ? (samples: IdentityDictionary.new, envs: nil, envNames: nil, synth: nil, voice: \grain, sample: nil, dir: nil);
 
 ~le[\icyLabDefs] = { |self|
+	if(self[\icyStretchDefs].notNil) { self.icyStretchDefs };
 	SynthDef(\leIcyWarp, { |out = 0, bufL = 0, bufR = 0, grainEnvelope = -1, pitch = 1, grainLength = 0.8, overlaps = 40, rewind = 0,
 		readFrom = 0, readTo = 1, lengthVary = 0.1, slowerBy = 30, level = 1, gate = 1|
 		var env, ix, l, r;
@@ -157,6 +158,7 @@
 		if(smp.isNil) {
 			self.say("LE_ERROR", "icy — no sample named " ++ (d[\sample] ? "") ++ " is loaded (do load dir <folder> first)");
 		} {
+			if(lab[\voice] == \stretch) { self.icyStretchStart((d[\sample] ? lab[\sample]).asSymbol, d) } {
 			if(lab[\synth].notNil) { lab[\synth].set(\gate, 0) };
 			def = if(lab[\voice] == \warp) { \leIcyWarp } { \leIcyGrain };
 			args = [\out, self[\busMaster].index, \bufL, smp[\bufL].bufnum, \bufR, smp[\bufR].bufnum] ++ self.icyLabArgs(d);
@@ -165,6 +167,7 @@
 			lab[\sample] = (d[\sample] ? lab[\sample]).asSymbol;
 			self.say("LE_RESULT", self.json((msg: "icy", did: "start", sample: lab[\sample].asString, voice: lab[\voice].asString,
 				dur: smp[\dur], node: lab[\synth].nodeID, args: args[6..].collect(_.asString).join(" "))));
+			};
 		};
 	}
 	{ what == "set" } {
@@ -174,15 +177,91 @@
 			if(d[\voice].notNil and: { d[\voice].asSymbol != lab[\voice] }) {
 				d[\do] = "start"; self.icyLabDo(d);   // a change of voice is a new synth on the same sample
 			} {
+			if((lab[\voice] == \stretch) and: { d[\windowSeconds].notNil } and: { self.icyStretchSize(d[\windowSeconds]) != self.icyStretchSize(lab[\windowSeconds]) }) {
+				d[\do] = "start"; self.icyLabDo(d);   // another window size: new frames, a new synth
+			} {
 				args = self.icyLabArgs(d);
 				if(args.size > 0) { lab[\synth].set(*args) };
 				if(lab[\voice] == \grain) { self.icyLabEnvSetApply(lab[\synth], d) };
 				self.say("LE_RESULT", self.json((msg: "icy", did: "set", args: args.collect(_.asString).join(" "))));
 			};
+			};
 		};
 	}
 	{ true } { self.say("LE_ERROR", "icy — do list · load · start · set · stop (not " ++ what ++ ")") };
 	self
+};
+
+
+// ---- THE STRETCH VOICE — PaulStretch in the engine (2026-11-07; the Switch~ piece's §55, the engine's §73) ---------------
+//   \leIcyStretch   the sample's SPECTRAL FRAMES (PV_RecordBuf — analysed once per window size, on demand, in real time: a
+//                   one-second sample takes a second) played at 1/slowerBy (PV_PlayBuf, fractional frames interpolated) with
+//                   FRESH RANDOM PHASES every frame (PV_Diffuser, its trigger held high) through a Hann IFFT: the magnitudes
+//                   kept, the phases thrown away — so no two frames are copies of one waveform: nothing beats, nothing pulses,
+//                   the timbre sits still and moves only as the window moves. Two chains for stereo. Its knobs, by design:
+//                   windowSeconds · slowerBy · readFrom · level. windowSeconds -> the nearest analysed size:
+//                   0.37 · 0.74 · 1.49 · 2.97 s at 44.1 kHz (16384 … 131072 samples). Level: ×2, measured against the grain voice (the test's F).
+~le[\icyStretchSizes] = [16384, 32768, 65536, 131072];
+~le[\icyStretchHop] = 0.125;   // an eighth: eight windows overlap, the swell between frames eight times finer than the window
+
+~le[\icyStretchDefs] = { |self|
+	SynthDef(\leIcyStretch, { |out = 0, fftL = 0, fftR = 0, recL = 0, recR = 0, slowerBy = 30, readFrom = 0, nFrames = 1, level = 1, gate = 1|
+		var env = EnvGen.kr(Env.asr(0.05, 1, 0.3), gate, doneAction: 2);
+		var rate = 1 / slowerBy.max(0.001), off = readFrom.clip(0, 0.999) * nFrames;
+		var l = IFFT(PV_Diffuser(PV_PlayBuf(fftL, recL, rate, off, 1), 1), 0);
+		var r = IFFT(PV_Diffuser(PV_PlayBuf(fftR, recR, rate, off, 1), 1), 0);
+		Out.ar(out, [l, r] * (env * level * 5));   // measured 12 dB under the grain voice at x0.5, 8 under at x2 (icylab_test F); x5 brings it level
+	}).add;
+	// the analysis: the sample played once through an FFT into its record buffer; the synth ends with the sample
+	SynthDef(\leIcyAnalyse, { |buf = 0, fft = 0, rec = 0, hop = 0.25, out = 0|
+		var sig = PlayBuf.ar(1, buf, BufRateScale.kr(buf), doneAction: 2);
+		var chain = PV_RecordBuf(FFT(fft, sig, hop, 0), rec, 0, 1, 0, hop, 0);
+		Out.ar(out, IFFT(chain, 0) * 0.0);   // the chain must be drawn to run; nothing is heard
+	}).add;
+	self
+};
+
+~le[\icyStretchSize] = { |self, seconds|
+	var sr = self[\server].sampleRate ? 44100, want = (seconds ? 1.49).asFloat * sr;
+	self[\icyStretchSizes].minItem({ |n| (n - want).abs })
+};
+
+// the frames of one sample at one size — made now if absent (a real-time pass of the sample's length); done.value(pv) when in
+~le[\icyStretchFrames] = { |self, name, size, done|
+	var lab = self[\icyLab], s = self[\server], smp = lab[\samples][name], key = (name.asString ++ "@" ++ size).asSymbol, pv, hop;
+	lab[\pv] = lab[\pv] ? IdentityDictionary.new;
+	lab[\fft] = lab[\fft] ? IdentityDictionary.new;
+	pv = lab[\pv][key];
+	if(pv.notNil) { done.value(pv) } {
+		fork {
+			hop = self[\icyStretchHop];
+			if(lab[\fft][size].isNil) { lab[\fft][size] = [Buffer.alloc(s, size), Buffer.alloc(s, size)] };
+			pv = (size: size, frames: ((smp[\dur] * s.sampleRate) / (size * hop)).ceil.asInteger.max(1),
+				recL: Buffer.alloc(s, smp[\dur].calcPVRecSize(size, hop, s.sampleRate)),
+				recR: Buffer.alloc(s, smp[\dur].calcPVRecSize(size, hop, s.sampleRate)));
+			s.sync;
+			Synth(\leIcyAnalyse, [\buf, smp[\bufL].bufnum, \fft, lab[\fft][size][0].bufnum, \rec, pv[\recL].bufnum, \hop, hop, \out, self[\busMaster].index], self[\grpFx]);
+			Synth(\leIcyAnalyse, [\buf, smp[\bufR].bufnum, \fft, lab[\fft][size][1].bufnum, \rec, pv[\recR].bufnum, \hop, hop, \out, self[\busMaster].index], self[\grpFx]);
+			(smp[\dur] + (size * 2 / s.sampleRate) + 0.1).wait;
+			lab[\pv][key] = pv;
+			done.value(pv);
+		};
+	};
+};
+
+~le[\icyStretchStart] = { |self, name, d|
+	var lab = self[\icyLab], size = self.icyStretchSize(d[\windowSeconds] ? lab[\windowSeconds] ? 1.49);
+	var num = { |v, dflt| if(v.isNil) { dflt } { v.asString.asFloat } };
+	lab[\windowSeconds] = (d[\windowSeconds] ? lab[\windowSeconds] ? 1.49).asString.asFloat;
+	self.icyStretchFrames(name, size, { |pv|
+		if(lab[\synth].notNil) { lab[\synth].set(\gate, 0) };
+		lab[\synth] = Synth(\leIcyStretch, [\out, self[\busMaster].index, \fftL, lab[\fft][size][0].bufnum, \fftR, lab[\fft][size][1].bufnum,
+			\recL, pv[\recL].bufnum, \recR, pv[\recR].bufnum, \nFrames, pv[\frames],
+			\slowerBy, num.(d[\slowerBy], 30), \readFrom, num.(d[\readFrom], 0), \level, num.(d[\level], 1)], self[\grpFx]);
+		lab[\sample] = name; lab[\voice] = \stretch;
+		self.say("LE_RESULT", self.json((msg: "icy", did: "start", sample: name.asString, voice: "stretch", windowSeconds: (size / self[\server].sampleRate).round(0.01),
+			frames: pv[\frames], node: lab[\synth].nodeID)));
+	});
 };
 
 ~le[\icyLabHear] = { |self|

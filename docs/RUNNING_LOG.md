@@ -1113,3 +1113,27 @@ A fourth mode in `boot.scd`, `\remote`: the devices from `LE_DEVICE_IN` · `LE_D
   knob hidden until asked (`?all`); it only sends `/le/icy`. A piece runs it as `node electronics/tools/icy_lab.js --samples … --config
   … --port 5620`. Proven: the page from its own server lists the twelve samples, no request to anything else.
 - **Not claimed:** a living engine beside it — his ear.
+
+## §73. THE STRETCH VOICE — PaulStretch in the engine, the drone end of his spectrum (2026-11-07, Fable, in the Switch~ piece)
+
+- **What prompted it** (the piece's §55): his ear on the granular smooth end — *"all I hear is the sort of jitter oscillation of
+  the algorithm … almost like a stutter"*; what he wants is *9 Beet Stretch*'s "sitting in the chord", the timbre moving very slowly.
+- **Why granular cannot:** every grain is a copy of one stretch of waveform started at a different time; the copies beat (a moving
+  comb) and arrive at the grain rate (a flutter). Longer grains slow the beating, they do not remove it (§60's measurement of his
+  icy: 3 … 8 dB of flutter, "the algorithm's nature").
+- **What:** `sc/icylab.scd` — a third voice `\leIcyStretch`: the sample's spectral frames (`PV_RecordBuf`, Josh Parmenter's
+  sc3-plugins, analysed ON DEMAND per window size — a real-time pass of the sample, cached in `lab[\pv]`) played at 1/slowerBy
+  (`PV_PlayBuf`, fractional frames interpolated) with FRESH RANDOM PHASES every frame (`PV_Diffuser`, its trigger held high: the
+  standard UGen re-randomizes while the trigger is up — proven by the ripple, which a once-only randomization would not show)
+  through a Hann IFFT; two chains for stereo; the window one of 16384 · 32768 · 65536 · 131072 samples (0.37 … 2.97 s), hop ⅛. Its
+  knobs, by design: windowSeconds · slowerBy · readFrom · level. `/le/icy voice stretch`; a new window size is a new analysis and a
+  new synth. The level: ×5, measured against the grain voice (×0.5 sat 12 dB under, ×2 8 under).
+- **Proven:** `icylab_test.scd` now SEVEN checks, all pass: F the stretch voice sounds (−19.0 dB RMS, the grain voice −22.8) ·
+  G its fast flutter (the mean step between 5 ms RMS readings, as a share of the level) no higher than the grain voice's — 0.291
+  against 0.295: a weak margin; the slow wander of the partials (the method's nature, ~the bin width) is left out of the metric.
+  The ear is the proof of smoothness; this is the proof of the mechanism.
+- **The menu** (`score/icy_menu.json`): drone A · B · C (windows 0.74 · 1.49 · 2.97 s, voice stretch) beside the granular smooth
+  A · B · C and the default; a setting names its voice; the page carries it.
+- **Not claimed:** his ear; the first analysis's pause (a one-second sample: a second) heard as a gap at the first start.
+- **NITS:** the spectral voice has no scatter, lengths or envelopes — by design, the drone end; a spectrum slider between the
+  stretch and the grain voices is the next device.

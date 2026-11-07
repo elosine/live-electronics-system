@@ -8,7 +8,7 @@ var folder = "LE_ICYLAB".getenv;
 (dir +/+ "boot.scd").load;
 if(folder.isNil or: { folder.size == 0 }) { "LE_ERROR icylab_test: LE_ICYLAB=<folder of wavs> is needed".postln; 1.exit };
 ~le.bootEngine(\quiet, { |le|
-	var s = le[\server], rms = 0, meter, fails = 0, names, first;
+	var s = le[\server], rms = 0, meter, fails = 0, names, first, ripple, rS, rG;
 	var check = { |name, ok, detail|
 		if(ok.not) { fails = fails + 1 };
 		le.say("LE_RESULT", le.json((test: name, pass: ok, detail: detail)));
@@ -25,7 +25,7 @@ if(folder.isNil or: { folder.size == 0 }) { "LE_ERROR icylab_test: LE_ICYLAB=<fo
 	le.icyLabDefs;
 	s.sync;
 	le.icyLabHear;
-	meter = { SendPeakRMS.kr(In.ar(le[\busMaster].index, 2).sum, 10, 3, '/icytest') }.play(le[\grpMeter]);
+	meter = { SendPeakRMS.kr(In.ar(le[\busMaster].index, 2).sum, 200, 3, '/icytest') }.play(le[\grpMeter]);
 	s.sync;
 
 	// A the samples and the windows load
@@ -50,13 +50,27 @@ if(folder.isNil or: { folder.size == 0 }) { "LE_ERROR icylab_test: LE_ICYLAB=<fo
 	level.(1.0);
 	check.("D warp voice sounds", (rms > 0.0005) and: { le[\icyLab][\voice] == \warp }, "rms " ++ rms.ampdb.round(0.1) ++ " dB");
 
+	// F the stretch voice (PaulStretch) sounds — its frames made first (a real-time pass of the sample)
+	le.icyLabDo((do: "set", voice: "stretch", windowSeconds: 1.49, slowerBy: 30));
+	4.0.wait;
+	level.(1.0);
+	check.("F stretch voice sounds", (rms > 0.0005) and: { le[\icyLab][\voice] == \stretch }, "rms " ++ rms.ampdb.round(0.1) ++ " dB");
+	// G it is SMOOTHER than the grain voice: the FAST flutter of the level — the mean step between successive 5 ms RMS readings
+	//   over 3 s, as a share of the mean level — is lower (the slow wander of the partials is the stretch's nature and not counted)
+	ripple = { |secs| var v = List.new, o = OSCFunc({ |m| v.add(m[4]) }, '/icytest', s.addr); secs.wait; o.free;
+		if(v.size > 4) { var mean = v.sum / v.size, d = 0; (1..(v.size - 1)).do({ |i| d = d + (v[i] - v[i - 1]).abs }); (d / (v.size - 1)) / mean.max(1e-9) } { 9 } };
+	rS = ripple.(3.0);
+	le.icyLabDo((do: "set", voice: "grain", grainLength: 0.6, overlaps: 17, grainEnvelope: "expodec", lengthVary: 0.2, scatter: 0, slowerBy: 30));
+	1.0.wait;
+	rG = ripple.(3.0);
+	check.("G stretch smoother than grain", rS < rG, "ripple stretch " ++ rS.round(0.001) ++ " · grain " ++ rG.round(0.001));
 	// E stop is silent
 	le.icyLabDo((do: "stop"));
 	level.(0.8);
 	check.("E stop is silent", rms < 0.0005, "rms " ++ rms.ampdb.round(0.1) ++ " dB");
 
 	meter.free;
-	le.say("LE_INFO", "icylab_test: " ++ if(fails == 0) { "all pass" } { fails.asString ++ " failed" });
+	le.say("LE_INFO", "icylab_test (seven checks): " ++ if(fails == 0) { "all pass" } { fails.asString ++ " failed" });
 	le.leave(if(fails == 0) { 0 } { 1 });
 });
 )
