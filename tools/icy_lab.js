@@ -29,28 +29,43 @@ const SCORE_DIR = path.join(__dirname, '..', 'score');
 const relay = require('./relay.js')({ configFile: CONFIG });
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.flac': 'audio/flac' };
 
-function file(res, p) {
-    fs.readFile(p, (err, data) => {
-        if (err) { res.statusCode = 404; res.end('not found'); return; }
-        res.setHeader('Content-Type', MIME[path.extname(p).toLowerCase()] || 'application/octet-stream');
+function file(res, p, req) {
+    // a file is served with BYTE RANGES (206): a browser's <audio> seeks, resumes and buffers a long WAV by ranges; served whole,
+    // a 150 MB file stalled and could not be advanced (his word, 2026-11-09)
+    fs.stat(p, (err, st) => {
+        if (err || !st.isFile()) { res.statusCode = 404; res.end('not found'); return; }
+        const type = MIME[path.extname(p).toLowerCase()] || 'application/octet-stream';
+        res.setHeader('Content-Type', type);
         res.setHeader('Cache-Control', 'no-store');
-        res.end(data);
+        res.setHeader('Accept-Ranges', 'bytes');
+        const range = req && req.headers.range && /^bytes=(\d*)-(\d*)$/.exec(req.headers.range);
+        let start = 0, end = st.size - 1;
+        if (range && (range[1] || range[2])) {
+            if (range[1]) { start = parseInt(range[1], 10); if (range[2]) end = Math.min(parseInt(range[2], 10), st.size - 1); }
+            else { start = Math.max(0, st.size - parseInt(range[2], 10)); }
+            if (start > end || start >= st.size) { res.statusCode = 416; res.setHeader('Content-Range', 'bytes */' + st.size); res.end(); return; }
+            res.statusCode = 206;
+            res.setHeader('Content-Range', 'bytes ' + start + '-' + end + '/' + st.size);
+        }
+        res.setHeader('Content-Length', end - start + 1);
+        if (req && req.method === 'HEAD') { res.end(); return; }
+        fs.createReadStream(p, { start, end }).on('error', () => { try { res.end(); } catch (e) { /* closed */ } }).pipe(res);
     });
 }
 
 http.createServer((req, res) => {
     const url = (req.url || '/').split('?')[0];
     if (url === '/api/elec') return relay(req, res);
-    if (url === '/' || url === '/icy_lab.html') return file(res, path.join(SCORE_DIR, 'icy_lab.html'));
-    if (url === '/samples.json') return file(res, SAMPLES);
-    if (url === '/menu.json') return file(res, path.join(SCORE_DIR, 'icy_menu.json'));   // the menu of settings (the engine's, for every piece)
+    if (url === '/' || url === '/icy_lab.html') return file(res, path.join(SCORE_DIR, 'icy_lab.html'), req);
+    if (url === '/samples.json') return file(res, SAMPLES, req);
+    if (url === '/menu.json') return file(res, path.join(SCORE_DIR, 'icy_menu.json'), req);   // the menu of settings (the engine's, for every piece)
     if (FILES && url.startsWith('/files/')) {
         const rel = path.normalize(decodeURIComponent(url.slice('/files/'.length))).replace(/^(\.\.[/\\])+/, '');
-        return file(res, path.join(FILES, rel));
+        return file(res, path.join(FILES, rel), req);
     }
     if (url.startsWith('/electronics/')) {
         const rel = path.normalize(url.slice('/electronics/'.length)).replace(/^(\.\.[/\\])+/, '');
-        return file(res, path.join(SCORE_DIR, rel));
+        return file(res, path.join(SCORE_DIR, rel), req);
     }
     res.statusCode = 404; res.end('not found');
 }).listen(PORT, () => {
