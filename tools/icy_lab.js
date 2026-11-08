@@ -45,7 +45,7 @@ http.createServer((req, res) => {
     if (url === '/samples.json') return file(res, SAMPLES);
     if (url === '/menu.json') return file(res, path.join(SCORE_DIR, 'icy_menu.json'));   // the menu of settings (the engine's, for every piece)
     if (FILES && url.startsWith('/files/')) {
-        const rel = path.normalize(decodeURIComponent(url.slice('/files/'.length))).replace(/^(\.\.[/\])+/, '');
+        const rel = path.normalize(decodeURIComponent(url.slice('/files/'.length))).replace(/^(\.\.[/\\])+/, '');
         return file(res, path.join(FILES, rel));
     }
     if (url.startsWith('/electronics/')) {
