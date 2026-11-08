@@ -8,6 +8,7 @@
 //   /electronics/<file>    the engine's page code (le_msg.js — the page's voice)
 //   /samples.json          the piece's list of samples, with the folder the engine loads them from (--samples)
 //   /menu.json             the menu of settings, electronics/score/icy_menu.json — the page's buttons
+//   /files/<path>          a folder of the piece's audio (--files), for the auditioning pages
 //   /api/elec              the relay (electronics/tools/relay.js): POST { kind: 'icy', data } -> /le/icy to the engine's
 //                          language port, from the piece's route table (--config, its "message" block)
 //
@@ -23,9 +24,10 @@ const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 && args[i + 1] 
 const PORT = +opt('--port', 5620);
 const SAMPLES = path.resolve(opt('--samples', 'samples.json'));
 const CONFIG = path.resolve(opt('--config', 'bank/elec_route.json'));
+const FILES = opt('--files', '');   // a folder served at /files/ — the set's audio on his drive, for the auditioning pages (2026-11-08)
 const SCORE_DIR = path.join(__dirname, '..', 'score');
 const relay = require('./relay.js')({ configFile: CONFIG });
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.flac': 'audio/flac' };
 
 function file(res, p) {
     fs.readFile(p, (err, data) => {
@@ -42,6 +44,10 @@ http.createServer((req, res) => {
     if (url === '/' || url === '/icy_lab.html') return file(res, path.join(SCORE_DIR, 'icy_lab.html'));
     if (url === '/samples.json') return file(res, SAMPLES);
     if (url === '/menu.json') return file(res, path.join(SCORE_DIR, 'icy_menu.json'));   // the menu of settings (the engine's, for every piece)
+    if (FILES && url.startsWith('/files/')) {
+        const rel = path.normalize(decodeURIComponent(url.slice('/files/'.length))).replace(/^(\.\.[/\])+/, '');
+        return file(res, path.join(FILES, rel));
+    }
     if (url.startsWith('/electronics/')) {
         const rel = path.normalize(url.slice('/electronics/'.length)).replace(/^(\.\.[/\\])+/, '');
         return file(res, path.join(SCORE_DIR, rel));
