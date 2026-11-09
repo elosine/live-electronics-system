@@ -188,7 +188,9 @@
                 lengthMs: lenMs, level: wire(lv.pts, lenMs, (v) => String(r2(v))) };
             // the rise from silence (the Switch~ piece's §119, 2026-11-09): the brick's fadeInMs when it has one (10 ms is the engine's own); a
             // playhead that starts INSIDE the brick comes in over 15 ms — the sine is already meant to be sounding there
-            if (f0 > 1e-6) m.fadeInMs = 15; else if (Number.isFinite(+e.fadeInMs) && +e.fadeInMs > 0) m.fadeInMs = Math.max(2, Math.min(30000, Math.round(+e.fadeInMs)));
+            // (2026-11-09, §123 — "still popping in": he presses play INSIDE the span, so the 15 ms rule for a mid-start WAS the pop) a start inside the
+            // brick fades the same as its beginning: the brick's fadeInMs, or 15 ms when it has none
+            if (Number.isFinite(+e.fadeInMs) && +e.fadeInMs > 0) m.fadeInMs = Math.max(2, Math.min(30000, Math.round(+e.fadeInMs))); else if (f0 > 1e-6) m.fadeInMs = 15;
             const tr = this.sineTrack(e), fmtC = (v) => String(Math.round(v * 10) / 10);
             if (tr) {
                 // A WINDOW: the engine arms the sine and waits for the player. Its gliss begins again at each entry — the WHOLE line, over

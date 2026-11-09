@@ -1234,3 +1234,11 @@ original 10 ms `\\sin` guard carried a residue (−0.36 dB at 0.05 s, 0 by 2.5 s
 −21.3 at 0.6 s · 0.0 at 2.5 s; the steady level exact (−32.64 vs the formula's −32.64). `sine_test` PASS. **A rule for this engine's envelopes:**
 no control-rate Env segment under ~10 ms that must land, and no dB-shaped segment from near silence inside a multi-segment Env — a separate
 Line in dB does that job. NITS: the guard's 0.3 dB residue (a 10 ms kr rise), harmless, could become a Line too.
+
+## §79. A start INSIDE a sine brick fades like its beginning (2026-11-09, Fable, in the Switch~ piece)
+
+**What prompted it.** The composer, with §78's fade live in his engine: *"still popping in … not starting from zero."* The page's rule (§77):
+a playhead that starts inside the brick came in over 15 ms, "already meant to be sounding there". He starts inside the span nearly always.
+**Changed (`score/le_sine.js` sineMessage):** the brick's `fadeInMs` whenever it has one, a start inside the span included; 15 ms only for a
+brick with none (every earlier score unchanged). `sine_page_test` PASS. **The lesson for the engine's objects:** a mid-span start is the
+composer's normal way of listening; an entry rule must hold there too.
