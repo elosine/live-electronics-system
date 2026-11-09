@@ -46,6 +46,7 @@ var liveSpec = "LE_LIVE".getenv;
 var regionSpec = "LE_REGIONS".getenv;   // the regions' numbers (bank.scd regionsDefaults; the Decibel piece's 15.2 a): blockMs=20,gateDb=-40,gapMs=150,minMs=500
 var trackSpec = "LE_TRACK".getenv;      // the tracker's dials (track.scd trackDefaults; the Decibel piece's 16.1): follow=1,capDb=8,holdMs=1500,floorDb=-60,earSim=1,…
 var source = "LE_SOURCE".getenv;
+var materials = "LE_MATERIALS".getenv;   // the fund's index (material.scd; the Switch~ piece's 1a.7): long mastered files streamed from disk when a brick plays
 var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 (dir +/+ "boot.scd").load;
 ~le.takeSpecs;   // the ladder · the bus (needed BEFORE the boot: the master is made in it) · the venue · the bleed's refusal — boot.scd
@@ -104,6 +105,7 @@ var record = ("LE_RECORD".getenv ? "1").asFloat > 0;
 			le.hear(\tree, { |le, d| OSCFunc({ |msg| le.say("LE_INFO", "TREE · " ++ msg[1..].collect(_.asString).join(" ")) }, '/g_queryTree.reply', s.addr).oneShot; s.sendMsg("/g_queryTree", 0, 0) });
 		};
 		if(le[\sineHear].notNil) { le.sineHear };   // the generated voices (sine.scd) — with or without a bank
+		if(le[\materialHear].notNil) { le.materialsOn(materials); le.materialHear };   // the fund's materials (material.scd): /le/material · /le/materialstop — with or without a bank
 		// the tracker (track.scd): /le/simlevel — a score's simulated player, told — and the sound check's guard. Kept from stopping a start: a fault here is said, and the sines sound plain
 		if(le[\trackHear].notNil) { try { le.trackHear; le.trackGuard } { |e| le[\trackFor] = nil; le.say("LE_INFO", "the tracker did not start (" ++ e.errorString ++ ") — a sine that is a window will sound for its whole span") } };
 		if(le[\performerHear].notNil) { le.performerHear };   // the computer players (performer.scd): /le/performer · /le/performerstop

@@ -178,6 +178,9 @@ SynthDef(\leSine, { |out = 0, freq = 220, dur = 4, amp = 1, gate = 1|
 // lePetalsLive — a player's microphone into the petals of resonance, in real time (petals_live.scd has the SynthDef and its story)
 if(~le[\petalsLiveDef].notNil) { ~le.petalsLiveDef.add };
 
+// leMaterial1 · leMaterial2 — a stretch of a long file from a piece's fund, streamed from disk, faded, at a level on a line (material.scd has the SynthDefs and their story; the Switch~ piece's 1a.7)
+if(~le[\materialDefs].notNil) { ~le.materialDefs.do({ |def| def.add }) };
+
 // leSineTrack · leTrackSim · leTrackProbe — a sine that is a window on a player: its ear, the level a score tells it, the sound check's probe (track.scd has the SynthDefs and their story)
 if(~le[\trackDefs].notNil) { ~le.trackDefs.do({ |def| def.add }) };
 )

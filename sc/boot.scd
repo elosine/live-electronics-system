@@ -345,4 +345,6 @@
 (~le[\dir] +/+ "petals_live.scd").load;
 // icy live — his freeze on a loaded sample, every knob live; two voices (the Switch~ piece's lab, 2026-11-07)
 (~le[\dir] +/+ "icylab.scd").load;
+// ---- the material: a stretch of a long, mastered file from a piece's FUND, streamed from disk — faded, at a level on a line (the Switch~ piece's 1a.7, 2026-11-09) — its own file ----
+(~le[\dir] +/+ "material.scd").load;
 )

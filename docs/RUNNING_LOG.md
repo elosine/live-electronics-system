@@ -1137,3 +1137,26 @@ A fourth mode in `boot.scd`, `\remote`: the devices from `LE_DEVICE_IN` · `LE_D
 - **Not claimed:** his ear; the first analysis's pause (a one-second sample: a second) heard as a gap at the first start.
 - **NITS:** the spectral voice has no scatter, lengths or envelopes — by design, the drone end; a spectrum slider between the
   stretch and the grain voices is the next device.
+
+## §74. THE MATERIAL — a piece's fund streamed from disk as a brick's stretch (2026-11-09, Fable, in the Switch~ piece)
+
+**What prompted it** — the Switch~ piece's composer: a fund of long, mastered files (minutes each, hours in all) to place in the composer score
+*"like I can with the MIDI … shorten segments or clip them and move them around … fade in, fade out … crescendos and decrescendos using
+curves … multi-track … a rough mix there … [later] remaster or remix these into a single sound file"* (that piece's §80 · §102 · §103). The
+return (`\leSample`) plays a banked capture whole from memory; a ten-minute stereo file is 200 MB — the fund cannot be loaded.
+
+**The engine's answer, additive:** `sc/material.scd` — `/le/material` (id · lane · t · dueMs · name · offsetMs · lengthMs · fades · gainDb ·
+level · pass): the file cued at the offset (`Buffer.cueSoundFile`, 262144 frames ahead), `\leMaterial1` / `\leMaterial2` (DiskIn) started
+when the cue is in — the lead less the time the cue took — the edge fades (a sine's quarter, 30 ms by default), a level line of SIXTEEN
+points in decibels (the sine's eight were for a note; a ten-minute brick wants more), mf = the file as mastered, a mark ±stepDb; a trim; a
+let-go on `/le/materialstop` (30 ms). The index `LE_MATERIALS`: a JSON a piece writes (root · materials[name · file · seconds · channels ·
+sr]). `score/le_material.js` — the brick `elecMaterial`, a mixin as the sine's: an OFFSET and a LENGTH; the rule of the edges (a body drag
+keeps the offset; the LEFT edge trims and the offset follows; the RIGHT edge trims the length; never past the file); SHIFT+key splits at the
+playhead; flat · hairpin · a drawn curve through the host's `curveAt`; a playhead inside plays what is left. Five hook lines in
+`le_objects.js` (the inside rule · fire · decorate · panel · the key); `synths.scd` · `boot.scd` · `session.scd` one each; SEAMS row 2f and
+the two messages.
+
+**Proven OFFLINE** — `sc/material_test.scd` (new): MATERIAL_TEST PASS, ten checks (the spec; in NRT: the stretch is the offset's — 880 Hz
+from a 440/880 file at 2.5 s —, f = +4.0 dB, the edges −42 / −38 dB, it ends, a line p → ff lifts the end 14 dB). **Measured:** an NRT
+`s_new` with a nested array argument renders NOTHING — the arrays go through `asOSCArgArray` (`$[ … $]`), as bus_test does.
+**SEAMS:** row 2f, two message rows. **NOT CLAIMED:** a living engine; the composer's ear.
