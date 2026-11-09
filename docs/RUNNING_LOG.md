@@ -1242,3 +1242,11 @@ a playhead that starts inside the brick came in over 15 ms, "already meant to be
 **Changed (`score/le_sine.js` sineMessage):** the brick's `fadeInMs` whenever it has one, a start inside the span included; 15 ms only for a
 brick with none (every earlier score unchanged). `sine_page_test` PASS. **The lesson for the engine's objects:** a mid-span start is the
 composer's normal way of listening; an entry rule must hold there too.
+
+## §80. THE SINE'S FADE-OUT — `fadeOut` beside `fadeIn` (2026-11-09, Fable, in the Switch~ piece)
+
+**What prompted it.** The Switch~ piece's composer: *"a 2-second fade ending at 96.6 in all parts"* (its SW-22 · §125). **Added (`sc/synths.scd`
+`\leSine`):** `fadeOut` — `fall = EnvGen.kr(Env([0, 0, -60], [(dur - fadeOut).max(0.01), fadeOut.max(0.001)], \lin)).dbamp`, multiplied in: a fall
+linear in dB over the last `fadeOut` seconds; 0 = none (every earlier score unchanged). The Env's FIRST segment is flat, so it lands exactly
+(§78's rule: no short or dB-shaped first segment). `fadeOutMs` on `/le/sine` (`sine.scd` sineSpec → `fadeOut`, sineArgs) and on the brick
+(`score/le_sine.js`: the message when set; the card's `Fade out (ms)` row). `sine_test` (NRT) · `sine_page_test` PASS. NOT CLAIMED: the living run.

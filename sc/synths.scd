@@ -164,7 +164,7 @@ SynthDef(\leSample, { |out = 0, buf = 0, amp = 1|
 	Out.ar(out, [sig, sig]);
 }).add;
 
-SynthDef(\leSine, { |out = 0, freq = 220, dur = 4, amp = 1, gate = 1, fadeIn = 0.01|
+SynthDef(\leSine, { |out = 0, freq = 220, dur = 4, amp = 1, gate = 1, fadeIn = 0.01, fadeOut = 0|
 	var db = \envDb.ir(-60 ! 8), dt = \envDt.ir(0.01 ! 7), cv = \envCurve.ir(0);
 	var gc = \glissCents.ir(0 ! 8), gt = \glissDt.ir(0.01 ! 7);
 	var lvl = EnvGen.kr(Env(db, dt, cv)).dbamp;
@@ -177,9 +177,12 @@ SynthDef(\leSine, { |out = 0, freq = 220, dur = 4, amp = 1, gate = 1, fadeIn = 0
 	// segment then creeps the rest of the way over the whole note (−2.8 dB at 0.05 s, −0.02 at 2.5 s with a 2 ms first segment). So the guard
 	// keeps its proven 10 ms sine rise and its 30 ms fall, and THE FADE IS ITS OWN LINE IN DECIBELS from −60, multiplied in.
 	var rise = Line.kr(-60, 0, fadeIn.max(0.002)).dbamp;
+	// fadeOut (the Switch~ piece's §125, 2026-11-09 — "a 2-second fade ending at 96.6 in all parts"): a fall LINEAR IN DECIBELS to −60 over the last
+	// fadeOut seconds; 0 = none (every earlier score). A flat first segment lands exactly (§121's creep was a short or dB-shaped FIRST segment)
+	var fall = EnvGen.kr(Env([0, 0, -60], [(dur - fadeOut).max(0.01), fadeOut.max(0.001)], \lin)).dbamp;
 	var guard = EnvGen.kr(Env([0, 1, 1, 0], [0.01, (dur - 0.04).max(0.01), 0.03], \sin), doneAction: 2);
 	var let = EnvGen.kr(Env.asr(0, 1, 0.05), gate, doneAction: 2);   // gate 0 = it lets go in 50 ms (sine.scd sineStop)
-	var sig = SinOsc.ar(freq * (cents / 100).midiratio) * amp * lvl * guard * rise * let;
+	var sig = SinOsc.ar(freq * (cents / 100).midiratio) * amp * lvl * guard * rise * fall * let;
 	Out.ar(out, [sig, sig]);
 }).add;
 
