@@ -81,7 +81,7 @@
             const nm = name || this._lastMaterial || (this.materials[0] && this.materials[0].name);
             if (!nm) { this.say('no materials in the fund\'s index yet — tools/materials_index.js writes it'); return null; }
             const row = this.materialRow(nm), t = r3(t0 == null ? h.getTimeAtPlayhead() : Math.max(0, +t0 || 0)), M = this.MODELS.elecMaterial;
-            const len = Math.min(30, row ? Math.max(1, row.seconds) : 30);
+            const len = row ? Math.max(1, row.seconds) : 30;   // THE WHOLE FILE (his word 2026-11-09, the piece's §113 — the DAW's way); the edges trim it. 30 s only for a name not in the index
             const z = h.createZone({ layer: layer == null ? h.activeLane : layer, startTime: t, endTime: r3(t + len), midiModel: 'elecMaterial', color: M.color, opacity: 0.3, yOffset: BRICK_Y, zoneHeight: BRICK_H, player: '', instrument: '' });
             z.elec = Object.assign({ name: nm, offsetMs: 0, level: { mode: 'flat', mark: 'mf' } }, this.materialDefaults());
             z._mat = { s: z.startTime, e: z.endTime };
