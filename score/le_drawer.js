@@ -73,16 +73,28 @@
             a.addEventListener('ended', () => { this.drawerTick(); this._drawer.now.textContent = ''; });
             a.addEventListener('error', () => this.say('the drawer could not read ' + (this._playingRow ? this._playingRow.row.file : 'the file') + ' — is /fund/ served?'));
             this._audio = a;
-            // the lanes take a drop
+            // THE DROP (rewritten 2026-11-09 after his first try, the piece's §109: "the drag doesn't land on the lane"): ONE listener on the
+            // lanes' container, not one per lane — the lane is found from the cursor's Y against the lanes' boxes, so whatever element
+            // sits under the cursor (an svg, an overlay, a brick) the drop lands; and the drag is known by a flag set at dragstart, never
+            // by dataTransfer.types, which Chrome does not always expose during dragover.
+            // THE LANES EXIST ONLY AFTER THE HOST'S init — the attach line runs before it (so a loaded score draws with its labels), and
+            // h.lanes is undefined here. The first build read its length, threw inside attach's try, and nothing after it was wired: the
+            // drawer worked, the drop did not (his first try, §109). So the wiring waits for the lanes.
+            const wire = () => {
+            if (!h.lanes || !h.lanes.length || !h.lanes[0]) { setTimeout(wire, 150); return; }
             const n = Math.min(h.lanes.length, o.lanes || h.lanes.length);
-            for (let i = 0; i < n; i++) {
-                const lane = h.lanes[i]; if (!lane) continue;
-                lane.addEventListener('dragover', (e) => { if (!this.drawerDragged(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; if (this._dropLane !== lane) { if (this._dropLane) this._dropLane.classList.remove('leDropHere'); this._dropLane = lane; lane.classList.add('leDropHere'); } });
-                lane.addEventListener('dragleave', (e) => { if (this._dropLane === lane && !lane.contains(e.relatedTarget)) { lane.classList.remove('leDropHere'); this._dropLane = null; } });
-                lane.addEventListener('drop', (e) => { if (!this.drawerDragged(e)) return; e.preventDefault(); lane.classList.remove('leDropHere'); this._dropLane = null; this.drawerDrop(e, i); });
-            }
+            const box = (h.lanes[0] && h.lanes[0].parentElement) || document.getElementById('laneContainer') || document.body;
+            const laneAt = (y) => { for (let i = 0; i < n; i++) { const el2 = h.lanes[i]; if (!el2) continue; const r = el2.getBoundingClientRect(); if (y >= r.top && y < r.bottom && r.height > 0) return i; } return -1; };
+            const mark = (i) => { const lane = i >= 0 ? h.lanes[i] : null; if (this._dropLane !== lane) { if (this._dropLane) this._dropLane.classList.remove('leDropHere'); this._dropLane = lane; if (lane) lane.classList.add('leDropHere'); } };
+            box.addEventListener('dragover', (e) => { if (!this._dragName && !this.drawerDragged(e)) return; const i = laneAt(e.clientY); mark(i); if (i < 0) return; e.preventDefault(); try { e.dataTransfer.dropEffect = 'copy'; } catch (err) { /* read-only in some states */ } });
+            box.addEventListener('dragleave', (e) => { if (!box.contains(e.relatedTarget)) mark(-1); });
+            box.addEventListener('drop', (e) => { const name = this._dragName || (e.dataTransfer && e.dataTransfer.getData('text/x-le-material')) || ''; const i = laneAt(e.clientY); mark(-1); if (!name || i < 0) return; e.preventDefault(); e.stopPropagation(); this.drawerDrop(e, i, name); });
+            // a drop anywhere else is swallowed, so the browser never opens the "file" (and the drag ends cleanly)
+            document.addEventListener('dragover', (e) => { if (this._dragName) e.preventDefault(); });
+            document.addEventListener('drop', (e) => { if (this._dragName) { e.preventDefault(); this._dragName = null; mark(-1); } });
+            };
+            wire();
             window.addEventListener('resize', () => { if (this._drawer.root.classList.contains('open')) this.drawerFill(); });
-            if (!this.materials.length) setTimeout(() => this.drawerFill(), 800);
         },
         drawerDragged(e) { const t = e.dataTransfer && e.dataTransfer.types; return !!(t && Array.from(t).includes('text/x-le-material')); },
         drawerToggle(open) {
@@ -113,8 +125,8 @@
                 this.drawerWave(row._le);
                 cv.addEventListener('click', (e) => { const r = cv.getBoundingClientRect(); this.drawerPlay(row, Math.max(0, Math.min(1, (e.clientX - r.left) / r.width))); });
                 pb.addEventListener('click', (e) => { e.stopPropagation(); this.drawerPlay(row, 0); });
-                row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-le-material', m.name); e.dataTransfer.setData('text/plain', m.name); e.dataTransfer.effectAllowed = 'copy'; row.classList.add('dragging'); });
-                row.addEventListener('dragend', () => { row.classList.remove('dragging'); if (this._dropLane) { this._dropLane.classList.remove('leDropHere'); this._dropLane = null; } });
+                row.addEventListener('dragstart', (e) => { this._dragName = m.name; try { e.dataTransfer.setData('text/x-le-material', m.name); e.dataTransfer.setData('text/plain', m.name); e.dataTransfer.effectAllowed = 'copy'; } catch (err) { /* the flag carries the name */ } row.classList.add('dragging'); this.say('drag ' + m.name + ' onto a lane…'); });
+                row.addEventListener('dragend', () => { row.classList.remove('dragging'); this._dragName = null; if (this._dropLane) { this._dropLane.classList.remove('leDropHere'); this._dropLane = null; } });
                 d.rows.appendChild(row);
                 if (this._playingRow && this._playingRow.row.name === m.name) { this._playingRow = row._le; row.classList.add('playing'); }
             }
@@ -151,8 +163,9 @@
             this._drawer.now.textContent = (a.paused ? '' : '▶ ') + le.row.name + ' · ' + mmss(a.currentTime) + ' / ' + mmss(d);
         },
         // a row dropped on lane i: a material brick at the drop's time, selected
-        drawerDrop(e, layer) {
-            const h = this.host, name = e.dataTransfer.getData('text/x-le-material');
+        drawerDrop(e, layer, name) {
+            const h = this.host; name = name || (e.dataTransfer && e.dataTransfer.getData('text/x-le-material')) || this._dragName;
+            this._dragName = null;
             if (!name || !this.materialAdd) return;
             const t = Math.max(0, h.clientXToTime(e.clientX));
             if (h.pushUndoState) h.pushUndoState();
