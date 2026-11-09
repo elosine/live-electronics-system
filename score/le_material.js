@@ -226,8 +226,15 @@
             const fades = el('span', { style: 'display:inline-flex;align-items:center;gap:4px;font-size:11px' }, [el('span', { textContent: 'in', style: 'font-size:10px;color:#888' }), fin, el('span', { textContent: 'out', style: 'font-size:10px;color:#888' }), fout, el('span', { textContent: 'ms', style: 'font-size:10px;color:#888' })]);
             sec.appendChild(rowEl('Fades', fades));
             const gain = el('input', { type: 'number', value: String(r1(+e.gainDb || 0)), step: '0.5', min: '-60', max: '24', style: 'width:64px', title: 'a plain trim in dB; 0 = the file as mastered' });
-            gain.addEventListener('change', () => commit(() => { e.gainDb = Math.max(-60, Math.min(24, r1(+gain.value || 0))); }));
-            sec.appendChild(rowEl('Trim (dB)', gain));
+            // TRIM TOGETHER (his word 2026-11-09, the piece's §121 — "an expedient way to adjust the levels of the sound files … in the card itself …
+            // multi-select and then adjust the volume"): SHIFT+click gathers bricks; a trim typed here lands on EVERY selected material brick
+            gain.addEventListener('change', () => commit(() => {
+                const v = Math.max(-60, Math.min(24, r1(+gain.value || 0))), sel = (h.selectedObjects || []).filter((o) => o && o.midiModel === 'elecMaterial' && o.elec);
+                if (sel.length > 1) { for (const o of sel) { o.elec.gainDb = v; if (o !== zone && o._els) h.renderZone(o); } this.say('trim ' + (v > 0 ? '+' : '') + v + ' dB on ' + sel.length + ' material bricks'); }
+                else e.gainDb = v;
+            }));
+            const selN = (h.selectedObjects || []).filter((o) => o && o.midiModel === 'elecMaterial').length;
+            sec.appendChild(rowEl('Trim (dB)', selN > 1 ? el('span', { style: 'display:inline-flex;gap:6px;align-items:center' }, [gain, el('span', { textContent: '→ all ' + selN + ' selected', style: 'font-size:10px;color:#888' })]) : gain));
             // the level
             const marks = (value, fn) => { const s = el('select'); for (const k of MARKS) s.appendChild(el('option', { value: k, textContent: k, selected: k === String(value) })); s.addEventListener('change', () => { s.blur(); commit(() => fn(s.value)); }); return s; };
             const mode = el('select', { title: 'the level over the brick — mf is the file as mastered; a curve is read where the brick stands' });

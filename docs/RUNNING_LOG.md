@@ -1220,3 +1220,17 @@ segment; 0.01 unless said) · `fadeInMs` on `/le/sine` (sine.scd `sineSpec` → 
 (`score/le_sine.js`: sent when set; 15 ms for a start inside the brick; the card's `Fade in (ms)` row). Every score without it sounds as before.
 `sine_test` (NRT) · `sine_page_test` · `page_test` PASS. NOT CLAIMED: the living run (the piece's engine restarts). `\leSineTrack` (track.scd) has
 its own guard and ignores the argument — a tracked sine still rises in its own time (NITS if he wants it there).
+
+## §78. THE SINE'S FADE, MADE RIGHT — a Line in decibels beside the guard; what a control-rate Env does with a short or dB-shaped first segment (2026-11-09, Fable, in the Switch~ piece)
+
+**What prompted it.** §77's fade was heard: *"still quite abrupt"* — a sine-shaped AMPLITUDE rise is at −7 dB a quarter of the way in. Two
+rewrites of the guard Env (linear in dB with `.dbamp`; exponential from 0.001) failed `sine_test`'s level checks, and an NRT probe showed why:
+**an EnvGen.kr segment that is very short or shaped from near zero does not land on its end level, and the next segment creeps from where the
+envelope stands to its own end** — a "flat" 1 → 1 segment became a rise over the whole note (−7.4 dB at 0.05 s, −0.3 at 2.5 s). Even the
+original 10 ms `\\sin` guard carried a residue (−0.36 dB at 0.05 s, 0 by 2.5 s) inside the test's tolerance.
+
+**The fix (`sc/synths.scd` `\\leSine`):** the guard EXACTLY as before (10 ms sine rise · 30 ms fall, both proven), and the fade as its own
+`Line.kr(-60, 0, fadeIn).dbamp` multiplied in — linear in decibels, an even swell to the ear. Measured in NRT: fadeIn 1.0 → −42.4 dB at 0.25 s ·
+−21.3 at 0.6 s · 0.0 at 2.5 s; the steady level exact (−32.64 vs the formula's −32.64). `sine_test` PASS. **A rule for this engine's envelopes:**
+no control-rate Env segment under ~10 ms that must land, and no dB-shaped segment from near silence inside a multi-segment Env — a separate
+Line in dB does that job. NITS: the guard's 0.3 dB residue (a 10 ms kr rise), harmless, could become a Line too.

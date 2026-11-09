@@ -171,9 +171,15 @@ SynthDef(\leSine, { |out = 0, freq = 220, dur = 4, amp = 1, gate = 1, fadeIn = 0
 	var cents = EnvGen.ar(Env(gc, gt, 0));
 	// fadeIn (the Switch~ piece's §119, 2026-11-09 — "the sine is still popping in"): the rise FROM SILENCE, 10 ms unless the message says
 	// (fadeInMs); the level line alone cannot start under ppp, so a soft entry needs this
-	var guard = EnvGen.kr(Env([0, 1, 1, 0], [fadeIn.max(0.002), (dur - fadeIn - 0.03).max(0.01), 0.03], \sin), doneAction: 2);
+	// the rise is LINEAR IN DECIBELS from −60 dB (his ear, the Switch~ piece's §121: a \sin rise in amplitude is at −7 dB a quarter of the way in — "still
+	// quite abrupt"); the fall the same way over 30 ms
+	// MEASURED (the Switch~ piece's §121): a control-rate Env whose first segment is short or shaped in dB does not reach its level — the next
+	// segment then creeps the rest of the way over the whole note (−2.8 dB at 0.05 s, −0.02 at 2.5 s with a 2 ms first segment). So the guard
+	// keeps its proven 10 ms sine rise and its 30 ms fall, and THE FADE IS ITS OWN LINE IN DECIBELS from −60, multiplied in.
+	var rise = Line.kr(-60, 0, fadeIn.max(0.002)).dbamp;
+	var guard = EnvGen.kr(Env([0, 1, 1, 0], [0.01, (dur - 0.04).max(0.01), 0.03], \sin), doneAction: 2);
 	var let = EnvGen.kr(Env.asr(0, 1, 0.05), gate, doneAction: 2);   // gate 0 = it lets go in 50 ms (sine.scd sineStop)
-	var sig = SinOsc.ar(freq * (cents / 100).midiratio) * amp * lvl * guard * let;
+	var sig = SinOsc.ar(freq * (cents / 100).midiratio) * amp * lvl * guard * rise * let;
 	Out.ar(out, [sig, sig]);
 }).add;
 
