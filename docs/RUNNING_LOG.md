@@ -1189,3 +1189,24 @@ which needs the server's byte-range answer (the Switch~ piece's server had it si
 **Proven ONCE on the piece's throwaway (its §108):** 57 rows under five kinds · the canvases inked · the fund's first file by range → 206 ·
 a drop-call places a brick on an electronics lane with a 10 020-character wave path · the piece's mute gates it. `tools/page_test.js` PASS.
 **NOT CLAIMED:** the drag gesture and the sound of the preview (no hands, no autoplay in the AI's pane); the composer's ear and eye.
+
+## §76. THE MATERIAL'S FIRST LIVE RUN — silent: the cue's completion fires before the read; VDiskIn at the file's rate (2026-11-09, Fable, in the Switch~ piece)
+
+**What prompted it.** The Switch~ piece's composer, the first time a material brick played through a living engine (its RUNNING_LOG §111):
+*"still cant hear"* — the engine window saying the material had started and been let go. The rack's return read exactly −150 while the
+`leMaterial2` node stood in grpFx before the master; the line-up tone reached the return at −18; the server opened and read the file; the
+same def driven by hand with the engine's arguments SOUNDED. What differed: by hand the read was waited for.
+
+**The cause.** `Buffer.cueSoundFile(server, path, startFrame, numChannels, bufferSize, completionMessage)` (SC 3.14, `Buffer.sc` 164):
+`alloc(…, { buffer.cueSoundFileMsg(path, startFrame, completionMessage) })` — a completion FUNCTION is evaluated when the `/b_read` message
+is built, before the read. `materialPlay` sent its `s_new` inside that function; the synth streamed an empty buffer. Silent, and nothing
+said so: the server's complaints never reach a piece's engine window (the piece's `elec.js` shows `LE_` lines only — fixed there).
+
+**The fix (`sc/material.scd`):** `Buffer.alloc` with `readMsg(path, frame, cueFrames, 0, true)` as its completion, then an `OSCFunc` on
+`/done` matching `['/b_read', bufnum]`, one shot, that sends the synth's bundle (the lead less the time taken, as before). **And the rate:**
+the piece's fund is 44.1 kHz, the engine runs at Reaper's 48 kHz; `DiskIn` plays at the server's rate (8.8 % fast, 147 cents sharp) —
+`VDiskIn.ar(nCh, buf, rate, 0)`, `rate` = file sr / server sr, passed at play; 1 = as before. `material_test.scd` PASS (NRT: the def with
+VDiskIn at rate 1). **NOT CLAIMED:** the living run — the piece's engine restarts and the composer plays.
+
+**For the record — a rule for every DiskIn/VDiskIn path in this engine:** start the synth on the READ's /done, never in the cue's completion
+function; and pass the file's rate.

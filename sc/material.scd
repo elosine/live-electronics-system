@@ -31,12 +31,14 @@
 ~le[\materialDefs] = { |self|
 	if(self[\materialDefObjs].isNil) {
 		self[\materialDefObjs] = [1, 2].collect({ |nCh|
-			SynthDef(("leMaterial" ++ nCh).asSymbol, { |out = 0, buf = 0, amp = 1, dur = 10, fadeIn = 0.03, fadeOut = 0.03, gate = 1|
+			SynthDef(("leMaterial" ++ nCh).asSymbol, { |out = 0, buf = 0, amp = 1, dur = 10, fadeIn = 0.03, fadeOut = 0.03, gate = 1, rate = 1|
 				var db = \envDb.ir(0 ! 16), dt = \envDt.ir(0.01 ! 15), cv = \envCurve.ir(0);
 				var lvl = EnvGen.kr(Env(db, dt, cv)).dbamp;
 				var fades = EnvGen.kr(Env([0, 1, 1, 0], [fadeIn.max(0.002), (dur - fadeIn - fadeOut).max(0.001), fadeOut.max(0.002)], \sin), doneAction: 2);
 				var let = EnvGen.kr(Env.asr(0, 1, 0.03), gate, doneAction: 2);
-				var sig = DiskIn.ar(nCh, buf, 0) * amp * lvl * fades * let;
+				// VDiskIn at `rate` = the file's rate over the server's (the Switch~ piece's §111): the fund is 44.1 kHz, the engine runs at Reaper's
+				// 48 kHz — DiskIn would play it 8.8 % fast and 147 cents sharp. rate 1 = the file's own rate (the test's case).
+				var sig = VDiskIn.ar(nCh, buf, rate, 0) * amp * lvl * fades * let;
 				Out.ar(out, if(nCh == 1) { [sig, sig] } { sig });
 			})
 		});
@@ -141,11 +143,15 @@
 			def = ("leMaterial" ++ row[\channels]).asSymbol;
 			key = (id ++ "·" ++ name ++ "·" ++ t0.round(0.001)).asSymbol;
 			node = Synth.basicNew(def, s);
-			// the file is cued at the offset (a quarter-million frames read ahead); the synth starts when the cue is in, the lead less the time it took
-			buf = Buffer.cueSoundFile(s, row[\path], frame, row[\channels], self[\materialDefaults][\cueFrames], { |b|
+			// the file is cued at the offset (a quarter-million frames read ahead); the synth starts when the cue is IN, the lead less the time it took.
+			// THE FIRST LIVE RUN (the Switch~ piece's §111, 2026-11-09): Buffer.cueSoundFile's completion FUNCTION is evaluated when the read
+			// message is BUILT — before the read — so a synth started inside it streamed an empty buffer and was silent (the synth stood in the
+			// tree, the return read −150). Now the read's own /done is waited for (an OSCFunc on this buffer's number), then the synth starts.
+			buf = Buffer.alloc(s, self[\materialDefaults][\cueFrames], row[\channels], { |b| b.readMsg(row[\path], frame, self[\materialDefaults][\cueFrames], 0, true) });
+			OSCFunc({ |msg|
 				var wait = (at - (SystemClock.seconds - t0)).max(0);
-				s.sendBundle(if(wait > 0.005) { wait }, node.newMsg(self[\grpFx], [\out, self[\busMaster].index, \buf, b.bufnum] ++ sp[\args], \addToTail));
-			});
+				s.sendBundle(if(wait > 0.005) { wait }, node.newMsg(self[\grpFx], [\out, self[\busMaster].index, \buf, buf.bufnum, \rate, (row[\sr] / (self[\sr] ? s.sampleRate ? row[\sr]))] ++ sp[\args], \addToTail));
+			}, '/done', s.addr, argTemplate: ['/b_read', buf.bufnum]).oneShot;
 			node.onFree({ buf.close; buf.free; if(self[\materialNodes].notNil) { self[\materialNodes].removeAt(key) } });
 			self[\materialNodes][key] = (node: node, buf: buf, id: id, name: name, until: t0 + at + sp[\lenS]);
 			self.say("LE_INFO", "material · " ++ name ++ " · in " ++ (at * 1000).round(1).asInteger ++ " ms · " ++ sp[\said]);
