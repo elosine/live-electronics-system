@@ -20,6 +20,9 @@
 //   the offset moved on, the length cut, a short fade in. The score stopped:   /le/materialstop .
 //   LAYERS: a brick may sit on any lane; bricks overlap freely, on one lane or across lanes — the engine plays them all, through its
 //   master bus (the glue and the limiter), which is the rough mix while composing (§102). The bounce is the plan's step 6.
+//   THE WAVEFORM (the piece's 1a.8, 2026-11-09): a rough shape per material — bank/materials_peaks.json (peaksUrl), the index tool's
+//   PEAK_BINS loudest-sample slices 0 … 255 — drawn inside the brick for the stretch it plays (offset → offset + length). The drawer
+//   (le_drawer.js) draws the same data whole and places a brick by a drop: materialAdd(name, layer, t).
 (function () {
     'use strict';
     const L = window.LEObjects;
@@ -43,6 +46,7 @@
         const first = !this.host, r = attach.apply(this, arguments);
         if (first) {
             this.materialLoad();
+            this.peaksLoad();
             if (host && typeof host.stopPlay === 'function') {
                 const stop = host.stopPlay;
                 host.stopPlay = function () { const out = stop.apply(this, arguments); L.materialStop(); return out; };
@@ -58,16 +62,23 @@
             return fetch(url, { cache: 'no-store' }).then((r) => r.json()).then((d) => { this.materials = Array.isArray(d.materials) ? d.materials : []; if (this.host) this.redraw(); return this.materials.length; }).catch(() => 0);
         },
         materialRow(name) { return this.materials.find((m) => m.name === name) || null; },
+        // the peaks (the rough waveform): { name: { p: [0 … 255 × bins] } }; absent, nothing is drawn
+        peaks: null,
+        peaksLoad() {
+            const url = (this.opts && this.opts.peaksUrl) || '/bank/materials_peaks.json';
+            return fetch(url, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((d) => { this.peaks = d && d.peaks ? d.peaks : null; if (this.host) this.redraw(); if (this._drawer && this._drawer.root.classList.contains('open')) this.drawerFill(); return this.peaks ? Object.keys(this.peaks).length : 0; }).catch(() => 0);
+        },
+        peaksOf(name) { const q = this.peaks && this.peaks[name]; return q && Array.isArray(q.p) ? q.p : null; },
         materialDefaults() { return { fadeInMs: 30, fadeOutMs: 30, gainDb: 0 }; },
 
         // ---- the brick ------------------------------------------------------------------------------------------------------
-        materialAdd(name) {
+        materialAdd(name, layer, t0) {   // (name) by the key: the active lane, the playhead · (name, layer, t) by the drawer's drop
             const h = this.host; if (!h) return null;
             const nm = name || this._lastMaterial || (this.materials[0] && this.materials[0].name);
             if (!nm) { this.say('no materials in the fund\'s index yet — tools/materials_index.js writes it'); return null; }
-            const row = this.materialRow(nm), t = r3(h.getTimeAtPlayhead()), M = this.MODELS.elecMaterial;
+            const row = this.materialRow(nm), t = r3(t0 == null ? h.getTimeAtPlayhead() : Math.max(0, +t0 || 0)), M = this.MODELS.elecMaterial;
             const len = Math.min(30, row ? Math.max(1, row.seconds) : 30);
-            const z = h.createZone({ layer: h.activeLane, startTime: t, endTime: r3(t + len), midiModel: 'elecMaterial', color: M.color, opacity: 0.3, yOffset: M.yOffset, zoneHeight: 0.22, player: '', instrument: '' });
+            const z = h.createZone({ layer: layer == null ? h.activeLane : layer, startTime: t, endTime: r3(t + len), midiModel: 'elecMaterial', color: M.color, opacity: 0.3, yOffset: M.yOffset, zoneHeight: 0.22, player: '', instrument: '' });
             z.elec = Object.assign({ name: nm, offsetMs: 0, level: { mode: 'flat', mark: 'mf' } }, this.materialDefaults());
             z._mat = { s: z.startTime, e: z.endTime };
             this._lastMaterial = nm;
@@ -104,11 +115,38 @@
                 if (zone.endTime - zone.startTime > rem + 1e-3) { zone.endTime = r3(zone.startTime + rem); setTimeout(() => { if (zone._els) this.host.renderZone(zone); }, 0); }   // never past the file's end
             }
             zone._mat = { s: zone.startTime, e: zone.endTime };
+            this.materialWave(zone, row);
             if (label) {
                 const lv = e.level || {}, lvText = lv.mode === 'hairpin' ? (lv.mark || 'mf') + ' → ' + (lv.to || 'mf') : lv.mode && lv.mode !== 'flat' ? 'curve ' + (lv.mode === 'lane' ? 'lane' : lv.mode) : (lv.mark && lv.mark !== 'mf' ? lv.mark : '');
                 label.textContent = this.MODELS.elecMaterial.sign + ' ' + (e.label ? String(e.label).slice(0, 48) + ' · ' : '') + (e.name || '?') + ' · from ' + mmss((+e.offsetMs || 0) / 1000) + ' · ' + mmss(zone.endTime - zone.startTime)
                     + (lvText ? ' · ' + lvText : '') + (+e.gainDb ? ' · ' + (+e.gainDb > 0 ? '+' : '') + r1(+e.gainDb) + ' dB' : '') + (row ? '' : ' — NOT IN THE FUND');
             }
+        },
+
+        // the rough waveform inside the brick: the peaks of the stretch it plays, mirrored round the brick's middle, behind the label
+        materialWave(zone, row) {
+            const g = zone._els && zone._els.group; if (!g) return;
+            const old = g.querySelector('path.leWave'); if (old) old.remove();
+            const p = this.peaksOf(zone.elec && zone.elec.name); if (!p || !row || !(row.seconds > 0)) return;
+            const rect = Array.from(g.querySelectorAll('rect')).find((r) => r.getAttribute('fill') === this.MODELS.elecMaterial.color); if (!rect) return;
+            const x = +rect.getAttribute('x'), y = +rect.getAttribute('y'), w = +rect.getAttribute('width'), hh = +rect.getAttribute('height');
+            if (!(w > 2) || !(hh > 2)) return;
+            const f0 = Math.max(0, Math.min(1, ((+zone.elec.offsetMs || 0) / 1000) / row.seconds)), f1 = Math.max(f0, Math.min(1, f0 + (zone.endTime - zone.startTime) / row.seconds));
+            const n = Math.max(2, Math.min(600, Math.round(w / 2))), mid = y + hh / 2, amp = hh / 2 - 1, bins = p.length;
+            const top = [], bot = [];
+            for (let i = 0; i <= n; i++) {
+                const fa = f0 + (f1 - f0) * (i / n), fb = f0 + (f1 - f0) * ((i + 1) / n);
+                const b0 = Math.min(bins - 1, Math.floor(fa * bins)), b1 = Math.max(b0 + 1, Math.min(bins, Math.ceil(fb * bins)));
+                let v = 0; for (let b = b0; b < b1; b++) if (p[b] > v) v = p[b];
+                const px = r2(x + (w * i) / n), dy = Math.max(0.4, (v / 255) * amp);
+                top.push(px + ',' + r2(mid - dy)); bot.push(px + ',' + r2(mid + dy));
+            }
+            const d = 'M' + top.join(' L') + ' L' + bot.reverse().join(' L') + ' Z';
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('class', 'leWave'); path.setAttribute('d', d);
+            path.setAttribute('fill', '#4a2f27'); path.setAttribute('fill-opacity', '0.35'); path.setAttribute('stroke', 'none');
+            path.style.pointerEvents = 'none';
+            rect.parentNode.insertBefore(path, rect.nextSibling);
         },
 
         // ---- the level ------------------------------------------------------------------------------------------------------

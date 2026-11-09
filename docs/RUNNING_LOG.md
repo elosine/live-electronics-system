@@ -1160,3 +1160,32 @@ the two messages.
 from a 440/880 file at 2.5 s —, f = +4.0 dB, the edges −42 / −38 dB, it ends, a line p → ff lifts the end 14 dB). **Measured:** an NRT
 `s_new` with a nested array argument renders NOTHING — the arrays go through `asOSCArgArray` (`$[ … $]`), as bus_test does.
 **SEAMS:** row 2f, two message rows. **NOT CLAIMED:** a living engine; the composer's ear.
+
+## §75. THE MATERIALS DRAWER — the fund seen and heard, a brick by a drop (2026-11-09, Fable, in the Switch~ piece)
+
+**What prompted it.** The Switch~ piece's composer, his first pass in its composer score (its RUNNING_LOG §106): *"some sort of easy access
+drawer or panel … full score width … drop down from the top … collapsible … drag the materials onto the lane … some rough waveform … in the
+drawer preview, I can hear the materials … click to a different part of the preview."* His picks in the talk: the drawer from the top; the
+sound straight from the file; the waveform computed once.
+
+**What is the engine's, and why.** A fund of long mastered files, an index of them, a drawer that shows and plays them and a drop that
+places a brick — none of it knows a piece. So: `score/le_drawer.js` (new), a mixin on LEObjects after `le_material.js`, wrapping `attach` as the
+brick does; it is given three values at attach — `peaksUrl` (the waveform file) · `fundUrl` (where the piece's server serves the fund's root,
+with byte ranges) · `drawerButton` (a button of the piece's bar; absent, a tab of its own). The brick (`le_material.js`) gained
+`materialAdd(name, layer, t)` (the key's call unchanged), `peaksLoad` · `peaksOf`, and `materialWave` — the peaks of the stretch it plays, drawn
+inside the brick at every render (a closed path mirrored round the middle, behind the label, after the main rect).
+
+**The waveform's data is the PIECE's tool's** (its `tools/materials_index.js`, which also writes the index the engine's `LE_MATERIALS` reads):
+1200 slices per file, the loudest absolute sample of every channel, 0 … 255 — the engine reads the file, never the audio. A piece without
+the file sees rows with "no waveform yet" and bricks without a shape; nothing breaks.
+
+**The player.** ONE `Audio` element; a click at x on a row's canvas seeks to x/width of the duration and plays — the browser's own seeking,
+which needs the server's byte-range answer (the Switch~ piece's server had it since the film, 2026-10-10). Not the engine: a preview through
+`/le/material` (the panel's "hear 6 s") needs the engine up and a message per seek; the file seeks for free.
+
+**The drop.** HTML5 drag: a row sets `text/x-le-material`; the host's lanes 0 … lanes−1 take `dragover` / `drop`; the time is the host's
+`clientXToTime(clientX)`, the layer the lane's index; the brick is selected after. A lane under the drag is outlined in the brick's brown.
+
+**Proven ONCE on the piece's throwaway (its §108):** 57 rows under five kinds · the canvases inked · the fund's first file by range → 206 ·
+a drop-call places a brick on an electronics lane with a 10 020-character wave path · the piece's mute gates it. `tools/page_test.js` PASS.
+**NOT CLAIMED:** the drag gesture and the sound of the preview (no hands, no autoplay in the AI's pane); the composer's ear and eye.
