@@ -1210,3 +1210,13 @@ VDiskIn at rate 1). **NOT CLAIMED:** the living run — the piece's engine resta
 
 **For the record — a rule for every DiskIn/VDiskIn path in this engine:** start the synth on the READ's /done, never in the cue's completion
 function; and pass the file's rate.
+
+## §77. THE SINE'S RISE FROM SILENCE — `fadeIn` (2026-11-09, Fable, in the Switch~ piece)
+
+**What prompted it.** The Switch~ piece's composer on a sine entering under a long tone (its §118 · §119): *"the sine is still kind of popping
+in … can we do a more gradual fade in over a second?"* The brick's level line cannot begin under ppp (mark 0 is a sounding level), and
+`\leSine` rose in 10 ms, so no curve could make a soft entry. **Added:** `fadeIn` on `\leSine` (synths.scd — the guard envelope's first
+segment; 0.01 unless said) · `fadeInMs` on `/le/sine` (sine.scd `sineSpec` → `fadeIn`, `sineArgs`) · `elec.fadeInMs` on the sine brick
+(`score/le_sine.js`: sent when set; 15 ms for a start inside the brick; the card's `Fade in (ms)` row). Every score without it sounds as before.
+`sine_test` (NRT) · `sine_page_test` · `page_test` PASS. NOT CLAIMED: the living run (the piece's engine restarts). `\leSineTrack` (track.scd) has
+its own guard and ignores the argument — a tracked sine still rises in its own time (NITS if he wants it there).

@@ -164,12 +164,14 @@ SynthDef(\leSample, { |out = 0, buf = 0, amp = 1|
 	Out.ar(out, [sig, sig]);
 }).add;
 
-SynthDef(\leSine, { |out = 0, freq = 220, dur = 4, amp = 1, gate = 1|
+SynthDef(\leSine, { |out = 0, freq = 220, dur = 4, amp = 1, gate = 1, fadeIn = 0.01|
 	var db = \envDb.ir(-60 ! 8), dt = \envDt.ir(0.01 ! 7), cv = \envCurve.ir(0);
 	var gc = \glissCents.ir(0 ! 8), gt = \glissDt.ir(0.01 ! 7);
 	var lvl = EnvGen.kr(Env(db, dt, cv)).dbamp;
 	var cents = EnvGen.ar(Env(gc, gt, 0));
-	var guard = EnvGen.kr(Env([0, 1, 1, 0], [0.01, (dur - 0.04).max(0.01), 0.03], \sin), doneAction: 2);
+	// fadeIn (the Switch~ piece's §119, 2026-11-09 — "the sine is still popping in"): the rise FROM SILENCE, 10 ms unless the message says
+	// (fadeInMs); the level line alone cannot start under ppp, so a soft entry needs this
+	var guard = EnvGen.kr(Env([0, 1, 1, 0], [fadeIn.max(0.002), (dur - fadeIn - 0.03).max(0.01), 0.03], \sin), doneAction: 2);
 	var let = EnvGen.kr(Env.asr(0, 1, 0.05), gate, doneAction: 2);   // gate 0 = it lets go in 50 ms (sine.scd sineStop)
 	var sig = SinOsc.ar(freq * (cents / 100).midiratio) * amp * lvl * guard * let;
 	Out.ar(out, [sig, sig]);

@@ -186,6 +186,9 @@
             const lv = this.sineLevel(zone, start, zone.endTime), gl = from(this.sineGliss(e), f0);
             const m = { id: String(zone.id), lane: zone.layer, t: r3(start), dueMs: dueMs || 0, midi: Math.round((Number.isFinite(+e.midi) ? +e.midi : 57) * 10000) / 10000,
                 lengthMs: lenMs, level: wire(lv.pts, lenMs, (v) => String(r2(v))) };
+            // the rise from silence (the Switch~ piece's §119, 2026-11-09): the brick's fadeInMs when it has one (10 ms is the engine's own); a
+            // playhead that starts INSIDE the brick comes in over 15 ms — the sine is already meant to be sounding there
+            if (f0 > 1e-6) m.fadeInMs = 15; else if (Number.isFinite(+e.fadeInMs) && +e.fadeInMs > 0) m.fadeInMs = Math.max(2, Math.min(30000, Math.round(+e.fadeInMs)));
             const tr = this.sineTrack(e), fmtC = (v) => String(Math.round(v * 10) / 10);
             if (tr) {
                 // A WINDOW: the engine arms the sine and waits for the player. Its gliss begins again at each entry — the WHOLE line, over
@@ -341,6 +344,8 @@
             sec.appendChild(rowEl('Pitch', pair(pitch, tiny(Math.round(this.sineHz(e.midi) * 100) / 100 + ' Hz'))));
             // the length
             sec.appendChild(rowEl('Length (s)', num(r3(zone.endTime - zone.startTime), 0.1, (v) => { zone.endTime = r3(zone.startTime + Math.max(0.05, Math.min(600, v || 4))); })));
+            // the rise from silence (the Switch~ piece's §119): 10 ms is the engine's own; a soft entry is 500 … 2000
+            sec.appendChild(rowEl('Fade in (ms)', num(Math.round(+e.fadeInMs || 10), 10, (v) => { e.fadeInMs = Math.max(2, Math.min(30000, Math.round(v || 10))); })));
             // the gliss
             const kind = el('select');
             for (const [k, text] of GLISS) kind.appendChild(el('option', { value: k, textContent: text, selected: k === (g.kind || 'none') }));

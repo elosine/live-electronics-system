@@ -87,11 +87,12 @@
 	var gp = self.sinePoints(d[\gliss], lenMs, { |t| t.asString.asFloat.clip(-2400, 2400) }, 0.0);
 	var lv = self.sineLine(lp.collect({ |p| [p[0], self.sineGain(freq, p[1])] })), gl = self.sineLine(gp);
 	(freq: freq, midi: midi, dur: lenMs / 1000, levelPts: lp, glissPts: gp, envDb: lv[\v], envDt: lv[\dt],
-		glissCents: gl[\v], glissDt: gl[\dt], curve: (d[\levelCurve] ? 0).asString.asFloat.clip(-8, 8))
+		glissCents: gl[\v], glissDt: gl[\dt], curve: (d[\levelCurve] ? 0).asString.asFloat.clip(-8, 8),
+		fadeIn: ((d[\fadeInMs] ? 10).asString.asFloat / 1000).clip(0.002, 30))   // the rise from silence (the Switch~ piece's §119); 10 ms as it always was
 };
 
 ~le[\sineArgs] = { |self, sp|
-	[\freq, sp[\freq], \dur, sp[\dur], \envDb, sp[\envDb], \envDt, sp[\envDt], \envCurve, sp[\curve], \glissCents, sp[\glissCents], \glissDt, sp[\glissDt]]
+	[\freq, sp[\freq], \dur, sp[\dur], \envDb, sp[\envDb], \envDt, sp[\envDt], \envCurve, sp[\curve], \glissCents, sp[\glissCents], \glissDt, sp[\glissDt], \fadeIn, sp[\fadeIn] ? 0.01]
 };
 
 // a pitch as its name with its cents: 57.12 -> "A3 +12c"
