@@ -38,7 +38,11 @@
     const wire = (pts, lenMs) => { const p = pts.slice(0, 16); if (p.length === 1 || p.every((x) => x[1] === p[0][1])) return String(r2(p[0][1])); return p.map((x, i) => (i === p.length - 1 && x[0] >= 1 - 1e-6 ? 'end' : Math.round(x[0] * lenMs)) + ':' + r2(x[1])).join(','); };
     const markNum = (x) => { const i = MARKS.indexOf(String(x == null ? '' : x).trim()); if (i >= 0) return i; return Number.isFinite(+x) && String(x).trim() !== '' ? Math.max(-10, Math.min(7, +x)) : 4; };
 
-    L.MODELS.elecMaterial = { kind: 'material', sign: '▬', color: '#6D4C41', yOffset: 0.25, title: 'Material — a stretch of a file from the fund' };
+    L.MODELS.elecMaterial = { kind: 'material', sign: '▬', color: '#6D4C41', yOffset: 0.5, title: 'Material — a stretch of a file from the fund' };
+    // THE BRICK'S HEIGHT (his word 2026-11-09, the piece's §112: "make the electric bricks taller so I can see the waveform better … the full
+    // lane height"): nearly the whole lane, centred — a hair of lane above and below so the lane's border still reads. Enforced at every
+    // render (materialDecorate), so bricks saved smaller grow too.
+    const BRICK_H = 0.94, BRICK_Y = 0.5;
 
     // the index is read at attach; a stop reaches the engine (the host's stopPlay wrapped once, the sine's way)
     const attach = L.attach;
@@ -78,7 +82,7 @@
             if (!nm) { this.say('no materials in the fund\'s index yet — tools/materials_index.js writes it'); return null; }
             const row = this.materialRow(nm), t = r3(t0 == null ? h.getTimeAtPlayhead() : Math.max(0, +t0 || 0)), M = this.MODELS.elecMaterial;
             const len = Math.min(30, row ? Math.max(1, row.seconds) : 30);
-            const z = h.createZone({ layer: layer == null ? h.activeLane : layer, startTime: t, endTime: r3(t + len), midiModel: 'elecMaterial', color: M.color, opacity: 0.3, yOffset: M.yOffset, zoneHeight: 0.22, player: '', instrument: '' });
+            const z = h.createZone({ layer: layer == null ? h.activeLane : layer, startTime: t, endTime: r3(t + len), midiModel: 'elecMaterial', color: M.color, opacity: 0.3, yOffset: BRICK_Y, zoneHeight: BRICK_H, player: '', instrument: '' });
             z.elec = Object.assign({ name: nm, offsetMs: 0, level: { mode: 'flat', mark: 'mf' } }, this.materialDefaults());
             z._mat = { s: z.startTime, e: z.endTime };
             this._lastMaterial = nm;
@@ -94,7 +98,7 @@
             if (t <= z.startTime + 0.05 || t >= z.endTime - 0.05) { this.say('the playhead must stand inside the brick to split it'); return null; }
             h.pushUndoState();
             const e = z.elec, M = this.MODELS.elecMaterial;
-            const z2 = h.createZone({ layer: z.layer, startTime: t, endTime: z.endTime, midiModel: 'elecMaterial', color: M.color, opacity: z.opacity, yOffset: z.yOffset, zoneHeight: z.zoneHeight, player: '', instrument: '' });
+            const z2 = h.createZone({ layer: z.layer, startTime: t, endTime: z.endTime, midiModel: 'elecMaterial', color: M.color, opacity: z.opacity, yOffset: BRICK_Y, zoneHeight: BRICK_H, player: '', instrument: '' });
             z2.elec = JSON.parse(JSON.stringify(e));
             z2.elec.offsetMs = r1((+e.offsetMs || 0) + (t - z.startTime) * 1000);
             z2._mat = { s: z2.startTime, e: z2.endTime };
@@ -106,6 +110,7 @@
         // called from the host's renderZone (le_objects decorate): the rule of the edges, the clamp to the file, the label
         materialDecorate(zone, label) {
             const e = zone.elec, row = this.materialRow(e.name), p = zone._mat;
+            if (zone.zoneHeight !== BRICK_H || zone.yOffset !== BRICK_Y) { zone.zoneHeight = BRICK_H; zone.yOffset = BRICK_Y; setTimeout(() => { if (zone._els) this.host.renderZone(zone); }, 0); }   // a brick saved at the old size grows at its first render
             if (p) {
                 const ds = zone.startTime - p.s, de = zone.endTime - p.e;
                 if (Math.abs(ds) > 1e-6 && Math.abs(de) < 1e-6) e.offsetMs = Math.max(0, r1((+e.offsetMs || 0) + ds * 1000));   // the LEFT edge dragged: the sound stays where it was
